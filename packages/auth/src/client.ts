@@ -1,4 +1,4 @@
-import { adminClient, organizationClient } from "better-auth/client/plugins";
+import { adminClient, emailOTPClient, organizationClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { ac, roles } from "./permissions";
 
@@ -9,6 +9,7 @@ export function createPasAuthClient(baseURL: string) {
     plugins: [
       organizationClient({ ac, roles, dynamicAccessControl: { enabled: true } }),
       adminClient(),
+      emailOTPClient(),
     ],
   });
 }

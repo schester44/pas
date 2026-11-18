@@ -17,6 +17,7 @@ import type { CatalogRelease, ProductCatalog } from "../ports/product-catalog";
 import type { QuoteDocuments } from "../ports/quote-documents";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
+import { insuredPartiesOf, mailingAddressOf } from "../domain/insured";
 import { namedInsuredOf, quoteDocumentContext } from "./document-context";
 import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
 import { JOURNEY_EVENTS, type QuoteJourney } from "./quote-journey";
@@ -325,6 +326,11 @@ function issueRequest(
     effectiveDate: q.termStart.toString(),
     expirationDate: q.termEnd.toString(),
     insuredName: namedInsuredOf(quote),
+    insureds: insuredPartiesOf(
+      q.details?.namedInsureds ?? [],
+      q.riskData,
+      q.details?.mailingAddress ?? mailingAddressOf(q.riskData),
+    ),
     producer: { id: s.producer.userId, name: s.producer.name },
     currency: q.evaluation.total.currency,
     coverages,

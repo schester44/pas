@@ -12,3 +12,6 @@ export {
 export type { InvoiceDto, PaymentDto } from "./application/dto";
 export type { InvoiceRepository } from "./ports/invoice-repository";
 export type { BillingTimelineEntry, PolicyTimeline } from "./ports/policy-timeline";
+export { makeListInvoices, type ListInvoices } from "./application/list-invoices";
+export { makePayInvoice, type PayInvoice, type PayInvoiceResult } from "./application/pay-invoice";
+export type { CardMethod, PaymentGateway } from "./ports/payment-gateway";

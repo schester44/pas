@@ -23,6 +23,7 @@ import {
   ScrollText,
   Search,
   Settings,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { CommandPalette, modKey, useCommandPaletteShortcut } from "@/components/command-palette";
@@ -115,6 +116,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             {access.policies.read && (
               <Link to="/policies" className={navItemClassName}>
                 <ScrollText /> Policies
+              </Link>
+            )}
+            {access.policies.read && (
+              <Link to="/clients" className={navItemClassName}>
+                <Users /> Clients
               </Link>
             )}
           </NavSection>

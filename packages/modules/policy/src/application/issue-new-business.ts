@@ -14,6 +14,7 @@ import { categoryOf } from "../domain/policy-event";
 import { formatPolicyNumber } from "../domain/policy-number";
 import type { PolicyEventType, TimelineActor } from "../domain/policy-event";
 import type { InvoiceIssuer } from "../ports/invoice-issuer";
+import type { InsuredParty, PolicyParties } from "../ports/policy-parties";
 import type { PolicyRepository } from "../ports/policy-repository";
 
 type MoneyJson = { amount: string; currency: string };
@@ -29,6 +30,7 @@ export interface IssueNewBusinessInput {
   effectiveDate: string;
   expirationDate: string;
   insuredName: string;
+  insureds: InsuredParty[];
   producer: { id: string; name: string };
   currency: string;
   coverages: { coverage: string; name: string; exposure?: string; premium: MoneyJson }[];
@@ -64,6 +66,7 @@ export function makeIssueNewBusiness(deps: {
   outbox: Outbox;
   policies: PolicyRepository;
   invoices: InvoiceIssuer;
+  parties: PolicyParties;
   clock: Clock;
 }) {
   return async function issueNewBusiness(
@@ -171,6 +174,12 @@ export function makeIssueNewBusiness(deps: {
 
         await deps.policies.save(tx, policy);
         await deps.outbox.add(tx, policy.pullEvents());
+
+        await deps.parties.linkInsureds(tx, ctx, {
+          policyId: policy.id,
+          policyNumber: policy.number,
+          insureds: input.insureds,
+        });
       }
 
       return {

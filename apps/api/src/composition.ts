@@ -31,17 +31,47 @@ import {
 } from "@pas/form-library";
 import { PdfLibInspector, PrismaFormEditionRepository } from "@pas/form-library/infrastructure";
 import { systemClock, type TenantContext } from "@pas/kernel";
-import { makeApplyPayment, makeGetPolicyBilling, makeIssueInvoice } from "@pas/billing";
+import {
+  makeApplyPayment,
+  makeGetPolicyBilling,
+  makeIssueInvoice,
+  makeListInvoices,
+  makePayInvoice,
+} from "@pas/billing";
 import { PrismaInvoiceRepository } from "@pas/billing/infrastructure";
 import {
   makeAttachPolicyDocuments,
   makeGetPolicy,
   makeIssueNewBusiness,
+  makeListChangeRequests,
   makeListPolicies,
+  makeRequestPolicyChange,
   makeRecordPolicyEvent,
   type PolicyScope,
 } from "@pas/policy";
-import { PrismaPolicyRepository } from "@pas/policy/infrastructure";
+import { PrismaChangeRequestRepository, PrismaPolicyRepository } from "@pas/policy/infrastructure";
+import {
+  type BillingDirectory,
+  makeClaimClientPolicy,
+  makeClientInvoices,
+  makeGetClientPolicy,
+  makeGetClientProfile,
+  makeGetPolicyClients,
+  makeLinkPolicyInsureds,
+  makeListClientPolicies,
+  makeMergeClientAccounts,
+  makeRequestPolicyChange as makeRequestClientChange,
+  makeResendPortalInvite,
+  makeResolveClientScope,
+  makeSearchClientAccounts,
+} from "@pas/parties";
+import {
+  ConsoleMailer,
+  PrismaClientAccountRepository,
+  PrismaClientUserRepository,
+  PrismaPolicyPartyRepository,
+  PrismaProducerDirectory,
+} from "@pas/parties/infrastructure";
 import {
   makeCheckRating,
   makeGetRaterWorkbook,
@@ -91,6 +121,8 @@ import { createStorageFromEnv } from "@pas/storage";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import { env } from "./env";
+
+const party = (policyIds: readonly string[]) => ({ kind: "party" as const, policyIds });
 
 export function compose() {
   const logger = createLogger("api");
@@ -170,12 +202,26 @@ export function compose() {
   const recordPolicyEvent = makeRecordPolicyEvent({ policies, clock });
   const getPolicyBilling = makeGetPolicyBilling({ uow, invoices });
 
+  const clientAccounts = new PrismaClientAccountRepository();
+  const policyParties = new PrismaPolicyPartyRepository();
+  const clientUsers = new PrismaClientUserRepository();
+  const changeRequests = new PrismaChangeRequestRepository();
+  const cardGateway = new FakeCardGateway(clock);
+
+  const linkPolicyInsureds = makeLinkPolicyInsureds({
+    accounts: clientAccounts,
+    parties: policyParties,
+    outbox,
+    clock,
+  });
+
   const policy = {
     issueNewBusiness: makeIssueNewBusiness({
       uow,
       outbox,
       policies,
       invoices: { issue: issueInvoice },
+      parties: { linkInsureds: linkPolicyInsureds },
       clock,
     }),
     attachDocuments: makeAttachPolicyDocuments({ uow, policies, clock }),
@@ -189,6 +235,68 @@ export function compose() {
     timeline: { record: (tx, ctx, entry) => recordPolicyEvent(tx, ctx, entry) },
     clock,
   });
+
+  const listInvoices = makeListInvoices({ uow, invoices });
+  const payInvoice = makePayInvoice({ uow, invoices, gateway: cardGateway, applyPayment });
+  const listChangeRequests = makeListChangeRequests({ uow, policies, changeRequests });
+  const requestChange = makeRequestPolicyChange({ uow, outbox, policies, changeRequests, clock });
+  const partyRepos = { accounts: clientAccounts, parties: policyParties, users: clientUsers };
+
+  const policyDirectory = {
+    list: (ctx: TenantContext, policyIds: readonly string[]) =>
+      policy.list(ctx, party(policyIds), { limit: 500 }),
+    detail: (ctx: TenantContext, policyIds: readonly string[], id: string) =>
+      policy.get.detail(ctx, party(policyIds), { id }),
+    document: (
+      ctx: TenantContext,
+      policyIds: readonly string[],
+      input: { policyId: string; documentId: string },
+    ) => policy.get.document(ctx, party(policyIds), input),
+    changeRequests: (ctx: TenantContext, policyIds: readonly string[], policyId: string) =>
+      listChangeRequests(ctx, party(policyIds), { policyId }),
+    requestChange: (
+      ctx: TenantContext,
+      policyIds: readonly string[],
+      input: {
+        policyId: string;
+        kind: string;
+        details: string;
+        requester: { userId: string; name: string; email: string };
+      },
+    ) =>
+      requestChange(ctx, party(policyIds), {
+        ...input,
+        requester: { type: "client", ...input.requester },
+      }),
+  };
+
+  const billingDirectory = {
+    invoices: (ctx: TenantContext, policyIds: readonly string[]) =>
+      listInvoices.forPolicies(ctx, { policyIds }),
+    invoice: (ctx: TenantContext, id: string) => listInvoices.byId(ctx, { id }),
+    pay: (ctx: TenantContext, input: Parameters<BillingDirectory["pay"]>[1]) =>
+      payInvoice(ctx, { ...input, card: { kind: "card", ...input.card } }),
+  };
+
+  const portal = {
+    policies: policyDirectory,
+    billing: billingDirectory,
+    producers: new PrismaProducerDirectory(prisma),
+  };
+
+  const parties = {
+    resolveScope: makeResolveClientScope({ uow, ...partyRepos, clock }),
+    claim: makeClaimClientPolicy({ uow, outbox, ...partyRepos, clock }),
+    profile: makeGetClientProfile({ uow, accounts: clientAccounts }),
+    policies: makeListClientPolicies(portal),
+    policy: makeGetClientPolicy(portal),
+    invoices: makeClientInvoices(portal),
+    requestChange: makeRequestClientChange(portal),
+    search: makeSearchClientAccounts({ uow, ...partyRepos }),
+    merge: makeMergeClientAccounts({ uow, outbox, ...partyRepos, clock }),
+    policyClients: makeGetPolicyClients({ uow, ...partyRepos }),
+    resendInvite: makeResendPortalInvite({ uow, outbox, ...partyRepos, clock }),
+  };
 
   const evaluation = {
     rater: new RatingModuleQuoteRater(makeRateRisk({ models: workbookModels })),
@@ -223,6 +331,8 @@ export function compose() {
     hosts: appHosts,
   });
 
+  const mailer = new ConsoleMailer(logger);
+
   const auth = createAuth({
     prisma,
     baseURL: env.BETTER_AUTH_URL,
@@ -231,6 +341,13 @@ export function compose() {
     isTrustedTenantOrigin: async (origin) =>
       URL.canParse(origin) &&
       (await resolveTenantByHost({ host: new URL(origin).host })).status === "tenant",
+    sendSignInCode: ({ email, code }) =>
+      mailer.send({
+        to: email,
+        tag: "client_sign_in_code",
+        subject: `Your sign-in code is ${code}`,
+        text: `Your sign-in code is ${code}. It expires in 10 minutes. If you didn't ask for it, ignore this email.`,
+      }),
   });
 
   return {
@@ -298,7 +415,7 @@ export function compose() {
         bind: makeBindQuote({
           ...quoting,
           ...evaluation,
-          payments: new FakeCardGateway(clock),
+          payments: cardGateway,
           policies: {
             issue: policy.issueNewBusiness,
             attachDocuments: policy.attachDocuments,
@@ -311,9 +428,11 @@ export function compose() {
         }),
         decideReferral: makeDecideReferral(quoting),
       },
+      parties,
       policies: {
         list: policy.list,
         get: policy.get,
+        changeRequests: listChangeRequests,
         billing: async (ctx: TenantContext, scope: PolicyScope, input: { id: string }) => {
           await policy.get.detail(ctx, scope, input);
 

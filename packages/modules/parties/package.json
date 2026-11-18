@@ -1,0 +1,19 @@
+{
+  "name": "@pas/parties",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/public.ts",
+    "./infrastructure": "./src/infrastructure.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/billing": "workspace:*",
+    "@pas/db": "workspace:*",
+    "@pas/kernel": "workspace:*",
+    "@pas/policy": "workspace:*"
+  }
+}

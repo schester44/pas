@@ -14,6 +14,7 @@ import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { humanize } from "@/components/decisions/jdm-edit";
 import { ActivityTimeline } from "@/components/policies/activity";
 import { BillingPanel, InvoiceSheet } from "@/components/policies/billing";
+import { PolicyClients } from "@/components/policies/clients";
 import { PolicyStatus } from "@/components/policies/policy-status";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
@@ -90,6 +91,7 @@ function PolicyPage() {
             </div>
             <div className="grid gap-6">
               <Term policy={policy.data} />
+              <PolicyClients policyId={policy.data.id} />
               {billing.data && <BillingPanel billing={billing.data} onOpenInvoice={setInvoiceId} />}
               <Documents policy={policy.data} />
             </div>

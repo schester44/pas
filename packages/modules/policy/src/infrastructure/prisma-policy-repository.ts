@@ -22,9 +22,14 @@ const dateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0,
 const money = (amount: Prisma.Decimal, currency: string) => Money.of(amount.toString(), currency);
 
 function scoped(ctx: TenantContext, scope: PolicyScope): Prisma.PolicyWhereInput {
-  return scope.kind === "producer"
-    ? { tenantId: ctx.tenantId, producerId: scope.producerId }
-    : { tenantId: ctx.tenantId };
+  switch (scope.kind) {
+    case "producer":
+      return { tenantId: ctx.tenantId, producerId: scope.producerId };
+    case "party":
+      return { tenantId: ctx.tenantId, id: { in: [...scope.policyIds] } };
+    case "tenant":
+      return { tenantId: ctx.tenantId };
+  }
 }
 
 export class PrismaPolicyRepository implements PolicyRepository {

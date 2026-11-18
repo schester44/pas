@@ -10,6 +10,11 @@ export interface InvoiceRepository {
     transactionId: string,
   ): Promise<Invoice | null>;
   listByPolicy(tx: Transaction, ctx: TenantContext, policyId: string): Promise<Invoice[]>;
+  listByPolicies(
+    tx: Transaction,
+    ctx: TenantContext,
+    policyIds: readonly string[],
+  ): Promise<Invoice[]>;
   nextSequence(tx: Transaction, ctx: TenantContext): Promise<number>;
   addPayment(tx: Transaction, ctx: TenantContext, payment: PaymentProps): Promise<void>;
   findPayment(

@@ -11,7 +11,9 @@ export interface PolicySummaryDto {
   insuredName: string;
   productId: string;
   productName: string;
+  producerId: string;
   producerName: string;
+  producerAgency: string | null;
   jurisdiction: { country: string; subdivision?: string };
   effectiveDate: string;
   expirationDate: string;
@@ -69,9 +71,16 @@ export interface PolicyDetailDto extends PolicySummaryDto {
   }[];
 }
 
+const agencyOf = (snapshot: Record<string, unknown> | undefined) => {
+  const parties = snapshot?.parties as { producer?: { agency?: string } } | null | undefined;
+
+  return parties?.producer?.agency?.trim() || null;
+};
+
 export function toPolicySummaryDto(policy: Policy): PolicySummaryDto {
-  const { policy: p } = policy.toSnapshot();
+  const { policy: p, versions } = policy.toSnapshot();
   const term = policy.firstTerm;
+  const latest = versions.toSorted((a, b) => b.version - a.version)[0];
 
   return {
     id: p.id,
@@ -79,7 +88,9 @@ export function toPolicySummaryDto(policy: Policy): PolicySummaryDto {
     insuredName: p.insuredName,
     productId: p.productId,
     productName: p.productName,
+    producerId: p.producer.id,
     producerName: p.producer.name,
+    producerAgency: agencyOf(latest?.snapshot),
     jurisdiction: term.jurisdiction,
     effectiveDate: term.effectiveDate.toString(),
     expirationDate: term.expirationDate.toString(),

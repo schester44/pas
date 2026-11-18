@@ -3,6 +3,7 @@ import { riskSchemaSchema } from "@pas/forms-core";
 import { asId } from "@pas/kernel";
 import type { PolicyScope } from "@pas/policy";
 import type { SubmissionScope } from "@pas/submissions";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   byId,
@@ -48,6 +49,12 @@ const policyRead = requirePermission({ policy: ["read"] }).use(async ({ ctx, nex
     : { kind: "producer", producerId: asId(ctx.session.user.id) };
 
   return next({ ctx: { ...ctx, scope } });
+});
+
+const clientsAdmin = policyRead.use(({ ctx, next }) => {
+  if (ctx.scope.kind !== "tenant") throw new TRPCError({ code: "FORBIDDEN" });
+
+  return next();
 });
 
 const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
@@ -233,11 +240,46 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.policies.billing(ctx.tenant, ctx.scope, input),
       ),
+    clients: policyRead.input(policyById).query(async ({ ctx, input }) => {
+      await ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input);
+
+      return ctx.container.useCases.parties.policyClients(ctx.tenant, { policyId: input.id });
+    }),
+    resendInvite: policyRead
+      .input(z.object({ policyId: z.uuid(), clientAccountId: z.uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        await ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, {
+          id: input.policyId,
+        });
+
+        return ctx.container.useCases.parties.resendInvite(ctx.tenant, input);
+      }),
+    changeRequests: policyRead.input(policyById).query(({ ctx, input }) =>
+      ctx.container.useCases.policies.changeRequests(ctx.tenant, ctx.scope, {
+        policyId: input.id,
+      }),
+    ),
     document: policyRead.input(policyDocument).query(async ({ ctx, input }) => {
       const file = await ctx.container.useCases.policies.get.document(ctx.tenant, ctx.scope, input);
 
       return { fileName: file.fileName, title: file.title, pdf: base64(file.body) };
     }),
+  }),
+
+  clients: router({
+    list: clientsAdmin
+      .input(z.object({ query: z.string().trim().max(200).optional() }).optional())
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.parties.search(ctx.tenant, { query: input?.query }),
+      ),
+    merge: clientsAdmin
+      .use(async ({ ctx, next }) => {
+        await assertPermission(ctx, { policy: ["update"] });
+
+        return next();
+      })
+      .input(z.object({ survivorId: z.uuid(), mergedId: z.uuid() }))
+      .mutation(({ ctx, input }) => ctx.container.useCases.parties.merge(ctx.tenant, input)),
   }),
 
   tenant: router({

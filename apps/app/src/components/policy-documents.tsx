@@ -8,12 +8,16 @@ import { useTRPC } from "@/lib/trpc";
 
 const fromBase64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 
+type DocumentFile = { fileName: string; pdf: string };
+
 export function PolicyDocumentList({
   policyId,
   documents,
+  audience = "agent",
 }: {
   policyId: string;
-  documents: { id: string; title: string; sizeBytes: number }[] | undefined;
+  documents: { id: string; title: string; sizeBytes: number; detail?: string }[] | undefined;
+  audience?: "agent" | "client";
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -23,9 +27,12 @@ export function PolicyDocumentList({
     setDownloading(documentId);
 
     try {
-      const file = await queryClient.fetchQuery(
-        trpc.policies.document.queryOptions({ policyId, documentId }),
-      );
+      const input = { policyId, documentId };
+
+      const file: DocumentFile =
+        audience === "client"
+          ? await queryClient.fetchQuery(trpc.client.documents.download.queryOptions(input))
+          : await queryClient.fetchQuery(trpc.policies.document.queryOptions(input));
 
       const url = URL.createObjectURL(
         new Blob([fromBase64(file.pdf)], { type: "application/pdf" }),
@@ -55,17 +62,18 @@ export function PolicyDocumentList({
           <span className="grid min-w-0 flex-1">
             <span className="truncate text-sm font-medium">{doc.title}</span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              PDF · {formatBytes(doc.sizeBytes)}
+              {doc.detail && `${doc.detail} · `}PDF · {formatBytes(doc.sizeBytes)}
             </span>
           </span>
           <Button
             variant="outline"
             size="sm"
             disabled={downloading === doc.id}
+            aria-label={`Download ${doc.title}`}
             onClick={() => download(doc.id)}
           >
             {downloading === doc.id ? <Spinner /> : <Download />}
-            Download
+            <span className="hidden sm:inline">Download</span>
           </Button>
         </li>
       ))}

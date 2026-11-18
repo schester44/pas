@@ -24,3 +24,14 @@ export {
   type TimelineActor,
 } from "./domain/policy-event";
 export type { InvoiceIssuer, IssuedInvoice } from "./ports/invoice-issuer";
+export type { InsuredParty, PolicyParties } from "./ports/policy-parties";
+export type { ChangeRequestRepository } from "./ports/change-request-repository";
+export {
+  makeRequestPolicyChange,
+  type RequestPolicyChange,
+} from "./application/request-policy-change";
+export {
+  makeListChangeRequests,
+  type ChangeRequestDto,
+  type ListChangeRequests,
+} from "./application/list-change-requests";

@@ -15,7 +15,13 @@ export async function resolveTenant(): Promise<ResolvedTenant> {
   return trpcClient.tenant.resolve.query({ host: window.location.host, slug });
 }
 
+let current: TenantBranding | null = null;
+
+/** The tenant this host resolved to, for route guards outside React. */
+export const currentTenant = () => current;
+
 export function applyBranding(tenant: TenantBranding | null): void {
+  current = tenant;
   const root = document.documentElement;
 
   if (tenant) {

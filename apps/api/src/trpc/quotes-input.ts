@@ -75,16 +75,16 @@ export const signQuoteInput = bySubmission.extend({
   agreed: z.literal(true),
 });
 
-export const bindQuoteInput = bySubmission.extend({
-  card: z.object({
-    number: z.string().regex(/^[\d ]{12,23}$/),
-    expMonth: z.number().int().min(1).max(12),
-    expYear: z.number().int().min(2000).max(2100),
-    cvc: z.string().regex(/^\d{3,4}$/),
-    name: text(200).min(1),
-    postalCode: text(20).optional(),
-  }),
+export const cardInput = z.object({
+  number: z.string().regex(/^[\d ]{12,23}$/),
+  expMonth: z.number().int().min(1).max(12),
+  expYear: z.number().int().min(2000).max(2100),
+  cvc: z.string().regex(/^\d{3,4}$/),
+  name: text(200).min(1),
+  postalCode: text(20).optional(),
 });
+
+export const bindQuoteInput = bySubmission.extend({ card: cardInput });
 
 export const decideReferralInput = bySubmission.extend({
   outcome: z.enum(["approve", "decline"]),

@@ -1,0 +1,70 @@
+/// One insured person or business per tenant (PLAN §7.7). Keys are normalized for matching.
+model ClientAccount {
+  id             String    @id @db.Uuid
+  tenantId       String    @map("tenant_id")
+  kind           String
+  displayName    String    @map("display_name")
+  firstName      String?   @map("first_name")
+  lastName       String?   @map("last_name")
+  businessName   String?   @map("business_name")
+  emails         Json
+  phones         Json
+  mailingAddress Json?     @map("mailing_address")
+  nameKey        String    @map("name_key")
+  emailKeys      String[]  @map("email_keys")
+  phoneKeys      String[]  @map("phone_keys")
+  addressKey     String?   @map("address_key")
+  status         String
+  mergedIntoId   String?   @map("merged_into_id") @db.Uuid
+  invitedAt      DateTime? @map("invited_at") @db.Timestamptz(6)
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, status, nameKey])
+  @@index([tenantId, createdAt])
+  @@index([emailKeys], type: Gin)
+  @@map("client_accounts")
+}
+
+/// A client account's part on a policy. Producer of record stays on the policy.
+model PolicyParty {
+  id              String   @id @db.Uuid
+  tenantId        String   @map("tenant_id")
+  policyId        String   @map("policy_id") @db.Uuid
+  policyNumber    String   @map("policy_number")
+  clientAccountId String   @map("client_account_id") @db.Uuid
+  role            String
+  createdAt       DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, policyId, clientAccountId, role])
+  @@index([tenantId, clientAccountId])
+  @@index([tenantId, policyNumber])
+  @@map("policy_parties")
+}
+
+/// A Better Auth user acting as a client of one tenant. Clients are never organization members.
+model ClientUser {
+  id              String   @id @db.Uuid
+  tenantId        String   @map("tenant_id")
+  userId          String   @map("user_id")
+  clientAccountId String   @map("client_account_id") @db.Uuid
+  method          String
+  verifiedAt      DateTime @map("verified_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, userId, clientAccountId])
+  @@index([tenantId, clientAccountId])
+  @@map("client_users")
+}
+
+/// Self-claim attempts, kept for rate limiting and audit.
+model ClientClaimAttempt {
+  id           String   @id @db.Uuid
+  tenantId     String   @map("tenant_id")
+  userId       String   @map("user_id")
+  policyNumber String   @map("policy_number")
+  succeeded    Boolean
+  attemptedAt  DateTime @map("attempted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, userId, attemptedAt])
+  @@map("client_claim_attempts")
+}

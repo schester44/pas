@@ -12,8 +12,12 @@ import {
   queueConnectionFromEnv,
   shouldManageQueueSchema,
 } from "@pas/queues";
+import { makeSendPortalInvite } from "@pas/parties";
+import { ConsoleMailer } from "@pas/parties/infrastructure";
 import { makeQuoteTimers } from "@pas/submissions";
 import { PrismaQuoteRepository } from "@pas/submissions/infrastructure";
+import { AppHosts, makeGetProfile } from "@pas/tenants";
+import { PrismaTenantProfileRepository } from "@pas/tenants/infrastructure";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import { createDomainEventDispatcher } from "./handlers/domain-events";
 import { makeApprovalDemoWorkflow } from "./workflows/approval-demo";
@@ -38,6 +42,31 @@ const termTimers = makeTermTimers({
   clock,
 });
 
+const getProfile = makeGetProfile({
+  uow,
+  profiles: new PrismaTenantProfileRepository(),
+  hosts: new AppHosts(process.env.APP_ORIGIN ?? "http://localhost:5174"),
+});
+
+const sendPortalInvite = makeSendPortalInvite({
+  mailer: new ConsoleMailer(logger),
+  links: {
+    signIn: async (ctx, { email }) => {
+      const profile = await getProfile(ctx);
+      const url = new URL("/login", profile.appUrls[0]);
+      url.searchParams.set("as", "client");
+      url.searchParams.set("email", email);
+
+      return { url: url.toString(), brand: profile.displayName };
+    },
+  },
+});
+
+const systemContext = (tenantId: string) => ({
+  tenantId: asId<"Tenant">(tenantId),
+  actor: { type: "system" as const, process: "worker" },
+});
+
 const workflows = new PostgresWorkflows({
   ...workflowConnectionFromEnv(),
   logger,
@@ -51,6 +80,16 @@ const workflows = new PostgresWorkflows({
 const dispatch = createDomainEventDispatcher(
   {
     "catalog.product_created": [async (event) => logger.info({ event }, "product created")],
+    "parties.client_invited": [
+      async (event) => {
+        const invite = event.payload as { email: string; name: string; policyNumber: string };
+
+        await sendPortalInvite(systemContext(event.tenantId), invite);
+      },
+    ],
+    "policy.change_requested": [
+      async (event) => logger.info({ event }, "change requested; route to the producer"),
+    ],
     "policy.term_bound": [
       async (event) => {
         const { termId } = event.payload as { termId: string };

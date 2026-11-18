@@ -308,6 +308,9 @@ importers:
       '@pas/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@pas/parties':
+        specifier: workspace:*
+        version: link:../../packages/modules/parties
       '@pas/policy':
         specifier: workspace:*
         version: link:../../packages/modules/policy
@@ -424,6 +427,9 @@ importers:
       '@pas/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@pas/parties':
+        specifier: workspace:*
+        version: link:../../packages/modules/parties
       '@pas/policy':
         specifier: workspace:*
         version: link:../../packages/modules/policy
@@ -433,6 +439,9 @@ importers:
       '@pas/submissions':
         specifier: workspace:*
         version: link:../../packages/modules/submissions
+      '@pas/tenants':
+        specifier: workspace:*
+        version: link:../../packages/modules/tenants
       '@pas/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -682,6 +691,21 @@ importers:
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+
+  packages/modules/parties:
+    dependencies:
+      '@pas/billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/policy':
+        specifier: workspace:*
+        version: link:../policy
 
   packages/modules/policy:
     dependencies:

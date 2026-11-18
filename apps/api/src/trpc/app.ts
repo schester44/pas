@@ -3,6 +3,7 @@ import type { SubmissionScope } from "@pas/submissions";
 import { asId } from "@pas/kernel";
 import { z } from "zod";
 import { requireAppPermission } from "./app-tenant";
+import { clientRouter } from "./client";
 import { authedProcedure, publicProcedure, router } from "./init";
 import {
   availableProductsInput,
@@ -46,6 +47,8 @@ export const appRouter = router({
           : resolved;
       }),
   }),
+
+  client: clientRouter,
 
   submissions: router({
     availableProducts: requireAppPermission({ submission: ["create"] })

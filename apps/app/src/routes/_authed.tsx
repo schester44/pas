@@ -10,7 +10,7 @@ import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/re
 import { LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth";
 import { initials } from "@/lib/format";
-import { useTenant } from "@/lib/tenant";
+import { currentTenant, useTenant } from "@/lib/tenant";
 import { queryClient } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed")({
@@ -18,6 +18,13 @@ export const Route = createFileRoute("/_authed")({
     const { data } = await authClient.getSession();
 
     if (!data) throw redirect({ to: "/login" });
+
+    const tenant = currentTenant();
+    const { data: organizations } = await authClient.organization.list();
+
+    if (tenant && !organizations?.some((o) => o.slug === tenant.slug)) {
+      throw redirect({ to: "/portal" });
+    }
 
     return { session: data };
   },

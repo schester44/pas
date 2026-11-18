@@ -1,4 +1,5 @@
 import type { TenantContext } from "@pas/kernel";
+import type { InsuredParty } from "../domain/insured";
 
 export interface MoneyJson {
   amount: string;
@@ -16,6 +17,7 @@ export interface NewBusinessRequest {
   effectiveDate: string;
   expirationDate: string;
   insuredName: string;
+  insureds: InsuredParty[];
   producer: { id: string; name: string };
   currency: string;
   coverages: {

@@ -95,6 +95,14 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
     return this.load(tx, ctx, { policyId });
   }
 
+  listByPolicies(
+    tx: Transaction,
+    ctx: TenantContext,
+    policyIds: readonly string[],
+  ): Promise<Invoice[]> {
+    return this.load(tx, ctx, { policyId: { in: [...policyIds] } });
+  }
+
   async nextSequence(tx: Transaction, ctx: TenantContext): Promise<number> {
     const [row] = await prismaTx(tx).$queryRaw<{ last_value: number }[]>`
       insert into invoice_sequences (tenant_id, last_value) values (${ctx.tenantId}, 1)

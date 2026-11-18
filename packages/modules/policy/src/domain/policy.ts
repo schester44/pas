@@ -409,6 +409,33 @@ export class Policy extends AggregateRoot {
     return true;
   }
 
+  /** A client asked for a change; the producer of record picks it up from the event. */
+  recordChangeRequest(
+    request: { id: string; kind: string; summary: string; details: string; actor: TimelineActor },
+    clock: Clock,
+  ): void {
+    const now = clock.now();
+
+    this.addToTimeline({
+      type: "change_requested",
+      termId: this.firstTerm.id,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: now,
+      effectiveDate: null,
+      actor: request.actor,
+      summary: request.summary,
+      data: { changeRequestId: request.id, kind: request.kind, details: request.details },
+    });
+
+    this.recordEvent("policy.change_requested", now, {
+      changeRequestId: request.id,
+      kind: request.kind,
+      number: this.number,
+      producerId: this.state.policy.producer.id,
+    });
+  }
+
   toSnapshot(): Readonly<PolicyState> {
     return this.state;
   }

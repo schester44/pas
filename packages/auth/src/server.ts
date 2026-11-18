@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@pas/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { admin, organization } from "better-auth/plugins";
+import { admin, emailOTP, organization } from "better-auth/plugins";
 import { ac, roles } from "./permissions";
 
 export interface AuthConfig {
@@ -10,11 +10,13 @@ export interface AuthConfig {
   secret: string;
   trustedOrigins: string[];
   isTrustedTenantOrigin?: (origin: string) => Promise<boolean>;
+  /** Delivers a client's one-time sign-in code (PLAN §7.7). */
+  sendSignInCode: (input: { email: string; code: string }) => Promise<void>;
 }
 
 /**
- * Better Auth: sessions, email/password (SSO, magic links and API keys come later),
- * organizations = tenants, RBAC with tenant-defined custom roles.
+ * Better Auth: sessions, email/password, email one-time codes for clients (SSO and API keys come
+ * later), organizations = tenants, RBAC with tenant-defined custom roles.
  */
 export function createAuth(config: AuthConfig) {
   return betterAuth({
@@ -39,6 +41,14 @@ export function createAuth(config: AuthConfig) {
         dynamicAccessControl: { enabled: true },
       }),
       admin(),
+      emailOTP({
+        otpLength: 6,
+        expiresIn: 600,
+        storeOTP: "hashed",
+        sendVerificationOTP: async ({ email, otp, type }) => {
+          if (type === "sign-in") await config.sendSignInCode({ email, code: otp });
+        },
+      }),
     ],
   });
 }

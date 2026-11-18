@@ -44,6 +44,7 @@ export const POLICY_EVENT_TYPES = {
   ],
   document: ["documents_generated", "signed"],
   communication: ["notice_sent"],
+  service: ["change_requested"],
   note: ["note", "producer_changed", "data_corrected"],
 } as const;
 

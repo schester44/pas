@@ -150,3 +150,20 @@ model PolicyEvent {
   @@index([tenantId, policyId, occurredAt])
   @@map("policy_events")
 }
+
+/// A client's request to change a policy, routed to the producer (PLAN §7.7).
+model ChangeRequest {
+  id              String   @id @db.Uuid
+  tenantId        String   @map("tenant_id")
+  policyId        String   @map("policy_id") @db.Uuid
+  kind            String
+  details         String
+  status          String
+  requestedBy     Json     @map("requested_by")
+  producerId      String   @map("producer_id")
+  createdAt       DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, policyId, createdAt])
+  @@index([tenantId, producerId, status])
+  @@map("change_requests")
+}

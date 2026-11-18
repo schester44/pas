@@ -4,17 +4,58 @@ import { Input } from "@pas/ui/components/input";
 import { Label } from "@pas/ui/components/label";
 import { Notice } from "@pas/ui/components/notice";
 import { Spinner } from "@pas/ui/components/spinner";
+import { SegmentedControl } from "@pas/ui/components/segmented-control";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { FileCheck2, Gauge, Headset, ShieldCheck } from "lucide-react";
+import {
+  CreditCard,
+  FileCheck2,
+  Files,
+  Gauge,
+  Headset,
+  MessageSquare,
+  ShieldCheck,
+} from "lucide-react";
 import { useState } from "react";
+import { ClientSignIn } from "@/components/client-sign-in";
 import { authClient } from "@/lib/auth";
 import { type TenantBranding, useTenant } from "@/lib/tenant";
 
+type Audience = "client" | "agent";
+
+const AUDIENCE_KEY = "pas.audience";
+
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>): { as?: Audience; email?: string } => ({
+    ...((search.as === "agent" || search.as === "client") && { as: search.as }),
+    ...(typeof search.email === "string" && { email: search.email }),
+  }),
   component: LoginPage,
 });
 
-const benefits = [
+const clientBenefits = [
+  {
+    icon: <Files />,
+    title: "Every policy in one place",
+    body: "Whichever agent wrote it, it's here.",
+  },
+  {
+    icon: <FileCheck2 />,
+    title: "Documents when you need them",
+    body: "Declarations, ID cards and notices, ready to download.",
+  },
+  {
+    icon: <CreditCard />,
+    title: "Pay in a few taps",
+    body: "See what's due and pay by card.",
+  },
+  {
+    icon: <MessageSquare />,
+    title: "Ask for a change",
+    body: "New address, mortgagee or coverage. Your agent takes it from there.",
+  },
+];
+
+const agentBenefits = [
   {
     icon: <Gauge />,
     title: "Quote in minutes",
@@ -38,8 +79,52 @@ const benefits = [
 ];
 
 function LoginPage() {
-  const navigate = useNavigate();
+  const search = Route.useSearch();
   const tenant = useTenant();
+
+  const [audience, setAudience] = useState<Audience>(
+    () => search.as ?? (localStorage.getItem(AUDIENCE_KEY) === "agent" ? "agent" : "client"),
+  );
+
+  const choose = (next: Audience) => {
+    localStorage.setItem(AUDIENCE_KEY, next);
+    setAudience(next);
+  };
+
+  const isClient = audience === "client";
+
+  return (
+    <AuthLayout
+      headline={
+        isClient ? "Your insurance, in one place." : "Quote, bind and service in one place."
+      }
+      subline={
+        isClient
+          ? "Policies, documents and bills, whoever your agent is."
+          : "For agents and brokers."
+      }
+      benefits={isClient ? clientBenefits : agentBenefits}
+      brandName={tenant?.displayName}
+      brandLogoUrl={tenant?.logoUrl}
+      footnote={tenant && <SupportContact tenant={tenant} />}
+    >
+      <SegmentedControl
+        label="Sign in as"
+        value={audience}
+        onValueChange={choose}
+        options={[
+          { value: "client", label: "I'm a client" },
+          { value: "agent", label: "I'm an agent" },
+        ]}
+        className="mb-8 grid w-full grid-cols-2 [&>button]:justify-center"
+      />
+      {isClient ? <ClientSignIn initialEmail={search.email} /> : <AgentSignIn />}
+    </AuthLayout>
+  );
+}
+
+function AgentSignIn() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -69,14 +154,7 @@ function LoginPage() {
   }
 
   return (
-    <AuthLayout
-      headline="Quote, bind and service in one place."
-      subline="For agents, brokers and policyholders."
-      benefits={benefits}
-      brandName={tenant?.displayName}
-      brandLogoUrl={tenant?.logoUrl}
-      footnote={tenant && <SupportContact tenant={tenant} />}
-    >
+    <>
       <AuthHeader
         title={isSignIn ? "Sign in" : "Create your account"}
         description={isSignIn ? "Welcome back." : "It takes less than a minute."}
@@ -130,7 +208,7 @@ function LoginPage() {
           {isSignIn ? "Create an account" : "Sign in"}
         </button>
       </p>
-    </AuthLayout>
+    </>
   );
 }
 
