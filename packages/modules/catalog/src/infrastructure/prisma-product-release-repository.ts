@@ -3,6 +3,7 @@ import type { Prisma, ProductRelease as ProductReleaseRow } from "@pas/db/client
 import { asId, type Jurisdiction, type TenantContext, type Transaction } from "@pas/kernel";
 import type { ProductId } from "../domain/product";
 import {
+  completeManifest,
   ProductRelease,
   type ProductReleaseId,
   type ReleaseManifest,
@@ -111,7 +112,7 @@ function toRelease(row: ProductReleaseRow): ProductRelease {
       from: plainDateFromDb(row.renewalFrom),
       ...(row.renewalTo && { to: plainDateFromDb(row.renewalTo) }),
     },
-    manifest: row.manifest as unknown as ReleaseManifest,
+    manifest: completeManifest(row.manifest as unknown as ReleaseManifest),
     contentHash: row.contentHash,
     publishedAt: toInstant(row.publishedAt),
   });

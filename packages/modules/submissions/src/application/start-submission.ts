@@ -55,7 +55,7 @@ export function makeStartSubmission(deps: {
       }),
     ]);
 
-    if (!release) {
+    if (!release?.rating) {
       throw new ProductUnavailableError({
         productName,
         jurisdiction: where,

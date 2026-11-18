@@ -43,7 +43,12 @@ export function makeListAvailableProducts(deps: {
 
         if (product.toSnapshot().status !== "active" || offered.length === 0) return [];
 
-        if (at && !selectRelease(offered, at.where, at.date, input.kind)) return [];
+        if (
+          at &&
+          !selectRelease(offered, at.where, at.date, input.kind)?.toSnapshot().manifest.rating
+        ) {
+          return [];
+        }
 
         return [{ ...toProductDto(product), availability: availabilityOf(offered, input.kind) }];
       });

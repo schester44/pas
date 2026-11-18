@@ -1,4 +1,4 @@
-import type { DocumentSet } from "@pas/documents";
+import { type DocumentSet, emptyDocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import {
   type Id,
@@ -40,6 +40,30 @@ export interface ReleaseManifest {
   documents: DocumentSet;
   rules: VersionDecision[];
   rating: RatingConfig | null;
+}
+
+export function completeManifest(
+  stored: Partial<ReleaseManifest> &
+    Pick<
+      ReleaseManifest,
+      | "productId"
+      | "productVersionId"
+      | "version"
+      | "jurisdiction"
+      | "newBusiness"
+      | "renewal"
+      | "riskSchema"
+    >,
+): ReleaseManifest {
+  return {
+    ...stored,
+    forms: stored.forms ?? [],
+    coverages: stored.coverages ?? [],
+    lifecycle: stored.lifecycle ?? {},
+    documents: { ...emptyDocumentSet(), ...stored.documents },
+    rules: stored.rules ?? [],
+    rating: stored.rating ?? null,
+  };
 }
 
 export interface ProductReleaseProps {
