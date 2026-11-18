@@ -31,6 +31,7 @@ export function Worksheet({
   focus,
   sample,
   loading,
+  description = "How the sample risk is rated, step by step.",
 }: {
   preview: RatingPreview | undefined;
   coverages: readonly Coverage[];
@@ -38,16 +39,13 @@ export function Worksheet({
   focus?: string;
   sample?: React.ReactNode;
   loading?: boolean;
+  description?: string;
 }) {
   return (
     <Panel
       flush
       title="Worksheet"
-      description={
-        <span className={cn(loading && "animate-pulse")}>
-          How the sample risk is rated, step by step.
-        </span>
-      }
+      description={<span className={cn(loading && "animate-pulse")}>{description}</span>}
       action={sample}
     >
       {!preview ? (

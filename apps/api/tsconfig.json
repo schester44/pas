@@ -1,5 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "lib": ["es2024", "esnext.temporal", "dom"] },
-  "include": ["src", "tsup.config.ts"]
+  "compilerOptions": {
+    "lib": ["es2024", "esnext.temporal", "dom"],
+    "jsx": "react-jsx"
+  },
+  "include": ["src", "tsup.config.ts", "../../packages/engines/documents/src/render/*.tsx"]
 }

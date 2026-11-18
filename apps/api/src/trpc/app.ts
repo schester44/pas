@@ -1,3 +1,4 @@
+import type { PolicyScope } from "@pas/policy";
 import type { SubmissionScope } from "@pas/submissions";
 import { asId } from "@pas/kernel";
 import { z } from "zod";
@@ -10,11 +11,24 @@ import {
   submissionById,
   submissionData,
 } from "./submissions-input";
+import {
+  bindDetailsInput,
+  bindQuoteInput,
+  bySubmission,
+  customizeQuoteInput,
+  listPoliciesInput,
+  packetInput,
+  policyById,
+  policyDocument,
+  signQuoteInput,
+} from "./quotes-input";
 
-const ownBook = (userId: string): SubmissionScope => ({
+const ownBook = (userId: string): SubmissionScope & PolicyScope => ({
   kind: "producer",
   producerId: asId(userId),
 });
+
+const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
 /** app.pas.com: agents, brokers and customers. */
 export const appRouter = router({
@@ -76,6 +90,85 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.submissions.list(ctx.tenant, ownBook(ctx.session.user.id), input),
       ),
+  }),
+
+  quotes: router({
+    get: requireAppPermission({ quote: ["read"] })
+      .input(bySubmission)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.quotes.get.forProducer(
+          ctx.tenant,
+          ownBook(ctx.session.user.id),
+          input,
+        ),
+      ),
+    customize: requireAppPermission({ quote: ["read"], submission: ["update"] })
+      .input(customizeQuoteInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.customize(ctx.tenant, ownBook(ctx.session.user.id), input),
+      ),
+    saveDetails: requireAppPermission({ quote: ["bind"] })
+      .input(bindDetailsInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.saveDetails(ctx.tenant, ownBook(ctx.session.user.id), input),
+      ),
+    packet: requireAppPermission({ quote: ["read"] })
+      .input(packetInput)
+      .query(async ({ ctx, input }) => {
+        const packet = await ctx.container.useCases.quotes.packet(
+          ctx.tenant,
+          ownBook(ctx.session.user.id),
+          { submissionId: input.submissionId },
+        );
+
+        return { pdf: base64(packet.pdf), documents: packet.documents, revision: packet.revision };
+      }),
+    sign: requireAppPermission({ quote: ["bind"] })
+      .input(signQuoteInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.sign(ctx.tenant, ownBook(ctx.session.user.id), {
+          ...input,
+          ...ctx.client,
+        }),
+      ),
+    bind: requireAppPermission({ quote: ["bind"] })
+      .input(bindQuoteInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.bind(ctx.tenant, ownBook(ctx.session.user.id), {
+          submissionId: input.submissionId,
+          method: { kind: "card", ...input.card },
+          actorName: ctx.session.user.name,
+        }),
+      ),
+  }),
+
+  policies: router({
+    list: requireAppPermission({ policy: ["read"] })
+      .input(listPoliciesInput)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.list(ctx.tenant, ownBook(ctx.session.user.id), input),
+      ),
+    get: requireAppPermission({ policy: ["read"] })
+      .input(policyById)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.get.detail(ctx.tenant, ownBook(ctx.session.user.id), input),
+      ),
+    billing: requireAppPermission({ policy: ["read"] })
+      .input(policyById)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.billing(ctx.tenant, ownBook(ctx.session.user.id), input),
+      ),
+    document: requireAppPermission({ policy: ["read"] })
+      .input(policyDocument)
+      .query(async ({ ctx, input }) => {
+        const file = await ctx.container.useCases.policies.get.document(
+          ctx.tenant,
+          ownBook(ctx.session.user.id),
+          input,
+        );
+
+        return { fileName: file.fileName, title: file.title, pdf: base64(file.body) };
+      }),
   }),
 });
 

@@ -120,6 +120,8 @@ export function useAccess() {
   const productWrite = usePermission({ product: ["write"] });
   const productPublish = usePermission({ product: ["publish"] });
   const submissionRead = usePermission({ submission: ["read"] });
+  const policyRead = usePermission({ policy: ["read"] });
+  const uwApprove = usePermission({ uw: ["approve"] });
   const documentRead = usePermission({ document: ["read"] });
   const documentWrite = usePermission({ document: ["write"] });
   const decisionRead = usePermission({ decision: ["read"] });
@@ -141,6 +143,8 @@ export function useAccess() {
   return {
     products: { read: !!productRead, write: !!productWrite, publish: !!productPublish },
     submissions: { read: !!submissionRead },
+    policies: { read: !!policyRead },
+    underwriting: { approve: !!uwApprove },
     documents: { read: !!documentRead, write: !!documentWrite },
     decisions: { read: !!decisionRead, write: !!decisionWrite },
     rating: { read: !!ratingRead, write: !!ratingWrite },

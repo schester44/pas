@@ -69,6 +69,18 @@ function KindResult({ kind, result }: { kind: DecisionKind; result: unknown }) {
           }))}
         />
       );
+    case "attestations":
+      return (
+        <Rows
+          empty="Nothing to attest."
+          items={(result as DecisionResult<"attestations">).attestations.map((item) => ({
+            key: item.code,
+            title: item.title,
+            meta: item.code,
+            detail: item.statement,
+          }))}
+        />
+      );
     case "referral_triggers":
       return (
         <Rows

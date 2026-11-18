@@ -6,7 +6,7 @@ import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, FileText, Plus } from "lucide-react";
-import { formatPlainDate, formatRelative } from "@/lib/format";
+import { formatMoney, formatPlainDate, formatRelative } from "@/lib/format";
 import { submissionStatus } from "@/lib/submissions";
 import { useTRPC } from "@/lib/trpc";
 
@@ -60,7 +60,7 @@ function HomePage() {
           <ul className="m-0 list-none divide-y p-0">
             {submissions.isPending && <SkeletonRows />}
             {submissions.data?.map((submission) => {
-              const status = submissionStatus(submission.status);
+              const status = submissionStatus(submission.status, submission.quote);
 
               return (
                 <li key={submission.id}>
@@ -76,15 +76,22 @@ function HomePage() {
                         )}
                       </span>
                       <span className="text-xs text-muted-foreground tabular-nums sm:truncate">
-                        {submission.number} · {submission.productName} ·{" "}
-                        {jurisdictionName(submission.jurisdiction)} · Effective{" "}
-                        {formatPlainDate(submission.effectiveDate)}
+                        {submission.quote?.policyNumber ?? submission.number} ·{" "}
+                        {submission.productName} · {jurisdictionName(submission.jurisdiction)} ·
+                        Effective {formatPlainDate(submission.effectiveDate)}
                       </span>
                     </div>
-                    <span className="hidden text-xs text-muted-foreground tabular-nums sm:block">
+                    <span className="hidden w-28 text-right text-sm tabular-nums sm:block">
+                      {submission.quote && submission.quote.status !== "declined"
+                        ? formatMoney(submission.quote.total, { cents: true })
+                        : null}
+                    </span>
+                    <span className="hidden w-28 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums md:block">
                       {formatRelative(submission.updatedAt)}
                     </span>
-                    <StatusChip tone={status.tone}>{status.label}</StatusChip>
+                    <span className="flex w-24 justify-end">
+                      <StatusChip tone={status.tone}>{status.label}</StatusChip>
+                    </span>
                     <ChevronRight
                       aria-hidden
                       className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"

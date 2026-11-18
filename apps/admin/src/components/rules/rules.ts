@@ -21,6 +21,7 @@ export const KIND_COPY: Record<DecisionKind, string> = {
   form_schedule: "Chooses the forms attached to the policy.",
   notice_rules: "Sets notice periods, reasons and delivery for cancellations.",
   dea: "Says when a surplus lines diligent search is required.",
+  attestations: "Lists the statements the insured must confirm before binding.",
   referral_triggers: "Flags conditions that need an underwriter's review.",
   custom: "Returns any output for lifecycle settings to use.",
 };
@@ -158,6 +159,8 @@ export function summarize(kind: DecisionKind, result: unknown): string {
       return plural((result as DecisionResult<"form_schedule">).documents.length, "document");
     case "referral_triggers":
       return plural((result as DecisionResult<"referral_triggers">).triggers.length, "trigger");
+    case "attestations":
+      return plural((result as DecisionResult<"attestations">).attestations.length, "attestation");
     case "notice_rules": {
       const notice = result as DecisionResult<"notice_rules">;
 

@@ -1,6 +1,7 @@
 import { seesTenantBook } from "@pas/auth";
 import { riskSchemaSchema } from "@pas/forms-core";
 import { asId } from "@pas/kernel";
+import type { PolicyScope } from "@pas/policy";
 import type { SubmissionScope } from "@pas/submissions";
 import { z } from "zod";
 import {
@@ -20,6 +21,13 @@ import {
   router,
   tenantProcedure,
 } from "./init";
+import {
+  bySubmission,
+  decideReferralInput,
+  listPoliciesInput,
+  policyById,
+  policyDocument,
+} from "./quotes-input";
 import { listSubmissionsInput, submissionById } from "./submissions-input";
 
 const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ ctx, next }) => {
@@ -31,6 +39,18 @@ const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ 
 
   return next({ ctx: { ...ctx, scope } });
 });
+
+const policyRead = requirePermission({ policy: ["read"] }).use(async ({ ctx, next }) => {
+  const { role } = await ctx.container.auth.api.getActiveMemberRole({ headers: ctx.headers });
+
+  const scope: PolicyScope = seesTenantBook(role)
+    ? { kind: "tenant" }
+    : { kind: "producer", producerId: asId(ctx.session.user.id) };
+
+  return next({ ctx: { ...ctx, scope } });
+});
+
+const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
 /** admin.pas.com: tenant staff (configuration + operations). */
 export const adminRouter = router({
@@ -177,6 +197,47 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.submissions.get(ctx.tenant, ctx.scope, input),
       ),
+    quote: submissionRead
+      .input(bySubmission)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.quotes.get.forStaff(ctx.tenant, ctx.scope, input),
+      ),
+    decideReferral: submissionRead
+      .use(async ({ ctx, next }) => {
+        await assertPermission(ctx, { uw: ["approve"] });
+
+        return next();
+      })
+      .input(decideReferralInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.decideReferral(ctx.tenant, ctx.scope, {
+          ...input,
+          underwriterName: ctx.session.user.name,
+        }),
+      ),
+  }),
+
+  policies: router({
+    list: policyRead
+      .input(listPoliciesInput)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.list(ctx.tenant, ctx.scope, input),
+      ),
+    get: policyRead
+      .input(policyById)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input),
+      ),
+    billing: policyRead
+      .input(policyById)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.billing(ctx.tenant, ctx.scope, input),
+      ),
+    document: policyRead.input(policyDocument).query(async ({ ctx, input }) => {
+      const file = await ctx.container.useCases.policies.get.document(ctx.tenant, ctx.scope, input);
+
+      return { fileName: file.fileName, title: file.title, pdf: base64(file.body) };
+    }),
   }),
 
   tenant: router({

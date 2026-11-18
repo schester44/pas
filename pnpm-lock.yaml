@@ -281,6 +281,9 @@ importers:
       '@pas/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@pas/billing':
+        specifier: workspace:*
+        version: link:../../packages/modules/billing
       '@pas/catalog':
         specifier: workspace:*
         version: link:../../packages/modules/catalog
@@ -305,6 +308,9 @@ importers:
       '@pas/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@pas/policy':
+        specifier: workspace:*
+        version: link:../../packages/modules/policy
       '@pas/queues':
         specifier: workspace:*
         version: link:../../packages/queues
@@ -323,6 +329,12 @@ importers:
       '@pas/tenants':
         specifier: workspace:*
         version: link:../../packages/modules/tenants
+      '@pas/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@pas/workflows':
+        specifier: workspace:*
+        version: link:../../packages/workflows
       '@trpc/server':
         specifier: ^11.29.4
         version: 11.29.4(fastify@5.12.8)(typescript@7.0.2)
@@ -412,9 +424,15 @@ importers:
       '@pas/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@pas/policy':
+        specifier: workspace:*
+        version: link:../../packages/modules/policy
       '@pas/queues':
         specifier: workspace:*
         version: link:../../packages/queues
+      '@pas/submissions':
+        specifier: workspace:*
+        version: link:../../packages/modules/submissions
       '@pas/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -620,6 +638,15 @@ importers:
         specifier: ^14.0.3
         version: 14.0.3
 
+  packages/modules/billing:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+
   packages/modules/catalog:
     dependencies:
       '@pas/db':
@@ -656,6 +683,18 @@ importers:
         specifier: ^1.17.1
         version: 1.17.1
 
+  packages/modules/policy:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
+
   packages/modules/rating:
     dependencies:
       '@pas/db':
@@ -682,12 +721,33 @@ importers:
       '@pas/db':
         specifier: workspace:*
         version: link:../../db
+      '@pas/decisions-engine':
+        specifier: workspace:*
+        version: link:../../engines/decisions
+      '@pas/documents':
+        specifier: workspace:*
+        version: link:../../engines/documents
+      '@pas/form-library':
+        specifier: workspace:*
+        version: link:../form-library
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../../engines/forms-core
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@pas/rating':
+        specifier: workspace:*
+        version: link:../rating
+      '@pas/rating-engine':
+        specifier: workspace:*
+        version: link:../../engines/rating
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
 
   packages/modules/tenants:
     dependencies:
@@ -753,6 +813,9 @@ importers:
       lucide-react:
         specifier: ^1.75.0
         version: 1.75.0(@types/react@19.3.0)(react@19.3.1)
+      pdfjs-dist:
+        specifier: ^6.5.438
+        version: 6.5.438
       radix-ui:
         specifier: ^1.8.1
         version: 1.8.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

@@ -8,8 +8,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import type * as React from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { CapturedData } from "@/components/submissions/captured-data";
+import {
+  QuotePremium,
+  QuoteWorksheet,
+  ReferralPanel,
+  RequirementsPanel,
+  type StaffQuote,
+} from "@/components/submissions/quote";
 import { SubmissionStatus } from "@/components/submissions/submission-status";
-import { formatDate, formatPlainDate } from "@/lib/format";
+import { useAccess } from "@/lib/permissions";
+import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/submissions/$submissionId")({
@@ -30,6 +38,8 @@ function SubmissionPage() {
   const { submissionId } = Route.useParams();
   const trpc = useTRPC();
   const submission = useQuery(trpc.submissions.get.queryOptions({ id: submissionId }));
+  const quote = useQuery(trpc.submissions.quote.queryOptions({ submissionId }));
+  const access = useAccess();
 
   const title = (
     <Breadcrumb
@@ -46,7 +56,9 @@ function SubmissionPage() {
     <>
       <PageHeader
         title={title}
-        actions={submission.data && <SubmissionStatus status={submission.data.status} />}
+        actions={
+          submission.data && <SubmissionStatus status={submission.data.status} quote={quote.data} />
+        }
       />
       <PageBody className="max-w-6xl">
         {submission.error ? (
@@ -61,13 +73,25 @@ function SubmissionPage() {
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-6">
+              {quote.data && (
+                <>
+                  <ReferralPanel
+                    quote={quote.data}
+                    submissionId={submissionId}
+                    canDecide={access.underwriting.approve}
+                  />
+                  {quote.data.status !== "declined" && <QuotePremium quote={quote.data} />}
+                  {quote.data.status !== "declined" && <RequirementsPanel quote={quote.data} />}
+                  <QuoteWorksheet quote={quote.data} schema={submission.data.riskSchema} />
+                </>
+              )}
               <CapturedData
                 schema={submission.data.riskSchema}
                 form={submission.data.form}
                 data={submission.data.riskData}
               />
             </div>
-            <Summary submission={submission.data} />
+            <Summary submission={submission.data} quote={quote.data ?? null} />
           </div>
         )}
       </PageBody>
@@ -75,10 +99,28 @@ function SubmissionPage() {
   );
 }
 
-function Summary({ submission }: { submission: Submission }) {
+function Summary({ submission, quote }: { submission: Submission; quote: StaffQuote | null }) {
   return (
     <Panel title="Details" className="lg:sticky lg:top-20">
       <dl className="m-0 grid gap-4">
+        {quote?.policy && (
+          <Fact label="Policy">
+            <Link
+              to="/policies/$policyId"
+              params={{ policyId: quote.policy.id }}
+              className="font-medium text-primary tabular-nums outline-none hover:underline focus-visible:underline"
+            >
+              {quote.policy.number}
+            </Link>
+          </Fact>
+        )}
+        {quote && quote.status !== "declined" && (
+          <Fact label="Total">
+            <span className="tabular-nums">
+              {formatMoney(quote.premium.total.amount, quote.premium.total.currency)}
+            </span>
+          </Fact>
+        )}
         <Fact label="Insured">
           {submission.insuredName ?? (
             <span className="text-muted-foreground">Not captured yet</span>

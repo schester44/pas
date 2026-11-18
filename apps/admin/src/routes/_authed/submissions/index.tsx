@@ -114,7 +114,7 @@ function SubmissionsPage() {
                         {submission.producer.name}
                       </TableCell>
                       <TableCell>
-                        <SubmissionStatus status={submission.status} />
+                        <SubmissionStatus status={submission.status} quote={submission.quote} />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {formatRelative(submission.updatedAt)}
@@ -135,7 +135,7 @@ function SubmissionsPage() {
                         <span className="truncate text-sm leading-5 font-medium">
                           {submission.insuredName ?? submission.number}
                         </span>
-                        <SubmissionStatus status={submission.status} />
+                        <SubmissionStatus status={submission.status} quote={submission.quote} />
                       </span>
                       <span className="truncate text-xs text-muted-foreground tabular-nums">
                         {submission.number} · {submission.productName} ·{" "}

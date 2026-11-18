@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { editionCode, type FormEdition } from "@/components/catalog/documents";
 import { formatDate } from "@/lib/format";
-import { PdfPreview } from "./pdf-preview";
+import { PdfPreview } from "@pas/ui/components/pdf-preview";
 
 const fileUrl = (id: string) => `/api/uploads/form-editions/${id}`;
 

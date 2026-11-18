@@ -53,7 +53,7 @@ import {
   uniqueKey,
 } from "@/components/catalog/documents";
 import type { Contents } from "@/components/catalog/version-editor";
-import { PdfPreview } from "./pdf-preview";
+import { PdfPreview } from "@pas/ui/components/pdf-preview";
 import { renderPacketPdf, usePreviewContext } from "./preview";
 
 const appliesTo = (entry: ScheduleEntry) =>

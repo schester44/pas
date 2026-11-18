@@ -20,6 +20,7 @@ import {
   Layers,
   LogOut,
   Plus,
+  ScrollText,
   Search,
   Settings,
 } from "lucide-react";
@@ -104,11 +105,18 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             <House /> Overview
           </Link>
         </NavSection>
-        {access.submissions.read && (
+        {(access.submissions.read || access.policies.read) && (
           <NavSection label="Operate">
-            <Link to="/submissions" className={navItemClassName}>
-              <Inbox /> Submissions
-            </Link>
+            {access.submissions.read && (
+              <Link to="/submissions" className={navItemClassName}>
+                <Inbox /> Submissions
+              </Link>
+            )}
+            {access.policies.read && (
+              <Link to="/policies" className={navItemClassName}>
+                <ScrollText /> Policies
+              </Link>
+            )}
           </NavSection>
         )}
         {(access.products.read || access.documents.read) && (

@@ -1,24 +1,26 @@
 import type { AppOutputs } from "@pas/api-client";
 import { type FormData, IntakeForm } from "@pas/forms-react";
-import { Button } from "@pas/ui/components/button";
-import { Card } from "@pas/ui/components/card";
-import { IconTile } from "@pas/ui/components/icon-tile";
 import { Notice } from "@pas/ui/components/notice";
-import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Check } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Check } from "lucide-react";
 import { useState } from "react";
-import { formatPlainDate } from "@/lib/format";
+import { Journey } from "@/components/journey/journey";
+import { BackLink, SubmissionHeading as Heading } from "@/components/submission-heading";
+import { isStep, type StepId } from "@/lib/quotes";
 import { useTRPC } from "@/lib/trpc";
 import { type SaveState, useAutosave } from "@/lib/use-autosave";
 
 export const Route = createFileRoute("/_authed/submissions/$submissionId")({
+  validateSearch: (search: Record<string, unknown>): { step?: StepId } =>
+    isStep(search.step) ? { step: search.step } : {},
   component: SubmissionPage,
 });
 
 type Submission = AppOutputs["submissions"]["get"];
+
+const INTAKE_COPY = { submit: "Get quote" };
 
 const FLOW = "mx-auto grid w-full max-w-3xl gap-6";
 
@@ -47,7 +49,21 @@ function SubmissionPage() {
 
   if (!submission.data) return <IntakeSkeleton />;
 
+  if (submission.data.status !== "draft") {
+    return <JourneyPage submission={submission.data} />;
+  }
+
   return <Intake key={submission.data.id} submission={submission.data} />;
+}
+
+function JourneyPage({ submission }: { submission: Submission }) {
+  const { step } = Route.useSearch();
+
+  return (
+    <div className="grid w-full gap-6">
+      <Journey submission={submission} step={step} />
+    </div>
+  );
 }
 
 function Intake({ submission }: { submission: Submission }) {
@@ -71,6 +87,10 @@ function Intake({ submission }: { submission: Submission }) {
           return;
         }
 
+        void queryClient.invalidateQueries({
+          queryKey: trpc.quotes.get.queryKey({ submissionId: submission.id }),
+        });
+
         queryClient.setQueryData(getKey, {
           ...submission,
           ...result.submission,
@@ -88,8 +108,6 @@ function Intake({ submission }: { submission: Submission }) {
     await submit.mutateAsync({ id: submission.id, riskData }).catch(() => undefined);
   }
 
-  if (submission.status !== "draft") return <Submitted submission={submission} />;
-
   return (
     <div className={FLOW}>
       <Heading
@@ -106,6 +124,7 @@ function Intake({ submission }: { submission: Submission }) {
         }}
         onSubmit={onSubmit}
         busy={submit.isPending}
+        copy={INTAKE_COPY}
         serverErrors={serverErrors}
         error={
           submit.error && (
@@ -116,68 +135,6 @@ function Intake({ submission }: { submission: Submission }) {
         }
       />
     </div>
-  );
-}
-
-function Submitted({ submission }: { submission: Submission }) {
-  return (
-    <div className={FLOW}>
-      <Heading submission={submission} />
-      <Card className="items-center gap-2 px-6 py-14 text-center">
-        <IconTile className="mb-2">
-          <Check />
-        </IconTile>
-        <h2 className="m-0 text-xl leading-7 font-semibold tracking-tight tabular-nums">
-          {submission.status === "submitted"
-            ? `Submitted ${submission.number}`
-            : `${submission.number} was withdrawn`}
-        </h2>
-        <p className="m-0 max-w-sm text-sm text-muted-foreground">
-          {submission.status === "submitted"
-            ? "Underwriting comes next."
-            : "It's no longer being worked on."}
-        </p>
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/">Back to home</Link>
-          </Button>
-          <Button asChild>
-            <Link to="/submissions/new">Start another quote</Link>
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function Heading({ submission, aside }: { submission: Submission; aside?: React.ReactNode }) {
-  return (
-    <div className="grid gap-3">
-      <BackLink />
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <div className="grid min-w-0 gap-1">
-          <h1 className="m-0 text-2xl leading-tight font-semibold tracking-tight">
-            {submission.productName}
-          </h1>
-          <p className="m-0 text-sm text-muted-foreground tabular-nums">
-            {submission.number} · {jurisdictionName(submission.jurisdiction)} · Effective{" "}
-            {formatPlainDate(submission.effectiveDate)}
-          </p>
-        </div>
-        {aside}
-      </div>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      to="/"
-      className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
-    >
-      <ArrowLeft aria-hidden className="size-4" /> Home
-    </Link>
   );
 }
 

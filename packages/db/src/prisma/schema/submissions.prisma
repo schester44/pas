@@ -44,3 +44,82 @@ model SubmissionSequence {
 
   @@map("submission_sequences")
 }
+
+enum QuoteStatus {
+  QUOTED
+  REFERRED
+  DECLINED
+  EXPIRED
+  BOUND
+
+  @@map("quote_status")
+}
+
+/// The priced offer for a submission (PLAN §7.2). Pinned to the submission's release.
+model Quote {
+  id               String      @id @db.Uuid
+  tenantId         String      @map("tenant_id")
+  submissionId     String      @map("submission_id") @db.Uuid
+  submissionNumber String      @map("submission_number")
+  productReleaseId String      @map("product_release_id") @db.Uuid
+  revision         Int
+  status           QuoteStatus
+  currency         String      @db.Char(3)
+  premium          Decimal     @db.Decimal(18, 2)
+  taxesAndFees     Decimal     @map("taxes_and_fees") @db.Decimal(18, 2)
+  total            Decimal     @db.Decimal(18, 2)
+  termStart        DateTime    @map("term_start") @db.Date
+  termEnd          DateTime    @map("term_end") @db.Date
+  riskData         Json        @map("risk_data")
+  selection        Json
+  evaluation       Json
+  referral         Json?
+  details          Json?
+  signature        Json?
+  payment          Json?
+  policyId         String?     @map("policy_id") @db.Uuid
+  policyNumber     String?     @map("policy_number")
+  expiresAt        DateTime    @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime    @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @map("updated_at") @db.Timestamptz(6)
+  boundAt          DateTime?   @map("bound_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, submissionId])
+  @@index([tenantId, status, updatedAt])
+  @@map("quotes")
+}
+
+/// One attempt to pay for a quote through the PaymentGateway. Card data never lands here.
+model QuotePayment {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  quoteId     String   @map("quote_id") @db.Uuid
+  provider    String
+  providerRef String?  @map("provider_ref")
+  status      String
+  amount      Decimal  @db.Decimal(18, 2)
+  currency    String   @db.Char(3)
+  method      Json
+  failure     String?
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, quoteId, createdAt])
+  @@map("quote_payments")
+}
+
+/// What happened to a quote before bind; copied onto the policy's timeline when it binds.
+model QuoteActivity {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id")
+  quoteId    String   @map("quote_id") @db.Uuid
+  type       String
+  category   String
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+  actor      Json
+  summary    String
+  data       Json
+
+  @@index([tenantId, quoteId, occurredAt])
+  @@map("quote_activity")
+}

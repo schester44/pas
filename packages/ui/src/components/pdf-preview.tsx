@@ -1,4 +1,4 @@
-import { cn } from "@pas/ui/lib/utils";
+import { cn } from "../lib/utils";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 // oxlint-disable-next-line import/default -- Vite's ?url suffix supplies the default export.
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";

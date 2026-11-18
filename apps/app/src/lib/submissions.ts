@@ -1,6 +1,7 @@
 import type { StatusTone } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { formatPlainDate } from "./format";
+import { QUOTE_STATUS } from "./quotes";
 
 export const SUBMISSION_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   draft: { label: "Draft", tone: "neutral" },
@@ -8,7 +9,16 @@ export const SUBMISSION_STATUS: Record<string, { label: string; tone: StatusTone
   withdrawn: { label: "Withdrawn", tone: "neutral" },
 };
 
-export function submissionStatus(status: string) {
+export function submissionStatus(
+  status: string,
+  quote?: { status: string; approved: boolean } | null,
+) {
+  if (quote)
+    return (
+      QUOTE_STATUS[quote.approved && quote.status === "quoted" ? "approved" : quote.status] ??
+      QUOTE_STATUS.quoted!
+    );
+
   return SUBMISSION_STATUS[status] ?? { label: status, tone: "neutral" as const };
 }
 

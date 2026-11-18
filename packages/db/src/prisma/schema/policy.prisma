@@ -1,0 +1,152 @@
+enum PolicyTermStatus {
+  PENDING_EFFECTIVE
+  IN_FORCE
+  EXPIRED
+  CANCELLED
+
+  @@map("policy_term_status")
+}
+
+/// The contract across its terms (PLAN §7.3). The number comes from a per-tenant sequence.
+model Policy {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id")
+  number             String
+  productId          String   @map("product_id") @db.Uuid
+  productName        String   @map("product_name")
+  insuredName        String   @map("insured_name")
+  producerId         String   @map("producer_id")
+  producerName       String   @map("producer_name")
+  sourceSubmissionId String   @map("source_submission_id") @db.Uuid
+  sourceQuoteId      String   @map("source_quote_id") @db.Uuid
+  createdAt          DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, sourceQuoteId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, producerId, createdAt])
+  @@map("policies")
+}
+
+model PolicyTerm {
+  id               String           @id @db.Uuid
+  tenantId         String           @map("tenant_id")
+  policyId         String           @map("policy_id") @db.Uuid
+  termNumber       Int              @map("term_number")
+  productReleaseId String           @map("product_release_id") @db.Uuid
+  productVersion   String           @map("product_version")
+  country          String           @db.Char(2)
+  subdivision      String?          @db.VarChar(6)
+  effectiveDate    DateTime         @map("effective_date") @db.Date
+  expirationDate   DateTime         @map("expiration_date") @db.Date
+  status           PolicyTermStatus
+  currency         String           @db.Char(3)
+  writtenPremium   Decimal          @map("written_premium") @db.Decimal(18, 2)
+  taxesAndFees     Decimal          @map("taxes_and_fees") @db.Decimal(18, 2)
+  boundAt          DateTime         @map("bound_at") @db.Timestamptz(6)
+  activatedAt      DateTime?        @map("activated_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, policyId, termNumber])
+  @@index([tenantId, status, effectiveDate])
+  @@map("policy_terms")
+}
+
+/// Issued transactions are append-only (CLAUDE.md rule 6); corrections are new transactions.
+model PolicyTransaction {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  policyId      String   @map("policy_id") @db.Uuid
+  termId        String   @map("term_id") @db.Uuid
+  type          String
+  status        String
+  effectiveDate DateTime @map("effective_date") @db.Date
+  currency      String   @db.Char(3)
+  premiumDelta  Decimal  @map("premium_delta") @db.Decimal(18, 2)
+  issuedAt      DateTime @map("issued_at") @db.Timestamptz(6)
+  recordedAt    DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([tenantId, policyId, recordedAt])
+  @@map("policy_transactions")
+}
+
+/// The full term state an issued transaction produced (PLAN §7.1).
+model TermVersion {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  termId        String   @map("term_id") @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  version       Int
+  effectiveDate DateTime @map("effective_date") @db.Date
+  snapshot      Json
+  recordedAt    DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, termId, version])
+  @@map("term_versions")
+}
+
+/// Immutable money movements per coverage that a policy transaction produced (PLAN §13).
+model FinancialTransaction {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  policyId      String   @map("policy_id") @db.Uuid
+  termId        String   @map("term_id") @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  kind          String
+  code          String
+  label         String
+  coverage      String?
+  exposure      String?
+  remitter      String?
+  amount        Decimal  @db.Decimal(18, 2)
+  currency      String   @db.Char(3)
+  effectiveDate DateTime @map("effective_date") @db.Date
+  recordedAt    DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([tenantId, transactionId])
+  @@index([tenantId, policyId, recordedAt])
+  @@map("financial_transactions")
+}
+
+model PolicyDocument {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  policyId      String   @map("policy_id") @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  kind          String
+  title         String
+  storageKey    String   @map("storage_key")
+  sizeBytes     Int      @map("size_bytes")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, policyId, createdAt])
+  @@map("policy_documents")
+}
+
+model PolicySequence {
+  tenantId  String @id @map("tenant_id")
+  lastValue Int    @map("last_value")
+
+  @@map("policy_sequences")
+}
+
+/// The policy's timeline (append-only). Written in the unit of work of the change it records.
+model PolicyEvent {
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id")
+  policyId      String    @map("policy_id") @db.Uuid
+  termId        String?   @map("term_id") @db.Uuid
+  transactionId String?   @map("transaction_id") @db.Uuid
+  invoiceId     String?   @map("invoice_id") @db.Uuid
+  type          String
+  category      String
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  effectiveDate DateTime? @map("effective_date") @db.Date
+  actor         Json
+  summary       String
+  data          Json
+  recordedAt    DateTime  @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([tenantId, policyId, occurredAt])
+  @@map("policy_events")
+}

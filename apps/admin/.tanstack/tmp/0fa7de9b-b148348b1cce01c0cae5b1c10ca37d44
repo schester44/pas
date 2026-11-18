@@ -18,6 +18,8 @@ import { Route as AcceptInvitationIdRouteImport } from './routes/accept-invitati
 import { Route as AuthedDocumentsFormsRouteImport } from './routes/_authed/documents/forms'
 import { Route as AuthedPlatformTenantsRouteImport } from './routes/_authed/platform.tenants'
 import { Route as AuthedPlaygroundFormsRouteImport } from './routes/_authed/playground.forms'
+import { Route as AuthedPoliciesIndexRouteImport } from './routes/_authed/policies/index'
+import { Route as AuthedPoliciesPolicyIdRouteImport } from './routes/_authed/policies/$policyId'
 import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/products/index'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSettingsBrandingRouteImport } from './routes/_authed/settings/branding'
@@ -80,6 +82,16 @@ const AuthedPlatformTenantsRoute = AuthedPlatformTenantsRouteImport.update({
 const AuthedPlaygroundFormsRoute = AuthedPlaygroundFormsRouteImport.update({
   id: '/playground/forms',
   path: '/playground/forms',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPoliciesIndexRoute = AuthedPoliciesIndexRouteImport.update({
+  id: '/policies/',
+  path: '/policies/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPoliciesPolicyIdRoute = AuthedPoliciesPolicyIdRouteImport.update({
+  id: '/policies/$policyId',
+  path: '/policies/$policyId',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedProductsIndexRoute = AuthedProductsIndexRouteImport.update({
@@ -199,9 +211,11 @@ export interface FileRoutesByFullPath {
   '/documents/forms': typeof AuthedDocumentsFormsRoute
   '/platform/tenants': typeof AuthedPlatformTenantsRoute
   '/playground/forms': typeof AuthedPlaygroundFormsRoute
+  '/policies/$policyId': typeof AuthedPoliciesPolicyIdRoute
   '/settings/branding': typeof AuthedSettingsBrandingRoute
   '/settings/members': typeof AuthedSettingsMembersRoute
   '/submissions/$submissionId': typeof AuthedSubmissionsSubmissionIdRoute
+  '/policies/': typeof AuthedPoliciesIndexRoute
   '/products/': typeof AuthedProductsIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/submissions/': typeof AuthedSubmissionsIndexRoute
@@ -227,9 +241,11 @@ export interface FileRoutesByTo {
   '/documents/forms': typeof AuthedDocumentsFormsRoute
   '/platform/tenants': typeof AuthedPlatformTenantsRoute
   '/playground/forms': typeof AuthedPlaygroundFormsRoute
+  '/policies/$policyId': typeof AuthedPoliciesPolicyIdRoute
   '/settings/branding': typeof AuthedSettingsBrandingRoute
   '/settings/members': typeof AuthedSettingsMembersRoute
   '/submissions/$submissionId': typeof AuthedSubmissionsSubmissionIdRoute
+  '/policies': typeof AuthedPoliciesIndexRoute
   '/products': typeof AuthedProductsIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/submissions': typeof AuthedSubmissionsIndexRoute
@@ -257,9 +273,11 @@ export interface FileRoutesById {
   '/_authed/documents/forms': typeof AuthedDocumentsFormsRoute
   '/_authed/platform/tenants': typeof AuthedPlatformTenantsRoute
   '/_authed/playground/forms': typeof AuthedPlaygroundFormsRoute
+  '/_authed/policies/$policyId': typeof AuthedPoliciesPolicyIdRoute
   '/_authed/settings/branding': typeof AuthedSettingsBrandingRoute
   '/_authed/settings/members': typeof AuthedSettingsMembersRoute
   '/_authed/submissions/$submissionId': typeof AuthedSubmissionsSubmissionIdRoute
+  '/_authed/policies/': typeof AuthedPoliciesIndexRoute
   '/_authed/products/': typeof AuthedProductsIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/submissions/': typeof AuthedSubmissionsIndexRoute
@@ -288,9 +306,11 @@ export interface FileRouteTypes {
     | '/documents/forms'
     | '/platform/tenants'
     | '/playground/forms'
+    | '/policies/$policyId'
     | '/settings/branding'
     | '/settings/members'
     | '/submissions/$submissionId'
+    | '/policies/'
     | '/products/'
     | '/settings/'
     | '/submissions/'
@@ -316,9 +336,11 @@ export interface FileRouteTypes {
     | '/documents/forms'
     | '/platform/tenants'
     | '/playground/forms'
+    | '/policies/$policyId'
     | '/settings/branding'
     | '/settings/members'
     | '/submissions/$submissionId'
+    | '/policies'
     | '/products'
     | '/settings'
     | '/submissions'
@@ -345,9 +367,11 @@ export interface FileRouteTypes {
     | '/_authed/documents/forms'
     | '/_authed/platform/tenants'
     | '/_authed/playground/forms'
+    | '/_authed/policies/$policyId'
     | '/_authed/settings/branding'
     | '/_authed/settings/members'
     | '/_authed/submissions/$submissionId'
+    | '/_authed/policies/'
     | '/_authed/products/'
     | '/_authed/settings/'
     | '/_authed/submissions/'
@@ -436,6 +460,20 @@ declare module '@tanstack/react-router' {
       path: '/playground/forms'
       fullPath: '/playground/forms'
       preLoaderRoute: typeof AuthedPlaygroundFormsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/policies/': {
+      id: '/_authed/policies/'
+      path: '/policies'
+      fullPath: '/policies/'
+      preLoaderRoute: typeof AuthedPoliciesIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/policies/$policyId': {
+      id: '/_authed/policies/$policyId'
+      path: '/policies/$policyId'
+      fullPath: '/policies/$policyId'
+      preLoaderRoute: typeof AuthedPoliciesPolicyIdRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/products/': {
@@ -638,7 +676,9 @@ interface AuthedRouteChildren {
   AuthedDocumentsFormsRoute: typeof AuthedDocumentsFormsRoute
   AuthedPlatformTenantsRoute: typeof AuthedPlatformTenantsRoute
   AuthedPlaygroundFormsRoute: typeof AuthedPlaygroundFormsRoute
+  AuthedPoliciesPolicyIdRoute: typeof AuthedPoliciesPolicyIdRoute
   AuthedSubmissionsSubmissionIdRoute: typeof AuthedSubmissionsSubmissionIdRoute
+  AuthedPoliciesIndexRoute: typeof AuthedPoliciesIndexRoute
   AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
   AuthedSubmissionsIndexRoute: typeof AuthedSubmissionsIndexRoute
   AuthedProductsProductIdIndexRoute: typeof AuthedProductsProductIdIndexRoute
@@ -651,7 +691,9 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedDocumentsFormsRoute: AuthedDocumentsFormsRoute,
   AuthedPlatformTenantsRoute: AuthedPlatformTenantsRoute,
   AuthedPlaygroundFormsRoute: AuthedPlaygroundFormsRoute,
+  AuthedPoliciesPolicyIdRoute: AuthedPoliciesPolicyIdRoute,
   AuthedSubmissionsSubmissionIdRoute: AuthedSubmissionsSubmissionIdRoute,
+  AuthedPoliciesIndexRoute: AuthedPoliciesIndexRoute,
   AuthedProductsIndexRoute: AuthedProductsIndexRoute,
   AuthedSubmissionsIndexRoute: AuthedSubmissionsIndexRoute,
   AuthedProductsProductIdIndexRoute: AuthedProductsProductIdIndexRoute,

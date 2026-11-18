@@ -119,6 +119,8 @@ export const DECISION_KINDS = {
         basis: z.enum(["premium", "premium_and_fees", "flat"]),
         taxable: z.boolean(),
         remitter: z.enum(["licensee", "carrier", "producer"]),
+        rounding: z.enum(["half_up", "half_even", "up", "down"]).optional(),
+        places: z.number().int().min(0).max(6).optional(),
       })
       .refine((line) => (line.rate === undefined) !== (line.amount === undefined), {
         message: "Give either a rate or an amount",
@@ -164,6 +166,18 @@ export const DECISION_KINDS = {
         path: ["timing"],
       }),
     aggregate: (rows) => rows[0] ?? null,
+  }),
+  attestations: defineKind({
+    label: "Attestations",
+    cardinality: "many",
+    row: z.object({ code: text, title: text, statement: text }),
+    aggregate: (rows) => {
+      const seen = new Set<string>();
+
+      return {
+        attestations: rows.filter((row) => !seen.has(row.code) && seen.add(row.code)),
+      };
+    },
   }),
   referral_triggers: defineKind({
     label: "Referral triggers",

@@ -1,5 +1,6 @@
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import type { Jurisdiction } from "@pas/kernel";
+import type { Quote } from "../domain/quote";
 import type { RiskData, Submission } from "../domain/submission";
 
 export interface SubmissionSummaryDto {
@@ -20,6 +21,13 @@ export interface SubmissionSummaryDto {
   createdAt: string;
   updatedAt: string;
   submittedAt: string | null;
+  quote: {
+    status: string;
+    approved: boolean;
+    total: { amount: string; currency: string };
+    expiresAt: string;
+    policyNumber: string | null;
+  } | null;
 }
 
 export interface SubmissionDto extends SubmissionSummaryDto {
@@ -29,8 +37,13 @@ export interface SubmissionDto extends SubmissionSummaryDto {
   form: FormDefinition;
 }
 
-export function toSummaryDto(submission: Submission, productName: string): SubmissionSummaryDto {
+export function toSummaryDto(
+  submission: Submission,
+  productName: string,
+  quote: Quote | null = null,
+): SubmissionSummaryDto {
   const s = submission.toSnapshot();
+  const q = quote?.toSnapshot();
 
   return {
     id: s.id,
@@ -50,6 +63,15 @@ export function toSummaryDto(submission: Submission, productName: string): Submi
     createdAt: s.createdAt.toString(),
     updatedAt: s.updatedAt.toString(),
     submittedAt: s.submittedAt?.toString() ?? null,
+    quote: q
+      ? {
+          status: q.status,
+          approved: q.referral?.decision?.outcome === "approved" && q.status !== "referred",
+          total: q.evaluation.total.toJSON(),
+          expiresAt: q.expiresAt.toString(),
+          policyNumber: q.policy?.number ?? null,
+        }
+      : null,
   };
 }
 
@@ -57,11 +79,12 @@ export function toSubmissionDto(
   submission: Submission,
   productName: string,
   intake: { riskSchema: RiskSchema; form: FormDefinition },
+  quote: Quote | null = null,
 ): SubmissionDto {
   const s = submission.toSnapshot();
 
   return {
-    ...toSummaryDto(submission, productName),
+    ...toSummaryDto(submission, productName, quote),
     formKey: s.formKey,
     riskData: s.riskData,
     riskSchema: intake.riskSchema,

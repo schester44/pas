@@ -1,0 +1,73 @@
+enum InvoiceStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  VOID
+
+  @@map("invoice_status")
+}
+
+/// A bill (or credit note) for one financial policy transaction (PLAN §13).
+model Invoice {
+  id            String        @id @db.Uuid
+  tenantId      String        @map("tenant_id")
+  number        String
+  kind          String
+  policyId      String        @map("policy_id") @db.Uuid
+  policyNumber  String        @map("policy_number")
+  transactionId String        @map("transaction_id") @db.Uuid
+  currency      String        @db.Char(3)
+  total         Decimal       @db.Decimal(18, 2)
+  amountPaid    Decimal       @map("amount_paid") @db.Decimal(18, 2)
+  status        InvoiceStatus
+  issuedOn      DateTime      @map("issued_on") @db.Date
+  dueOn         DateTime      @map("due_on") @db.Date
+  createdAt     DateTime      @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, transactionId])
+  @@index([tenantId, policyId, createdAt])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id        String  @id @db.Uuid
+  tenantId  String  @map("tenant_id")
+  invoiceId String  @map("invoice_id") @db.Uuid
+  position  Int
+  kind      String
+  code      String
+  label     String
+  coverage  String?
+  exposure  String?
+  amount    Decimal @db.Decimal(18, 2)
+
+  @@index([tenantId, invoiceId, position])
+  @@map("invoice_lines")
+}
+
+/// Money received and applied to one invoice.
+model Payment {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  policyId    String   @map("policy_id") @db.Uuid
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  provider    String
+  providerRef String   @map("provider_ref")
+  method      Json
+  currency    String   @db.Char(3)
+  amount      Decimal  @db.Decimal(18, 2)
+  receivedAt  DateTime @map("received_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, provider, providerRef])
+  @@index([tenantId, policyId, receivedAt])
+  @@map("payments")
+}
+
+model InvoiceSequence {
+  tenantId  String @id @map("tenant_id")
+  lastValue Int    @map("last_value")
+
+  @@map("invoice_sequences")
+}

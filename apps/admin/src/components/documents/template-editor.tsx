@@ -47,7 +47,7 @@ import {
 } from "@/components/catalog/documents";
 import type { Contents } from "@/components/catalog/version-editor";
 import { BlockInspector } from "./block-inspector";
-import { PdfPreview } from "./pdf-preview";
+import { PdfPreview } from "@pas/ui/components/pdf-preview";
 import { usePreviewContext, useTemplatePdf } from "./preview";
 
 const MARGIN_LABELS = { narrow: "Narrow", normal: "Normal", wide: "Wide" } as const;

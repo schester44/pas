@@ -13,7 +13,9 @@
     "@pas/db": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
+    "@pas/policy": "workspace:*",
     "@pas/queues": "workspace:*",
+    "@pas/submissions": "workspace:*",
     "@pas/workflows": "workspace:*",
     "zod": "^4.6.7"
   },

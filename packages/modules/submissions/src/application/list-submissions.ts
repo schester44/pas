@@ -1,12 +1,14 @@
 import type { TenantContext, UnitOfWork } from "@pas/kernel";
 import type { SubmissionScope } from "../domain/scope";
 import type { ProductCatalog } from "../ports/product-catalog";
+import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
 import { type SubmissionSummaryDto, toSummaryDto } from "./dto";
 
 export function makeListSubmissions(deps: {
   uow: UnitOfWork;
   submissions: SubmissionRepository;
+  quotes: QuoteRepository;
   catalog: ProductCatalog;
 }) {
   return async function listSubmissions(
@@ -16,13 +18,24 @@ export function makeListSubmissions(deps: {
   ): Promise<SubmissionSummaryDto[]> {
     const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
 
-    const [submissions, names] = await Promise.all([
-      deps.uow.run(ctx, (tx) => deps.submissions.list(tx, ctx, scope, { limit })),
+    const [{ submissions, quotes }, names] = await Promise.all([
+      deps.uow.run(ctx, async (tx) => {
+        const found = await deps.submissions.list(tx, ctx, scope, { limit });
+        const ids = found.map((submission) => submission.id);
+
+        return { submissions: found, quotes: await deps.quotes.listBySubmissions(tx, ctx, ids) };
+      }),
       deps.catalog.productNames(ctx),
     ]);
 
+    const bySubmission = new Map(quotes.map((q) => [q.toSnapshot().submissionId, q]));
+
     return submissions.map((submission) =>
-      toSummaryDto(submission, names.get(submission.toSnapshot().productId) ?? "Product"),
+      toSummaryDto(
+        submission,
+        names.get(submission.toSnapshot().productId) ?? "Product",
+        bySubmission.get(submission.id) ?? null,
+      ),
     );
   };
 }
