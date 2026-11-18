@@ -23,6 +23,7 @@
     "@pas/documents": "workspace:*",
     "@pas/form-library": "workspace:*",
     "@pas/forms-core": "workspace:*",
+    "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
     "@pas/parties": "workspace:*",

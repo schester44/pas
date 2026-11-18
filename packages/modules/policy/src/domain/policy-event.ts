@@ -43,7 +43,7 @@ export const POLICY_EVENT_TYPES = {
     "past_due",
   ],
   document: ["documents_generated", "signed"],
-  communication: ["notice_sent"],
+  communication: ["notice_sent", "notice_mailed"],
   service: ["change_requested"],
   note: ["note", "producer_changed", "data_corrected"],
 } as const;

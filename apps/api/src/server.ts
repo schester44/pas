@@ -9,6 +9,7 @@ import { appRouter } from "./trpc/app";
 import { createContext } from "./trpc/context";
 import { platformRouter } from "./trpc/platform";
 import { uploadRoutes } from "./uploads";
+import { webhookRoutes } from "./webhooks";
 
 export async function buildServer(container: Container) {
   const server = Fastify({
@@ -25,6 +26,7 @@ export async function buildServer(container: Container) {
   server.get("/health", async () => ({ ok: true }));
 
   await server.register(uploadRoutes(container));
+  await server.register(webhookRoutes(container));
 
   // Better Auth handles everything under /api/auth.
   server.route({

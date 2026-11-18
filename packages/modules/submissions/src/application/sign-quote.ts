@@ -4,6 +4,7 @@ import {
   type TenantContext,
   type UnitOfWork,
   type ClockProvider,
+  type ProviderFor,
 } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { outstandingFor } from "../domain/bind-requirements";
@@ -25,7 +26,7 @@ export function makeSignQuote(deps: {
   submissions: SubmissionRepository;
   quotes: QuoteRepository;
   renderPacket: RenderQuotePacket;
-  esign: ESignGateway;
+  esign: ProviderFor<ESignGateway>;
   storage: ObjectStorage;
   clocks: ClockProvider;
 }) {
@@ -67,7 +68,9 @@ export function makeSignQuote(deps: {
     const signedAt = deps.clocks.forTenant(ctx.tenantId).now();
     const q = quote.toSnapshot();
 
-    const signed = await deps.esign.sign(
+    const esign = await deps.esign.for(ctx);
+
+    const signed = await esign.sign(
       ctx,
       {
         reference: q.id,
@@ -103,7 +106,7 @@ export function makeSignQuote(deps: {
 
       current.quote.recordSignature(
         {
-          provider: deps.esign.provider,
+          provider: esign.provider,
           envelopeId: signed.envelopeId,
           signerName: input.typedName.trim(),
           signedAt,

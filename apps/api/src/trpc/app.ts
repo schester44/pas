@@ -168,12 +168,17 @@ export const appRouter = router({
           ...ctx.client,
         }),
       ),
+    checkout: requireAppPermission({ quote: ["bind"] }).query(async ({ ctx }) =>
+      ctx.container.useCases.quotes.checkout(ctx.tenant),
+    ),
     bind: requireAppPermission({ quote: ["bind"] })
       .input(bindQuoteInput)
       .mutation(({ ctx, input }) =>
         ctx.container.useCases.quotes.bind(ctx.tenant, ownBook(ctx.session.user.id), {
           submissionId: input.submissionId,
-          method: { kind: "card", ...input.card },
+          method: input.paymentToken
+            ? { kind: "token", token: input.paymentToken }
+            : { kind: "card", ...input.card! },
           actorName: ctx.session.user.name,
         }),
       ),

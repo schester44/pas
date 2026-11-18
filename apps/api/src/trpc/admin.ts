@@ -31,6 +31,7 @@ import {
 } from "./quotes-input";
 import { listSubmissionsInput, submissionById } from "./submissions-input";
 import { policyChangesRouter, staffScope } from "./policy-changes";
+import { integrationsRouter } from "./integrations";
 import { adminSearch } from "./search";
 
 const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ ctx, next }) => {
@@ -270,6 +271,8 @@ export const adminRouter = router({
   }),
 
   search: router({ query: adminSearch }),
+
+  integrations: integrationsRouter,
 
   clients: router({
     list: clientsAdmin

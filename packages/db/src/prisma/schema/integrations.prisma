@@ -1,0 +1,77 @@
+enum IntegrationStatus {
+  enabled
+  disabled
+  error
+
+  @@map("integration_status")
+}
+
+enum IntegrationEnvironment {
+  test
+  live
+
+  @@map("integration_environment")
+}
+
+/// A tenant's install of a catalog provider (PLAN §19 decision 13). Secrets are AES-256-GCM sealed.
+model IntegrationInstall {
+  id              String                 @id @db.Uuid
+  tenantId        String                 @map("tenant_id")
+  providerId      String                 @map("provider_id")
+  category        String
+  status          IntegrationStatus
+  environment     IntegrationEnvironment
+  config          Json
+  secrets         Json
+  secretHints     Json                   @map("secret_hints")
+  position        Int                    @default(0)
+  lastCheckedAt   DateTime?              @map("last_checked_at") @db.Timestamptz(6)
+  lastCheckOk     Boolean?               @map("last_check_ok")
+  lastCheckDetail String?                @map("last_check_detail")
+  enabledAt       DateTime?              @map("enabled_at") @db.Timestamptz(6)
+  createdAt       DateTime               @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime               @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, providerId])
+  @@index([tenantId, category, status])
+  @@map("integration_installs")
+}
+
+/// Append-only activity per install: health checks, deliveries, webhooks and errors.
+model IntegrationEvent {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id")
+  installId  String?  @map("install_id") @db.Uuid
+  providerId String   @map("provider_id")
+  kind       String
+  outcome    String
+  summary    String
+  externalId String?  @map("external_id")
+  data       Json
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, providerId, externalId])
+  @@index([tenantId, providerId, occurredAt])
+  @@map("integration_events")
+}
+
+/// A letter sent through a print & mail provider, with its tracking and proof of mailing.
+model MailPiece {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id")
+  installId      String?  @map("install_id") @db.Uuid
+  providerId     String   @map("provider_id")
+  providerRef    String   @map("provider_ref")
+  reference      Json
+  mailType       String   @map("mail_type")
+  status         String
+  trackingNumber String?  @map("tracking_number")
+  tracking       Json
+  proof          Json?
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, providerId, providerRef])
+  @@index([tenantId, createdAt])
+  @@map("mail_pieces")
+}

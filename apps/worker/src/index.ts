@@ -19,10 +19,15 @@ import {
   queueConnectionFromEnv,
   shouldManageQueueSchema,
 } from "@pas/queues";
+import { builtinProviders, composeIntegrations } from "@pas/integrations/infrastructure";
 import { makeSendPortalInvite } from "@pas/parties";
 import { ConsoleMailer } from "@pas/parties/infrastructure";
 import { makeQuoteTimers } from "@pas/submissions";
-import { FakeCardGateway, PrismaQuoteRepository } from "@pas/submissions/infrastructure";
+import {
+  ClickToSignGateway,
+  FakeCardGateway,
+  PrismaQuoteRepository,
+} from "@pas/submissions/infrastructure";
 import { AppHosts, makeGetProfile } from "@pas/tenants";
 import { PrismaTenantProfileRepository, TenantClocks } from "@pas/tenants/infrastructure";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
@@ -57,10 +62,39 @@ const termTimers = makeTermTimers({
 
 const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks });
 
+const integrations = composeIntegrations({
+  prisma,
+  uow,
+  outbox,
+  clocks,
+  environments: {
+    isSandbox: async (tenantId) => {
+      await clocks.refresh(tenantId);
+
+      return clocks.isSandbox(tenantId);
+    },
+  },
+  builtins: builtinProviders({
+    payments: new FakeCardGateway(clocks),
+    esign: new ClickToSignGateway(),
+    email: new ConsoleMailer(logger),
+  }),
+  notices: {
+    record: (tx, ctx, input) =>
+      recordPolicyEvent(tx, ctx, {
+        ...input,
+        type: "notice_mailed",
+        actor: { type: "system", name: "Print and mail" },
+      }),
+  },
+  secretKey: process.env.INTEGRATIONS_SECRET_KEY,
+  publicUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:4000",
+});
+
 const refundCreditNote = makeRefundCreditNote({
   uow,
   invoices,
-  gateway: new FakeCardGateway(clocks),
+  gateway: integrations.resolver.port("payments"),
   timeline: { record: (tx, ctx, entry) => recordPolicyEvent(tx, ctx, entry) },
   clocks,
 });
@@ -72,7 +106,7 @@ const getProfile = makeGetProfile({
 });
 
 const sendPortalInvite = makeSendPortalInvite({
-  mailer: new ConsoleMailer(logger),
+  mailers: integrations.resolver.port("email"),
   links: {
     signIn: async (ctx, { email }) => {
       const profile = await getProfile(ctx);
@@ -151,6 +185,9 @@ const dispatch = createDomainEventDispatcher(
           },
         );
       },
+    ],
+    "integrations.install_changed": [
+      async (event) => integrations.resolver.invalidate(event.tenantId),
     ],
     "catalog.product_created": [async (event) => logger.info({ event }, "product created")],
     "parties.client_invited": [

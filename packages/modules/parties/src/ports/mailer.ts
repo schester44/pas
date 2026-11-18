@@ -6,7 +6,7 @@ export interface MailMessage {
   tag: "client_sign_in_code" | "client_portal_invite";
 }
 
-/** Outbound email. Dev logs to the console; a real provider plugs in here. */
+/** Outbound email, resolved per tenant from its integrations (the console mailer by default). */
 export interface Mailer {
   send(message: MailMessage): Promise<void>;
 }

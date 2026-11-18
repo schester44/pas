@@ -93,4 +93,82 @@ describe("runEnrichmentStage", () => {
       },
     ]);
   });
+
+  it("merges providers field by field with provenance, after the calls it depends on", async () => {
+    const stub = (id: string, response: Record<string, unknown>) => ({
+      ...createFakeDataProvider({ id }),
+      fetch: async (_capability: string, request: Record<string, unknown>) => {
+        seen.push([id, request]);
+
+        return response;
+      },
+    });
+
+    const seen: [string, Record<string, unknown>][] = [];
+
+    const plan = enrichmentPlanSchema.parse({
+      stages: {
+        pre_rate: [
+          {
+            id: "hazards",
+            capability: "hazard_scores",
+            providers: ["hazardhub", "other"],
+            combine: "merge",
+            fieldSources: { floodZone: "other" },
+            dependsOn: ["geocode"],
+            request: { latitude: "location.latitude" },
+            response: {
+              wildfireScore: "hazard.wildfire",
+              floodZone: "hazard.floodZone",
+              crimeScore: "hazard.crime",
+            },
+            mode: "uw_only",
+            costClass: "medium",
+          },
+          {
+            id: "geocode",
+            capability: "geocode",
+            providers: ["census"],
+            request: { address: "address" },
+            response: { latitude: "location.latitude" },
+            mode: "prefill",
+            costClass: "free",
+          },
+        ],
+      },
+    });
+
+    const result = await runEnrichmentStage(
+      plan,
+      "pre_rate",
+      { data: { address: "1 Elm St" }, userEntered: new Set(["address"]) },
+      {
+        tenantId: asId("tenant-1"),
+        providers: createProviderRegistry([
+          stub("census", { latitude: 41.5 }),
+          stub("hazardhub", { wildfireScore: 12, floodZone: "X", crimeScore: null }),
+          stub("other", { wildfireScore: 80, floodZone: "AE", crimeScore: 7 }),
+        ]),
+        cache: new InMemoryEnrichmentCache(systemClock),
+        clock: systemClock,
+      },
+    );
+
+    expect(seen[0]).toEqual(["census", { address: "1 Elm St" }]);
+
+    expect(seen.slice(1).map(([, request]) => request)).toEqual([
+      { latitude: 41.5 },
+      { latitude: 41.5 },
+    ]);
+
+    const hazards = result.snapshot.entries.find((entry) => entry.callId === "hazards")!;
+
+    expect(hazards.response).toEqual({ wildfireScore: 12, floodZone: "AE", crimeScore: 7 });
+
+    expect(hazards.provenance).toEqual({
+      wildfireScore: "hazardhub",
+      floodZone: "other",
+      crimeScore: "other",
+    });
+  });
 });

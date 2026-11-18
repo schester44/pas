@@ -12,3 +12,4 @@ export * from "./aggregate";
 export * from "./ports/clock";
 export * from "./ports/unit-of-work";
 export * from "./ports/workflows";
+export * from "./ports/providers";

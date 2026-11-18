@@ -84,7 +84,17 @@ export const cardInput = z.object({
   postalCode: text(20).optional(),
 });
 
-export const bindQuoteInput = bySubmission.extend({ card: cardInput });
+export const bindQuoteInput = bySubmission
+  .extend({
+    card: cardInput.optional(),
+    paymentToken: z
+      .string()
+      .regex(/^pm_\w{4,200}$/)
+      .optional(),
+  })
+  .refine((input) => Boolean(input.card) !== Boolean(input.paymentToken), {
+    message: "Send a card or a payment token",
+  });
 
 export const decideReferralInput = bySubmission.extend({
   outcome: z.enum(["approve", "decline"]),

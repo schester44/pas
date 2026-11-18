@@ -74,6 +74,15 @@ Open http://localhost:5173, create an account, create an organization (your tena
 | `pnpm queues:setup`                                      | Install the pg-boss schema and queues (owner role, deploy step) |
 | `pnpm db:app-role`                                       | Create/update the non-owner `pas_app` role (RLS applies to it)  |
 
+## Integrations
+
+Settings → Integrations is the provider catalog: Stripe (payments), Resend, Postmark and SMTP (email), Lob (print and mail), signed-webhook providers for email and print and mail, and data providers (US Census geocoder, E2Value, HazardHub). Every port has a built-in fake, which powers it until a tenant enables a provider; sandboxes only ever use test mode or the fake.
+
+- `INTEGRATIONS_SECRET_KEY` (required to save provider secrets): an AES-256-GCM keyring, `k1:<base64 32 bytes>` (`openssl rand -base64 32`). The first key seals, every listed key opens. Rotate by prepending a new key, re-saving each integration, then removing the old one.
+- Provider credentials (Stripe keys, Resend and Postmark tokens, Lob keys, SMTP passwords, webhook signing secrets) are entered per tenant in the admin, never in `.env`.
+- Webhooks arrive at `<api origin>/api/webhooks/<kind>/<installId>`; each provider's page shows its URL. The api origin is `BETTER_AUTH_URL`.
+- Optional, for local checks only: `STRIPE_TEST_SECRET_KEY` (a real test-mode PaymentIntent) and `RESEND_API_KEY` (a real Resend send).
+
 ## Documents
 
 - [`PLAN.md`](./PLAN.md): architecture, bounded contexts, lifecycle state machines, config model, rating, rules, forms, documents, compliance, roadmap, open decisions

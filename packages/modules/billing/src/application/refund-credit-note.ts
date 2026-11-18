@@ -5,6 +5,7 @@ import {
   type TenantContext,
   type UnitOfWork,
   type ClockProvider,
+  type ProviderFor,
 } from "@pas/kernel";
 import type { InvoiceRepository } from "../ports/invoice-repository";
 import type { PaymentGateway } from "../ports/payment-gateway";
@@ -22,7 +23,7 @@ const format = (money: Money) =>
 export function makeRefundCreditNote(deps: {
   uow: UnitOfWork;
   invoices: InvoiceRepository;
-  gateway: PaymentGateway;
+  gateway: ProviderFor<PaymentGateway>;
   timeline: PolicyTimeline;
   clocks: ClockProvider;
 }) {
@@ -30,6 +31,8 @@ export function makeRefundCreditNote(deps: {
     ctx: TenantContext,
     input: { invoiceId: string },
   ): Promise<void> {
+    const gateway = await deps.gateway.for(ctx);
+
     const plan = await deps.uow.run(ctx, async (tx) => {
       const credit = await deps.invoices.findById(tx, ctx, asId(input.invoiceId));
 
@@ -41,15 +44,13 @@ export function makeRefundCreditNote(deps: {
       if (payments.some((p) => p.kind === "refund" && p.invoiceId === c.id)) return null;
 
       const refundable = payments
-        .filter((p) => p.provider === deps.gateway.provider)
+        .filter((p) => p.provider === gateway.provider)
         .reduce((sum, p) => sum.plus(p.amount), Money.zero(c.total.currency));
 
       const owed = credit.balance.negated();
       const amount = owed.amount.greaterThan(refundable.amount) ? refundable : owed;
 
-      const source = payments.find(
-        (p) => p.kind === "payment" && p.provider === deps.gateway.provider,
-      );
+      const source = payments.find((p) => p.kind === "payment" && p.provider === gateway.provider);
 
       if (!amount.amount.isPositive() || !source) return null;
 
@@ -58,7 +59,7 @@ export function makeRefundCreditNote(deps: {
 
     if (!plan) return;
 
-    const { refundId } = await deps.gateway.refund(ctx, {
+    const { refundId } = await gateway.refund(ctx, {
       paymentRef: plan.source.providerRef,
       amount: plan.amount,
       idempotencyKey: `refund:${input.invoiceId}`,
@@ -67,7 +68,7 @@ export function makeRefundCreditNote(deps: {
     await deps.uow.run(ctx, async (tx) => {
       const credit = (await deps.invoices.findById(tx, ctx, asId(input.invoiceId)))!;
 
-      if (await deps.invoices.findPayment(tx, ctx, deps.gateway.provider, refundId)) return;
+      if (await deps.invoices.findPayment(tx, ctx, gateway.provider, refundId)) return;
 
       credit.applyRefund(plan.amount, deps.clocks.forTenant(ctx.tenantId));
       await deps.invoices.save(tx, credit);
@@ -77,7 +78,7 @@ export function makeRefundCreditNote(deps: {
         kind: "refund",
         policyId: plan.policyId,
         invoiceId: credit.id,
-        provider: deps.gateway.provider,
+        provider: gateway.provider,
         providerRef: refundId,
         method: { ...plan.source.method },
         amount: plan.amount.negated(),

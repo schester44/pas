@@ -17,6 +17,7 @@ const ALL: readonly ProviderCapability[] = [
   "property_characteristics",
   "hazard_scores",
   "tax_jurisdiction",
+  "replacement_cost",
 ];
 
 /** Deterministic, plausible data derived from the request, for sandboxes, demos and tests. */
@@ -73,10 +74,25 @@ const GENERATORS: Record<ProviderCapability, (next: () => number) => ProviderRes
   hazard_scores: (next) => ({
     wildfireScore: 1 + Math.floor(next() * 100),
     windScore: 1 + Math.floor(next() * 100),
+    hailScore: 1 + Math.floor(next() * 100),
+    hurricaneScore: 1 + Math.floor(next() * 100),
+    earthquakeScore: 1 + Math.floor(next() * 100),
+    crimeScore: 1 + Math.floor(next() * 100),
     floodZone: pick(next, ["X", "X500", "AE", "A", "VE"]),
     distanceToCoastMiles: round(next() * 400, 1),
+    fireStationDistanceMiles: round(next() * 12, 1),
     protectionClass: 1 + Math.floor(next() * 10),
   }),
+  replacement_cost: (next) => {
+    const squareFeet = 900 + Math.floor(next() * 3600);
+    const perSquareFoot = 140 + Math.floor(next() * 160);
+
+    return {
+      replacementCost: Math.round((squareFeet * perSquareFoot) / 100) * 100,
+      costPerSquareFoot: perSquareFoot,
+      quality: pick(next, ["economy", "standard", "custom", "premium"]),
+    };
+  },
   tax_jurisdiction: (next) => ({
     taxDistrictCode: `SBX-${pad(Math.floor(next() * 9999), 4)}`,
     municipality: `Sandbox City ${Math.floor(next() * 500)}`,

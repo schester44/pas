@@ -12,6 +12,7 @@
   "dependencies": {
     "@pas/billing": "workspace:*",
     "@pas/db": "workspace:*",
+    "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
     "@pas/parties": "workspace:*",

@@ -8,6 +8,7 @@ export const providerCapabilities = [
   "property_characteristics",
   "hazard_scores",
   "tax_jurisdiction",
+  "replacement_cost",
 ] as const;
 export type ProviderCapability = (typeof providerCapabilities)[number];
 
@@ -45,6 +46,20 @@ export const enrichmentCallSchema = z.object({
   consent: z.enum(consentKinds).optional(),
   costClass: z.enum(costClasses),
   timeoutMs: z.number().int().positive().default(5000),
+  combine: z
+    .enum(["fallback", "merge"])
+    .default("fallback")
+    .describe("fallback: first provider that answers; merge: ask all and merge field by field"),
+  fieldSources: z
+    .record(z.string(), z.string().min(1))
+    .default({})
+    .describe(
+      "Response field → provider that wins it; otherwise first non-empty in provider order",
+    ),
+  dependsOn: z
+    .array(z.string().min(1))
+    .default([])
+    .describe("Calls whose results this call's request reads, such as geocode before hazards"),
 });
 
 export const enrichmentPlanSchema = z.object({

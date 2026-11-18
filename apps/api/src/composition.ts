@@ -35,7 +35,7 @@ import {
   PrismaFormEditionCloner,
   PrismaFormEditionRepository,
 } from "@pas/form-library/infrastructure";
-import { sameJurisdiction, type TenantContext } from "@pas/kernel";
+import { asId, sameJurisdiction, type TenantContext } from "@pas/kernel";
 import {
   makeApplyPayment,
   makeGetPolicyBilling,
@@ -108,6 +108,7 @@ import {
   PrismaRaterWorkbookCloner,
   PrismaRaterWorkbookRepository,
 } from "@pas/rating/infrastructure";
+import { builtinProviders, composeIntegrations } from "@pas/integrations/infrastructure";
 import { makeSearch } from "@pas/search";
 import { PostgresSearchIndex } from "@pas/search/infrastructure";
 import {
@@ -161,7 +162,6 @@ import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import { env } from "./env";
 import { sandboxAccess } from "./sandbox-access";
-import { sandboxed } from "./sandboxed";
 import { makeSandboxTimers } from "./sandbox-timers";
 
 const party = (policyIds: readonly string[]) => ({ kind: "party" as const, policyIds });
@@ -254,14 +254,46 @@ export function compose() {
   const clientUsers = new PrismaClientUserRepository();
   const changeRequests = new PrismaChangeRequestRepository();
 
-  const cardGateway = sandboxed(clocks, new FakeCardGateway(clocks), new FakeCardGateway(clocks));
-
   const linkPolicyInsureds = makeLinkPolicyInsureds({
     accounts: clientAccounts,
     parties: policyParties,
     outbox,
     clocks,
   });
+
+  const mailer = new ConsoleMailer(logger);
+
+  const integrations = composeIntegrations({
+    prisma,
+    uow,
+    outbox,
+    clocks,
+    environments: {
+      isSandbox: async (tenantId) => {
+        await clocks.refresh(tenantId);
+
+        return clocks.isSandbox(tenantId);
+      },
+    },
+    builtins: builtinProviders({
+      payments: new FakeCardGateway(clocks),
+      esign: new ClickToSignGateway(),
+      email: mailer,
+    }),
+    notices: {
+      record: (tx, ctx, input) =>
+        recordPolicyEvent(tx, ctx, {
+          ...input,
+          type: "notice_mailed",
+          actor: { type: "system", name: "Print and mail" },
+        }),
+    },
+    secretKey: process.env.INTEGRATIONS_SECRET_KEY,
+    publicUrl: env.BETTER_AUTH_URL,
+  });
+
+  const cardGateway = integrations.resolver.port("payments");
+  const emailFor = integrations.resolver.port("email");
 
   const policy = {
     issueNewBusiness: makeIssueNewBusiness({
@@ -427,7 +459,6 @@ export function compose() {
     hosts: appHosts,
   });
 
-  const mailer = new ConsoleMailer(logger);
   const environments = new PrismaTenantEnvironmentRepository();
 
   const sandboxTimers = makeSandboxTimers({
@@ -450,13 +481,27 @@ export function compose() {
     isTrustedTenantOrigin: async (origin) =>
       URL.canParse(origin) &&
       (await resolveTenantByHost({ host: new URL(origin).host })).status === "tenant",
-    sendSignInCode: ({ email, code }) =>
-      mailer.send({
+    sendSignInCode: async ({ email, code, headers }) => {
+      const resolved = await resolveTenantByHost({
+        host: headers?.get("x-pas-host") ?? headers?.get("host") ?? "",
+        slug: headers?.get("x-pas-tenant"),
+      });
+
+      const sender =
+        resolved.status === "tenant"
+          ? await emailFor.for({
+              tenantId: asId(resolved.tenantId),
+              actor: { type: "system", process: "auth" },
+            })
+          : mailer;
+
+      await sender.send({
         to: email,
         tag: "client_sign_in_code",
         subject: `Your sign-in code is ${code}`,
         text: `Your sign-in code is ${code}. It expires in 10 minutes. If you didn't ask for it, ignore this email.`,
-      }),
+      });
+    },
   });
 
   return {
@@ -466,6 +511,7 @@ export function compose() {
     queues,
     workflows,
     clocks,
+    integrations,
     useCases: {
       catalog: {
         createProduct: makeCreateProduct({ uow, outbox, products, clocks }),
@@ -519,7 +565,7 @@ export function compose() {
         sign: makeSignQuote({
           ...quoting,
           renderPacket: renderQuotePacket,
-          esign: sandboxed(clocks, new ClickToSignGateway(), new ClickToSignGateway()),
+          esign: integrations.resolver.port("esign"),
           storage,
         }),
         bind: makeBindQuote({
@@ -537,6 +583,7 @@ export function compose() {
           storage,
         }),
         decideReferral: makeDecideReferral(quoting),
+        checkout: async (ctx: TenantContext) => (await cardGateway.for(ctx)).checkout,
       },
       parties,
       search: makeSearch({ uow, index: new PostgresSearchIndex() }),

@@ -1,4 +1,11 @@
-import { asId, conflict, notFound, type TenantContext, type UnitOfWork } from "@pas/kernel";
+import {
+  asId,
+  conflict,
+  notFound,
+  type ProviderFor,
+  type TenantContext,
+  type UnitOfWork,
+} from "@pas/kernel";
 import type { BillingTimelineEntry } from "../ports/policy-timeline";
 import type { CardMethod, PaymentGateway } from "../ports/payment-gateway";
 import type { InvoiceRepository } from "../ports/invoice-repository";
@@ -13,7 +20,7 @@ export type PayInvoiceResult =
 export function makePayInvoice(deps: {
   uow: UnitOfWork;
   invoices: InvoiceRepository;
-  gateway: PaymentGateway;
+  gateway: ProviderFor<PaymentGateway>;
   applyPayment: ApplyPayment;
 }) {
   return async function payInvoice(
@@ -33,7 +40,9 @@ export function makePayInvoice(deps: {
       throw conflict(`${i.number} has nothing to pay`);
     }
 
-    const authorization = await deps.gateway.authorize(ctx, {
+    const gateway = await deps.gateway.for(ctx);
+
+    const authorization = await gateway.authorize(ctx, {
       reference: i.number,
       idempotencyKey: `${i.id}:${i.amountPaid.toString()}`,
       amount: balance,
@@ -44,7 +53,7 @@ export function makePayInvoice(deps: {
       return { status: "declined", message: authorization.message };
     }
 
-    await deps.gateway.capture(ctx, {
+    await gateway.capture(ctx, {
       authorizationId: authorization.authorizationId,
       amount: balance,
     });
@@ -52,7 +61,7 @@ export function makePayInvoice(deps: {
     const paid = await deps.applyPayment(ctx, {
       invoiceId: i.id,
       amount: balance.toJSON(),
-      provider: deps.gateway.provider,
+      provider: gateway.provider,
       providerRef: authorization.authorizationId,
       method: { ...authorization.method },
       methodLabel: `${authorization.method.brand} ending ${authorization.method.last4}`,

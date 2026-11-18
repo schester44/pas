@@ -5,6 +5,7 @@ import {
   type TenantContext,
   type UnitOfWork,
   type ClockProvider,
+  type ProviderFor,
 } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { outstandingFor } from "../domain/bind-requirements";
@@ -35,7 +36,7 @@ type Deps = EvaluationDeps & {
   submissions: SubmissionRepository;
   quotes: QuoteRepository;
   catalog: ProductCatalog;
-  payments: PaymentGateway;
+  payments: ProviderFor<PaymentGateway>;
   policies: PolicyIssuer;
   documents: QuoteDocuments;
   storage: ObjectStorage;
@@ -86,8 +87,9 @@ export function makeBindQuote(deps: Deps) {
     if (rechecked) return { status: "rechecked", quote: rechecked };
 
     const amount = q.evaluation.total;
+    const payments = await deps.payments.for(ctx);
 
-    const authorization = await deps.payments.authorize(ctx, {
+    const authorization = await payments.authorize(ctx, {
       reference: q.submissionNumber,
       idempotencyKey: `${q.id}:r${q.revision}`,
       amount,
@@ -109,7 +111,7 @@ export function makeBindQuote(deps: Deps) {
         await deps.quotes.savePayment(tx, ctx, {
           id: newId(),
           quoteId: quote.id,
-          provider: deps.payments.provider,
+          provider: payments.provider,
           providerRef: null,
           status: "declined",
           amount,
@@ -143,17 +145,17 @@ export function makeBindQuote(deps: Deps) {
         })),
       });
     } catch (error) {
-      await deps.payments.void(ctx, { authorizationId: authorization.authorizationId });
+      await payments.void(ctx, { authorizationId: authorization.authorizationId });
 
       throw error;
     }
 
-    await deps.payments.capture(ctx, { authorizationId: authorization.authorizationId, amount });
+    await payments.capture(ctx, { authorizationId: authorization.authorizationId, amount });
 
     await deps.policies.applyPayment(ctx, {
       invoiceId: issued.invoice.id,
       amount: amount.toJSON(),
-      provider: deps.payments.provider,
+      provider: payments.provider,
       providerRef: authorization.authorizationId,
       method: { ...authorization.method },
       methodLabel: `${authorization.method.brand} ending ${authorization.method.last4}`,
@@ -209,7 +211,7 @@ export function makeBindQuote(deps: Deps) {
           policy: { id: issued.policyId, number: issued.policyNumber },
           payment: {
             paymentId: authorization.authorizationId,
-            provider: deps.payments.provider,
+            provider: payments.provider,
             amount,
             brand: authorization.method.brand,
             last4: authorization.method.last4,
@@ -224,7 +226,7 @@ export function makeBindQuote(deps: Deps) {
       await deps.quotes.savePayment(tx, ctx, {
         id: newId(),
         quoteId: current.quote.id,
-        provider: deps.payments.provider,
+        provider: payments.provider,
         providerRef: authorization.authorizationId,
         status: "captured",
         amount,

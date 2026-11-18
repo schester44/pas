@@ -11,7 +11,7 @@ export interface AuthConfig {
   trustedOrigins: string[];
   isTrustedTenantOrigin?: (origin: string) => Promise<boolean>;
   /** Delivers a client's one-time sign-in code (PLAN §7.7). */
-  sendSignInCode: (input: { email: string; code: string }) => Promise<void>;
+  sendSignInCode: (input: { email: string; code: string; headers?: Headers }) => Promise<void>;
 }
 
 /**
@@ -45,8 +45,12 @@ export function createAuth(config: AuthConfig) {
         otpLength: 6,
         expiresIn: 600,
         storeOTP: "hashed",
-        sendVerificationOTP: async ({ email, otp, type }) => {
-          if (type === "sign-in") await config.sendSignInCode({ email, code: otp });
+        sendVerificationOTP: async ({ email, otp, type }, ctx) => {
+          const headers = ctx?.headers ?? ctx?.request?.headers;
+
+          if (type === "sign-in") {
+            await config.sendSignInCode({ email, code: otp, ...(headers && { headers }) });
+          }
         },
       }),
     ],
