@@ -1,0 +1,22 @@
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+
+  @@map("product_status")
+}
+
+model Product {
+  id             String        @id @db.Uuid
+  tenantId       String        @map("tenant_id")
+  key            String
+  name           String
+  lineOfBusiness String        @map("line_of_business")
+  status         ProductStatus @default(DRAFT)
+  createdAt      DateTime      @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("products")
+}

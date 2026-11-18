@@ -1,0 +1,32 @@
+/*
+ * PAS design tokens. docs/design.md describes how to use them.
+ * Apps import @pas/ui/styles.css, which maps these onto the Tailwind theme.
+ * apps/app overrides --primary at runtime with the tenant's brand colour.
+ */
+:root {
+  --radius: 0.5rem;
+  /* White cards on a faintly cool canvas: edges read from the tint and a hairline, not a shadow. */
+  --canvas: oklch(0.985 0.002 286);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.2 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.55 0 0);
+  --border: oklch(0.925 0.004 286);
+  --input: oklch(0.92 0 0);
+  /* The one accent. */
+  --primary: #656ae5;
+  --primary-foreground: oklch(1 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  /* shadcn extras, kept neutral so only `primary` carries colour. */
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.25 0 0);
+  --accent: oklch(0.96 0 0);
+  --accent-foreground: oklch(0.25 0 0);
+  --ring: var(--primary);
+  /* A 1px contact shadow, barely there. */
+  --card-shadow: 0 1px 2px 0 oklch(0.2 0.01 286 / 0.04);
+}

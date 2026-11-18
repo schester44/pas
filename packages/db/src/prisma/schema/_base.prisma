@@ -1,0 +1,13 @@
+// Prisma schema is split per bounded context: one file per context in this folder.
+// Conventions: snake_case tables/columns via @map, timestamptz, uuid ids (UUIDv7 generated in app),
+// tenant_id on every tenant-owned table with tenant-leading indexes.
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../../generated/prisma"
+  moduleFormat = "esm"
+}

@@ -1,0 +1,7 @@
+/// One-off data migrations (packages/db/src/data-migrations). Each runs at most once.
+model DataMigration {
+  name  String   @id
+  ranAt DateTime @default(now()) @map("ran_at") @db.Timestamptz(6)
+
+  @@map("_data_migrations")
+}

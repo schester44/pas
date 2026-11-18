@@ -1,0 +1,18 @@
+{
+  "name": "@pas/queues",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/kernel": "workspace:*",
+    "@pas/observability": "workspace:*",
+    "pg-boss": "^12.38.2",
+    "zod": "^4.6.7"
+  }
+}

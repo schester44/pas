@@ -1,0 +1,33 @@
+{
+  "name": "pas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "pnpm --filter @pas/db generate",
+    "db:migrate": "pnpm --filter @pas/db migrate:dev",
+    "db:deploy": "pnpm --filter @pas/db migrate:deploy",
+    "db:reset": "pnpm --filter @pas/db reset",
+    "db:seed": "pnpm --filter @pas/db seed"
+  },
+  "devDependencies": {
+    "@types/node": "^26",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
+    "turbo": "^2.11.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=26"
+  },
+  "packageManager": "pnpm@12.21.0"
+}

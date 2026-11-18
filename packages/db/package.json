@@ -1,0 +1,29 @@
+{
+  "name": "@pas/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/generated/prisma/client.ts"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "reset": "prisma migrate reset --force",
+    "seed": "prisma db seed",
+    "data-migrate": "tsx ./src/data-migrations/runner.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/kernel": "workspace:*",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1"
+  },
+  "devDependencies": {
+    "dotenv": "^18.0.10",
+    "prisma": "^7.10.1",
+    "tsx": "^4.23.15"
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "react", "unicorn"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "ignorePatterns": ["**/dist/**", "**/generated/**", "**/routeTree.gen.ts", "**/node_modules/**"],
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-imports": "error",
+    "import/no-duplicates": "error",
+    "no-console": "warn",
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": [
+      "warn",
+      {
+        "allow": ["**/*.css"]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["packages/modules/*/src/domain/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@pas/*",
+                  "!@pas/kernel",
+                  "@prisma/*",
+                  "pg-boss",
+                  "fastify",
+                  "@trpc/*",
+                  "zod",
+                  "**/application/**",
+                  "**/infrastructure/**",
+                  "**/ports/**"
+                ],
+                "message": "domain/ is pure: import only @pas/kernel and other domain/ files (see CLAUDE.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/kernel/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@pas/*", "@prisma/*", "pg-boss", "fastify", "@trpc/*", "zod", "react"],
+                "message": "The kernel is dependency-free shared domain code."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/modules/*/src/application/**", "packages/modules/*/src/ports/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@pas/db",
+                  "@pas/db/*",
+                  "@prisma/*",
+                  "pg-boss",
+                  "@pas/queues",
+                  "fastify",
+                  "@trpc/*",
+                  "**/infrastructure/**",
+                  "@pas/*/infrastructure"
+                ],
+                "message": "application/ and ports/ must not depend on infrastructure (see CLAUDE.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/modules/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@pas/*/src/*", "@pas/*/domain/*", "@pas/*/application/*"],
+                "message": "Import other modules only through their public entry (@pas/<module>)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/scripts/**", "apps/worker/**", "apps/api/**", "packages/db/**"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}

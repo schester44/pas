@@ -1,0 +1,23 @@
+{
+  "name": "@pas/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "LOG_PRETTY=true tsx watch --env-file=../../.env src/index.ts",
+    "build": "tsup",
+    "start": "node --env-file-if-exists=../../.env --enable-source-maps dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/db": "workspace:*",
+    "@pas/kernel": "workspace:*",
+    "@pas/observability": "workspace:*",
+    "@pas/queues": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15"
+  }
+}

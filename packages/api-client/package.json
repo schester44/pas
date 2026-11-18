@@ -1,0 +1,27 @@
+{
+  "name": "@pas/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.108.0",
+    "@trpc/client": "^11.29.4",
+    "@trpc/tanstack-react-query": "^11.29.4",
+    "superjson": "^2.2.6"
+  },
+  "devDependencies": {
+    "@pas/api": "workspace:*",
+    "@trpc/server": "^11.29.4",
+    "@types/react": "^19",
+    "react": "^19.3.1"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  }
+}
