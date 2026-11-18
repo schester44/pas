@@ -5,7 +5,7 @@
 -- nothing and cannot run DDL.
 --
 -- Run it as the OWNER role (the one that runs `prisma migrate deploy` and installs the pg-boss
--- and pg-workflows schemas), after migrations, `pnpm queues:setup` and `pnpm workflows:setup`.
+-- and workflow schemas), after migrations, `pnpm queues:setup` and `pnpm workflows:setup`.
 -- It is idempotent: re-running it re-applies grants and resets the password.
 --
 --   psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -v app_password="$PAS_APP_PASSWORD" -f sql/app-role.sql
@@ -39,23 +39,23 @@ ALTER ROLE pas_app NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION
 SELECT format('GRANT CONNECT ON DATABASE %I TO pas_app', current_database())
 \gexec
 
--- pg-boss and pg-workflows install into these schemas (as the owner). Create them up front so the
+-- pg-boss and @pas/workflows install into these schemas (as the owner). Create them up front so the
 -- grants below have something to attach to; both are fine with a pre-existing empty schema.
 CREATE SCHEMA IF NOT EXISTS pgboss;
-CREATE SCHEMA IF NOT EXISTS pgworkflows;
+CREATE SCHEMA IF NOT EXISTS workflows;
 
 -- Existing objects ------------------------------------------------------------------------------
 
-GRANT USAGE ON SCHEMA public, pgboss, pgworkflows TO pas_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public, pgboss, pgworkflows TO pas_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public, pgboss, pgworkflows TO pas_app;
+GRANT USAGE ON SCHEMA public, pgboss, workflows TO pas_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public, pgboss, workflows TO pas_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public, pgboss, workflows TO pas_app;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pgboss TO pas_app;
 
 -- Future objects created by this (owner) role ---------------------------------------------------
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA public, pgboss, pgworkflows
+ALTER DEFAULT PRIVILEGES IN SCHEMA public, pgboss, workflows
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO pas_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public, pgboss, pgworkflows
+ALTER DEFAULT PRIVILEGES IN SCHEMA public, pgboss, workflows
   GRANT USAGE, SELECT ON SEQUENCES TO pas_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss
   GRANT EXECUTE ON FUNCTIONS TO pas_app;

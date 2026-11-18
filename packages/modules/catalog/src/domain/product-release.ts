@@ -9,6 +9,7 @@ import {
   sameJurisdiction,
   type TenantId,
 } from "@pas/kernel";
+import type { RatingConfig } from "@pas/rating-engine";
 import {
   type AvailabilityKind,
   type AvailabilityWindow,
@@ -21,7 +22,7 @@ import {
 import type { CoverageDefinition } from "./coverage";
 import type { ProductId } from "./product";
 import type { ProductVersion, ProductVersionId } from "./product-version";
-import type { FormChannel, FormStage } from "./version-contents";
+import type { FormChannel, FormStage, VersionDecision } from "./version-contents";
 
 export type ProductReleaseId = Id<"ProductRelease">;
 
@@ -37,6 +38,8 @@ export interface ReleaseManifest {
   coverages: CoverageDefinition[];
   lifecycle: Record<string, unknown>;
   documents: DocumentSet;
+  rules: VersionDecision[];
+  rating: RatingConfig | null;
 }
 
 export interface ProductReleaseProps {
@@ -72,6 +75,8 @@ export class ProductRelease {
       coverages: v.contents.coverages,
       lifecycle: v.contents.lifecycle,
       documents: v.contents.documents,
+      rules: v.contents.rules,
+      rating: v.contents.rating,
     };
   }
 

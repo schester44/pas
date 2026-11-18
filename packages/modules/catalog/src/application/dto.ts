@@ -1,6 +1,7 @@
 import type { DocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import type { Jurisdiction } from "@pas/kernel";
+import type { RatingConfig } from "@pas/rating-engine";
 import {
   type AvailabilityWindowJson,
   availabilityFromJson,
@@ -13,7 +14,12 @@ import type { CoverageDefinition } from "../domain/coverage";
 import type { Product } from "../domain/product";
 import type { ProductRelease, ReleaseManifest } from "../domain/product-release";
 import type { ProductVersion } from "../domain/product-version";
-import type { FormChannel, FormStage, VersionContents } from "../domain/version-contents";
+import type {
+  FormChannel,
+  FormStage,
+  VersionContents,
+  VersionDecision,
+} from "../domain/version-contents";
 
 export interface ProductDto {
   id: string;
@@ -50,6 +56,8 @@ export interface VersionContentsDto {
   availability: AvailabilityWindowDto[];
   lifecycle: Record<string, unknown>;
   documents: DocumentSet;
+  rules: VersionDecision[];
+  rating: RatingConfig | null;
 }
 
 export interface ProductVersionSummaryDto {
@@ -109,9 +117,18 @@ export function toVersionSummaryDto(version: ProductVersion): ProductVersionSumm
 }
 
 export function toVersionDto(version: ProductVersion): ProductVersionDto {
-  const { riskSchema, forms, coverages, lifecycle, documents } = version.contents;
+  const { riskSchema, forms, coverages, lifecycle, documents, rules, rating } = version.contents;
 
-  return { ...toVersionSummaryDto(version), riskSchema, forms, coverages, lifecycle, documents };
+  return {
+    ...toVersionSummaryDto(version),
+    riskSchema,
+    forms,
+    coverages,
+    lifecycle,
+    documents,
+    rules,
+    rating,
+  };
 }
 
 export function toReleaseDto(release: ProductRelease): ProductReleaseDto {

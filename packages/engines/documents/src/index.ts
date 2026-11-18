@@ -11,7 +11,7 @@ export {
 export { parseRichText, type RichBlock, type Run } from "./rich-text";
 export { resolveClause, type ResolvedClause } from "./clauses";
 export { buildPacket, documentRef, type Packet, type PacketError } from "./schedule";
-export { sampleContext, selectCoverages, type SampleInput } from "./sample";
+export { sampleContext, sampleRisk, selectCoverages, type SampleInput } from "./sample";
 export {
   checkDocuments,
   type CheckOptions,

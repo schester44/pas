@@ -94,7 +94,24 @@ function InputForm({
   onChange: (input: RiskData) => void;
 }) {
   const index = useMemo(() => indexSchema(schema), [schema]);
-  const scalar = paths.filter((path) => !path.includes("[]"));
+
+  const scalar = paths.filter((path) => {
+    const node = index.get(path);
+
+    return (path.match(/\[\]/g) ?? []).length <= 1 && (!node || isField(node));
+  });
+
+  const labelOf = (path: string) => {
+    const label = index.get(path)?.label ?? humanize(path);
+    const repeat = path.includes("[]") ? index.get(path.slice(0, path.indexOf("[]"))) : undefined;
+
+    if (!repeat) return label;
+
+    const entry =
+      "exposure" in repeat && repeat.exposure ? humanize(repeat.exposure) : repeat.label;
+
+    return `${entry} 1 · ${label}`;
+  };
 
   if (scalar.length === 0) {
     return (
@@ -113,7 +130,7 @@ function InputForm({
           <FieldControl
             key={path}
             path={path}
-            label={node?.label ?? humanize(path)}
+            label={labelOf(path)}
             node={node && isField(node) ? node : undefined}
             value={getAt(input, path)}
             onChange={(value) => onChange(setAt(input, path, value))}

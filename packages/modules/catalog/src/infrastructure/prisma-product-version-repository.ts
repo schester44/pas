@@ -1,4 +1,5 @@
 import { prismaTx } from "@pas/db";
+import { Prisma as PrismaRuntime } from "@pas/db/client";
 import type {
   ProductVersionStatus as DbStatus,
   Prisma,
@@ -36,6 +37,8 @@ export class PrismaProductVersionRepository implements ProductVersionRepository 
       availability: json(v.contents.availability.map(availabilityToJson)),
       lifecycle: json(v.contents.lifecycle),
       documents: json(v.contents.documents),
+      rules: json(v.contents.rules),
+      rating: v.contents.rating === null ? PrismaRuntime.DbNull : json(v.contents.rating),
       updatedAt: toDate(v.updatedAt),
       publishedAt: v.publishedAt ? toDate(v.publishedAt) : null,
       retiredAt: v.retiredAt ? toDate(v.retiredAt) : null,
@@ -112,6 +115,8 @@ function toVersion(row: ProductVersionRow): ProductVersion {
       ),
       lifecycle: row.lifecycle as VersionContents["lifecycle"],
       documents: row.documents as unknown as VersionContents["documents"],
+      rules: row.rules as unknown as VersionContents["rules"],
+      rating: row.rating as unknown as VersionContents["rating"],
     },
     basedOnId: row.basedOnId ? asId(row.basedOnId) : null,
     createdAt: toInstant(row.createdAt),

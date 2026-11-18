@@ -41,7 +41,7 @@ function address(jurisdiction: Jurisdiction): AddressValue {
   };
 }
 
-function sampleField(field: FieldNode, input: SampleInput, effectiveDate: string): unknown {
+function sampleField(field: FieldNode, jurisdiction: Jurisdiction, effectiveDate: string): unknown {
   const key = field.key.toLowerCase();
 
   switch (field.kind) {
@@ -76,29 +76,43 @@ function sampleField(field: FieldNode, input: SampleInput, effectiveDate: string
     case "multi_enum":
       return field.options?.[0] ? [field.options[0].value] : [];
     case "address":
-      return address(input.jurisdiction);
+      return address(jurisdiction);
     case "file":
       return undefined;
   }
 }
 
-function sampleNodes(nodes: readonly SchemaNode[], input: SampleInput, effectiveDate: string) {
+function sampleNodes(
+  nodes: readonly SchemaNode[],
+  jurisdiction: Jurisdiction,
+  effectiveDate: string,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
 
   for (const node of nodes) {
-    if (node.kind === "group") out[node.key] = sampleNodes(node.children, input, effectiveDate);
-    else if (node.kind === "repeatable") {
+    if (node.kind === "group") {
+      out[node.key] = sampleNodes(node.children, jurisdiction, effectiveDate);
+    } else if (node.kind === "repeatable") {
       out[node.key] = Array.from({ length: Math.max(node.minItems ?? 0, 1) }, () =>
-        sampleNodes(node.children, input, effectiveDate),
+        sampleNodes(node.children, jurisdiction, effectiveDate),
       );
     } else {
-      const value = sampleField(node, input, effectiveDate);
+      const value = sampleField(node, jurisdiction, effectiveDate);
 
       if (value !== undefined) out[node.key] = value;
     }
   }
 
   return out;
+}
+
+/** Plausible risk data for previews and simulators: every field filled. */
+export function sampleRisk(
+  schema: RiskSchema,
+  jurisdiction: Jurisdiction,
+  effectiveDate: string,
+): Record<string, unknown> {
+  return sampleNodes(schema.fields, jurisdiction, effectiveDate);
 }
 
 const pickDefault = (set: CoverageLike["limitOptions"]) => set?.options[set.defaultIndex];
@@ -133,7 +147,7 @@ export function sampleContext(input: SampleInput): DocumentContext {
   const today = Temporal.Now.plainDateISO();
   const effective = input.effectiveDate ? Temporal.PlainDate.from(input.effectiveDate) : today;
   const effectiveDate = effective.toString();
-  const risk = sampleNodes(input.schema.fields, input, effectiveDate);
+  const risk = sampleRisk(input.schema, input.jurisdiction, effectiveDate);
   const selected = input.selected ?? input.coverages.map((coverage) => coverage.code);
 
   return {

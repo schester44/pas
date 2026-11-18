@@ -89,6 +89,8 @@ export function DecisionEditor({
   schema,
   readOnly,
   sample,
+  input: controlled,
+  onInputChange,
 }: {
   kind: DecisionKind;
   value: JdmDecision;
@@ -96,10 +98,14 @@ export function DecisionEditor({
   schema: RiskSchema;
   readOnly?: boolean;
   sample?: RiskData;
+  input?: RiskData;
+  onInputChange?: (input: RiskData) => void;
 }) {
   const ready = useExpressionsReady();
   const known = useMemo(() => schemaPaths(schema), [schema]);
-  const [input, setInput] = useState<RiskData>(sample ?? {});
+  const [own, setOwn] = useState<RiskData>(sample ?? {});
+  const input = controlled ?? own;
+  const setInput = onInputChange ?? setOwn;
   const tables = tableNodes(value);
   const [activeId, setActiveId] = useState(tables[0]?.id);
   const active = tables.find((table) => table.id === activeId) ?? tables[0];

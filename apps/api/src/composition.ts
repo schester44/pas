@@ -32,6 +32,15 @@ import {
 import { PdfLibInspector, PrismaFormEditionRepository } from "@pas/form-library/infrastructure";
 import { systemClock } from "@pas/kernel";
 import {
+  makeCheckRating,
+  makeGetRaterWorkbook,
+  makeListRaterWorkbooks,
+  makePreviewRating,
+  makeUploadRaterWorkbook,
+  makeWorkbookModels,
+} from "@pas/rating";
+import { PrismaRaterWorkbookRepository } from "@pas/rating/infrastructure";
+import {
   AppHosts,
   makeGetProfile,
   makeListTenants,
@@ -87,6 +96,28 @@ export function compose() {
 
   const formEditionDirectory = { existing: formLibrary.findExisting };
 
+  const raterWorkbooks = new PrismaRaterWorkbookRepository();
+  const workbookModels = makeWorkbookModels({ uow, workbooks: raterWorkbooks, storage });
+
+  const rating = {
+    uploadWorkbook: makeUploadRaterWorkbook({
+      uow,
+      outbox,
+      workbooks: raterWorkbooks,
+      storage,
+      clock,
+    }),
+    listWorkbooks: makeListRaterWorkbooks({ uow, workbooks: raterWorkbooks }),
+    getWorkbook: makeGetRaterWorkbook({ models: workbookModels }),
+    check: makeCheckRating({ models: workbookModels }),
+    preview: makePreviewRating({ models: workbookModels }),
+  };
+
+  const ratingVerifier = {
+    verify: async (...args: Parameters<typeof rating.check>) =>
+      (await rating.check(...args)).issues,
+  };
+
   const catalog = {
     listProducts: makeListProducts({ uow, products }),
     getProduct: makeGetProduct({ uow, products }),
@@ -132,6 +163,7 @@ export function compose() {
           uow,
           versions,
           formEditions: formEditionDirectory,
+          rating: ratingVerifier,
         }),
         publishVersion: makePublishProductVersion({
           uow,
@@ -140,11 +172,13 @@ export function compose() {
           versions,
           releases,
           formEditions: formEditionDirectory,
+          rating: ratingVerifier,
           clock,
         }),
         listReleases: makeListProductReleases({ uow, releases }),
       },
       formLibrary,
+      rating,
       submissions: {
         start: makeStartSubmission({
           uow,

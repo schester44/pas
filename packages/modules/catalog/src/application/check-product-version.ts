@@ -3,18 +3,23 @@ import {
   type CheckIssue,
   checkVersion,
   type PublishedAvailability,
+  type ResolvedReferences,
   scheduledEditionIds,
 } from "../domain/checks";
 import type { ProductVersion } from "../domain/product-version";
 import type { FormEditionDirectory } from "../ports/form-edition-directory";
 import type { ProductVersionRepository } from "../ports/product-version-repository";
+import type { RatingVerifier } from "../ports/rating-verifier";
 import { loadVersion } from "./load";
 
-export function makeCheckProductVersion(deps: {
-  uow: UnitOfWork;
-  versions: ProductVersionRepository;
+export interface ReferenceDeps {
   formEditions: FormEditionDirectory;
-}) {
+  rating: RatingVerifier;
+}
+
+export function makeCheckProductVersion(
+  deps: { uow: UnitOfWork; versions: ProductVersionRepository } & ReferenceDeps,
+) {
   return async function checkProductVersion(
     ctx: TenantContext,
     input: { id: string },
@@ -28,13 +33,27 @@ export function makeCheckProductVersion(deps: {
       };
     });
 
-    const editions = await deps.formEditions.existing(
-      ctx,
-      scheduledEditionIds(version.contents.documents),
-    );
-
-    return checkVersion(version.contents, published, editions);
+    return checkVersion(version.contents, published, await resolveReferences(deps, ctx, version));
   };
+}
+
+export async function resolveReferences(
+  deps: ReferenceDeps,
+  ctx: TenantContext,
+  version: ProductVersion,
+): Promise<ResolvedReferences> {
+  const { contents } = version;
+
+  const [formEditions, rating] = await Promise.all([
+    deps.formEditions.existing(ctx, scheduledEditionIds(contents.documents)),
+    deps.rating.verify(ctx, {
+      rating: contents.rating,
+      riskSchema: contents.riskSchema,
+      coverageCodes: contents.coverages.map((coverage) => coverage.code),
+    }),
+  ]);
+
+  return { formEditions, rating };
 }
 
 export async function publishedSiblings(

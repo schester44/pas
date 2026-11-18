@@ -26,7 +26,7 @@ interface FakeRun {
   readonly input: unknown;
   readonly createdAt: Instant;
   readonly timeline: Map<string, { value: unknown }>;
-  readonly events: Map<string, Record<string, unknown>>;
+  readonly events: { name: string; data: Record<string, unknown> }[];
   readonly wakeAt: Map<string, Instant>;
   status: WorkflowRunStatus;
   currentStep: string;
@@ -73,7 +73,7 @@ export class InMemoryWorkflows implements Workflows {
       input: ref.input.parse(input),
       createdAt: this.clock.now(),
       timeline: new Map(),
-      events: new Map(),
+      events: [],
       wakeAt: new Map(),
       status: "running",
       currentStep: "__start__",
@@ -99,7 +99,9 @@ export class InMemoryWorkflows implements Workflows {
   ): Promise<void> {
     const run = this.find(ctx, runId);
 
-    run.events.set(event, data);
+    if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") return;
+
+    run.events.push({ name: event, data });
 
     if (run.status === "waiting") await this.execute(run);
   }
@@ -159,7 +161,7 @@ export class InMemoryWorkflows implements Workflows {
       });
 
       run.status = "completed";
-      run.output = output ?? {};
+      run.output = output ?? null;
       run.completedAt = this.clock.now();
     } catch (error) {
       if (error instanceof Suspended) {
@@ -219,9 +221,10 @@ export class InMemoryWorkflows implements Workflows {
         if (cached) return cached.value;
 
         run.currentStep = id;
-        const data = run.events.get(event);
+        const index = run.events.findIndex((pending) => pending.name === event);
 
-        if (data) {
+        if (index >= 0) {
+          const { data } = run.events.splice(index, 1)[0]!;
           const value = options.schema ? options.schema.parse(data) : data;
           record(id, value);
 

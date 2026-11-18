@@ -1,4 +1,5 @@
 export * from "./config";
 export * from "./duration";
 export * from "./in-memory";
-export * from "./pg-workflows";
+export * from "./postgres";
+export { DEFAULT_WORKFLOWS_SCHEMA } from "./schema";

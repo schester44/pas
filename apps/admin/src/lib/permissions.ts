@@ -122,6 +122,10 @@ export function useAccess() {
   const submissionRead = usePermission({ submission: ["read"] });
   const documentRead = usePermission({ document: ["read"] });
   const documentWrite = usePermission({ document: ["write"] });
+  const decisionRead = usePermission({ decision: ["read"] });
+  const decisionWrite = usePermission({ decision: ["write"] });
+  const ratingRead = usePermission({ rating: ["read"] });
+  const ratingWrite = usePermission({ rating: ["write"] });
   const invite = usePermission({ invitation: ["create"] });
   const cancelInvite = usePermission({ invitation: ["cancel"] });
   const updateMember = usePermission({ member: ["update"] });
@@ -138,6 +142,8 @@ export function useAccess() {
     products: { read: !!productRead, write: !!productWrite, publish: !!productPublish },
     submissions: { read: !!submissionRead },
     documents: { read: !!documentRead, write: !!documentWrite },
+    decisions: { read: !!decisionRead, write: !!decisionWrite },
+    rating: { read: !!ratingRead, write: !!ratingWrite },
     members: {
       view: !!members,
       invite: !!invite,

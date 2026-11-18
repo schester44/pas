@@ -2,6 +2,7 @@ import multipart from "@fastify/multipart";
 import type { Permission } from "@pas/auth";
 import { MAX_FORM_EDITION_BYTES } from "@pas/form-library";
 import { asId, DomainError, type DomainErrorCode, type TenantContext } from "@pas/kernel";
+import { MAX_RATER_WORKBOOK_BYTES } from "@pas/rating";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { Container } from "./composition";
 import { toFetchHeaders } from "./http";
@@ -27,6 +28,7 @@ async function tenantFor(
   container: Container,
   req: FastifyRequest,
   permissions: Permission,
+  area = "the forms library",
 ): Promise<TenantContext> {
   const headers = toFetchHeaders(req);
   const session = await container.auth.api.getSession({ headers });
@@ -39,7 +41,7 @@ async function tenantFor(
 
   const allowed = await container.auth.api.hasPermission({ headers, body: { permissions } });
 
-  if (!allowed.success) throw new HttpError(403, "You don't have access to the forms library");
+  if (!allowed.success) throw new HttpError(403, `You don't have access to ${area}`);
 
   return { tenantId: asId(tenantId), actor: { type: "user", userId: asId(session.user.id) } };
 }
@@ -55,7 +57,7 @@ function fail(reply: FastifyReply, error: unknown, container: Container) {
   }
 
   if ((error as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") {
-    return reply.status(413).send({ message: "Upload a PDF smaller than 20 MB" });
+    return reply.status(413).send({ message: "Upload a smaller file" });
   }
 
   container.logger.error({ err: error }, "upload route failed");
@@ -69,6 +71,19 @@ const list = (value: string | undefined) =>
     .map((part) => part.trim())
     .filter(Boolean);
 
+async function readParts(req: FastifyRequest) {
+  const fields: Record<string, string> = {};
+  let file: { bytes: Uint8Array; name: string } | undefined;
+
+  for await (const part of req.parts()) {
+    if (part.type === "file") {
+      file = { bytes: new Uint8Array(await part.toBuffer()), name: part.filename };
+    } else fields[part.fieldname] = String(part.value ?? "");
+  }
+
+  return { fields, file };
+}
+
 /** Binary uploads and downloads live outside tRPC; everything else about them is a use case. */
 export const uploadRoutes =
   (container: Container): FastifyPluginAsync =>
@@ -80,13 +95,7 @@ export const uploadRoutes =
     server.post("/api/uploads/form-editions", async (req, reply) => {
       try {
         const tenant = await tenantFor(container, req, { document: ["write"] });
-        const fields: Record<string, string> = {};
-        let file: Uint8Array | undefined;
-
-        for await (const part of req.parts()) {
-          if (part.type === "file") file = new Uint8Array(await part.toBuffer());
-          else fields[part.fieldname] = String(part.value ?? "");
-        }
+        const { fields, file } = await readParts(req);
 
         if (!file) throw new HttpError(400, "Choose a PDF to upload");
 
@@ -96,10 +105,33 @@ export const uploadRoutes =
           title: fields.title ?? "",
           jurisdictions: list(fields.jurisdictions),
           carrier: fields.carrier?.trim() || null,
-          file,
+          file: file.bytes,
         });
 
         return reply.status(201).send(edition);
+      } catch (error) {
+        return fail(reply, error, container);
+      }
+    });
+
+    server.post("/api/uploads/rater-workbooks", async (req, reply) => {
+      try {
+        const tenant = await tenantFor(container, req, { rating: ["write"] }, "rating");
+        const { fields, file } = await readParts(req);
+
+        if (!file) throw new HttpError(400, "Choose an .xlsx workbook to upload");
+
+        if (file.bytes.byteLength > MAX_RATER_WORKBOOK_BYTES) {
+          throw new HttpError(413, "Upload a workbook smaller than 10 MB");
+        }
+
+        const workbook = await container.useCases.rating.uploadWorkbook(tenant, {
+          name: fields.name?.trim() ?? "",
+          fileName: file.name,
+          file: file.bytes,
+        });
+
+        return reply.status(201).send(workbook);
       } catch (error) {
         return fail(reply, error, container);
       }

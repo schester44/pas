@@ -226,6 +226,8 @@ const TABS = [
   { to: "/products/$productId/versions/$versionId/risk", label: "Risk data" },
   { to: "/products/$productId/versions/$versionId/questions", label: "Questions" },
   { to: "/products/$productId/versions/$versionId/coverages", label: "Coverages" },
+  { to: "/products/$productId/versions/$versionId/rules", label: "Rules" },
+  { to: "/products/$productId/versions/$versionId/rating", label: "Rating" },
   { to: "/products/$productId/versions/$versionId/documents", label: "Documents" },
   { to: "/products/$productId/versions/$versionId/checks", label: "Checks" },
 ] as const;

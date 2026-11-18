@@ -13,6 +13,7 @@ import { uploadRoutes } from "./uploads";
 export async function buildServer(container: Container) {
   const server = Fastify({
     loggerInstance: container.logger,
+    bodyLimit: 8 * 1024 * 1024,
     routerOptions: { maxParamLength: 5000 },
   });
 

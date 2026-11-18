@@ -5,25 +5,25 @@ import {
   type TenantContext,
   type UnitOfWork,
 } from "@pas/kernel";
-import { checkVersion, scheduledEditionIds } from "../domain/checks";
+import { checkVersion } from "../domain/checks";
 import { ProductRelease } from "../domain/product-release";
-import type { FormEditionDirectory } from "../ports/form-edition-directory";
 import type { ProductReleaseRepository } from "../ports/product-release-repository";
 import type { ProductRepository } from "../ports/product-repository";
 import type { ProductVersionRepository } from "../ports/product-version-repository";
-import { publishedSiblings } from "./check-product-version";
+import { publishedSiblings, type ReferenceDeps, resolveReferences } from "./check-product-version";
 import { type ProductReleaseDto, type ProductVersionDto, toReleaseDto, toVersionDto } from "./dto";
 import { loadProduct, loadVersion } from "./load";
 
-export function makePublishProductVersion(deps: {
-  uow: UnitOfWork;
-  outbox: Outbox;
-  products: ProductRepository;
-  versions: ProductVersionRepository;
-  releases: ProductReleaseRepository;
-  formEditions: FormEditionDirectory;
-  clock: Clock;
-}) {
+export function makePublishProductVersion(
+  deps: {
+    uow: UnitOfWork;
+    outbox: Outbox;
+    products: ProductRepository;
+    versions: ProductVersionRepository;
+    releases: ProductReleaseRepository;
+    clock: Clock;
+  } & ReferenceDeps,
+) {
   return async function publishProductVersion(
     ctx: TenantContext,
     input: { id: string },
@@ -33,12 +33,11 @@ export function makePublishProductVersion(deps: {
       const product = await loadProduct(deps.products, tx, ctx, version.toSnapshot().productId);
       const published = await publishedSiblings(deps.versions, tx, ctx, version);
 
-      const editions = await deps.formEditions.existing(
-        ctx,
-        scheduledEditionIds(version.contents.documents),
+      const issues = checkVersion(
+        version.contents,
+        published,
+        await resolveReferences(deps, ctx, version),
       );
-
-      const issues = checkVersion(version.contents, published, editions);
 
       const publishedAt = deps.clock.now();
 

@@ -8,7 +8,7 @@ import {
   queueConnectionFromEnv,
   shouldManageQueueSchema,
 } from "@pas/queues";
-import { PgWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
+import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import { createDomainEventDispatcher } from "./handlers/domain-events";
 import { makeApprovalDemoWorkflow } from "./workflows/approval-demo";
 
@@ -27,7 +27,7 @@ const dispatch = createDomainEventDispatcher(
 
 await queues.work(domainEventsQueue, dispatch);
 
-const workflows = new PgWorkflows({
+const workflows = new PostgresWorkflows({
   ...workflowConnectionFromEnv(),
   logger,
   workflows: [makeApprovalDemoWorkflow(logger)],

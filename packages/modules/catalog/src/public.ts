@@ -68,6 +68,12 @@ export type {
   VersionContentsDto,
 } from "./application/dto";
 export type { CheckTarget } from "./domain/checks";
+export {
+  DECISION_CONTEXT_PATHS,
+  decisionInputPaths,
+  runDecisionTest,
+  type DecisionTestResult,
+} from "./domain/rule-checks";
 export type {
   CoverageAmount,
   CoverageAttachment,
@@ -77,13 +83,22 @@ export type {
 export type { ReleaseManifest } from "./domain/product-release";
 export type { ProductVersionStatus } from "./domain/product-version";
 export {
+  decisionRef,
   FORM_CHANNELS,
   FORM_STAGES,
+  type DecisionTest,
   type FormChannel,
   type FormStage,
+  type VersionDecision,
 } from "./domain/version-contents";
 export type { AvailabilityKind } from "./domain/availability";
 export type { ProductRepository } from "./ports/product-repository";
 export type { ProductVersionRepository } from "./ports/product-version-repository";
 export type { ProductReleaseRepository } from "./ports/product-release-repository";
 export type { FormEditionDirectory } from "./ports/form-edition-directory";
+export type {
+  RatingIssue,
+  RatingSection,
+  RatingTarget,
+  RatingVerifier,
+} from "./ports/rating-verifier";

@@ -1,5 +1,7 @@
+import type { DecisionKind, JdmDecision } from "@pas/decisions-engine";
 import { type DocumentSet, emptyDocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
+import type { RatingConfig } from "@pas/rating-engine";
 import type { AvailabilityWindow } from "./availability";
 import type { CoverageDefinition } from "./coverage";
 
@@ -15,6 +17,25 @@ export interface VersionForm {
   form: FormDefinition;
 }
 
+export interface DecisionTest {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  expected: unknown;
+}
+
+/** One decision artifact, addressed as `kind.key` (e.g. `underwriting.main`). */
+export interface VersionDecision {
+  kind: DecisionKind;
+  key: string;
+  name: string;
+  decision: JdmDecision;
+  tests: DecisionTest[];
+}
+
+export const decisionRef = (decision: Pick<VersionDecision, "kind" | "key">) =>
+  `${decision.kind}.${decision.key}`;
+
 export interface VersionContents {
   riskSchema: RiskSchema;
   forms: VersionForm[];
@@ -22,6 +43,8 @@ export interface VersionContents {
   availability: AvailabilityWindow[];
   lifecycle: Record<string, unknown>;
   documents: DocumentSet;
+  rules: VersionDecision[];
+  rating: RatingConfig | null;
 }
 
 export function emptyContents(): VersionContents {
@@ -32,5 +55,7 @@ export function emptyContents(): VersionContents {
     availability: [],
     lifecycle: {},
     documents: emptyDocumentSet(),
+    rules: [],
+    rating: null,
   };
 }

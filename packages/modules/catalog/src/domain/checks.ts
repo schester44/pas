@@ -8,7 +8,9 @@ import {
   windowFor,
   windowsOverlap,
 } from "./availability";
+import type { RatingIssue, RatingTarget } from "../ports/rating-verifier";
 import type { CoverageDefinition, CoverageOptionSet } from "./coverage";
+import { checkRules } from "./rule-checks";
 import type { VersionContents, VersionForm } from "./version-contents";
 
 export type CheckTarget =
@@ -30,7 +32,9 @@ export type CheckTarget =
       block?: string;
       variant?: number;
       property?: string;
-    };
+    }
+  | { area: "rules"; decision?: string; node?: string; rule?: string; test?: string }
+  | ({ area: "rating" } & RatingTarget);
 
 export interface CheckIssue {
   severity: "error" | "warning";
@@ -54,17 +58,27 @@ const KIND_LABEL: Record<AvailabilityKind, string> = {
 export const formKey = (form: Pick<VersionForm, "channel" | "stage">) =>
   `${form.channel}.${form.stage}`;
 
+export interface ResolvedReferences {
+  formEditions?: ReadonlySet<string>;
+  rating?: readonly RatingIssue[];
+}
+
 export function checkVersion(
   contents: VersionContents,
   published: readonly PublishedAvailability[],
-  formEditions?: ReadonlySet<string>,
+  resolved: ResolvedReferences = {},
 ): CheckIssue[] {
   return [
     ...checkRiskSchema(contents),
     ...checkForms(contents),
     ...checkCoverages(contents),
     ...checkAvailability(contents.availability, published),
-    ...checkVersionDocuments(contents, formEditions),
+    ...checkVersionDocuments(contents, resolved.formEditions),
+    ...checkRules(contents),
+    ...(resolved.rating ?? []).map((issue) => ({
+      ...issue,
+      target: { area: "rating" as const, ...issue.target },
+    })),
   ];
 }
 

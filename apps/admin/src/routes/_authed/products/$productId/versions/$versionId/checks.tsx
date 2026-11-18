@@ -66,7 +66,7 @@ function ChecksTab() {
             </span>
             <p className="m-0 text-sm font-medium">Everything checks out</p>
             <p className="m-0 max-w-sm text-sm text-muted-foreground">
-              Questions, coverages, documents and availability all resolve against the risk data.
+              Questions, coverages, rules, rating, documents and availability all check out.
             </p>
           </div>
         ) : (

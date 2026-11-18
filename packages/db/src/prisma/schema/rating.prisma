@@ -1,0 +1,17 @@
+/// An uploaded rater workbook (PLAN §9.2). Immutable: a changed workbook is a new upload.
+model RaterWorkbook {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  name          String
+  fileName      String   @map("file_name")
+  storageKey    String   @map("storage_key")
+  contentSha256 String   @map("content_sha256") @db.Char(64)
+  sizeBytes     Int      @map("size_bytes")
+  report        Json
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, contentSha256])
+  @@index([tenantId, createdAt])
+  @@map("rater_workbooks")
+}

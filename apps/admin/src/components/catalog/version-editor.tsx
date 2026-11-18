@@ -8,10 +8,20 @@ export type CheckIssue = AdminOutputs["catalog"]["versions"]["check"][number];
 export type Coverage = ProductVersion["coverages"][number];
 export type AvailabilityWindow = ProductVersion["availability"][number];
 export type VersionForm = ProductVersion["forms"][number];
+export type VersionDecision = ProductVersion["rules"][number];
+export type DecisionTest = VersionDecision["tests"][number];
+export type RatingConfig = NonNullable<ProductVersion["rating"]>;
 
 export type Contents = Pick<
   ProductVersion,
-  "riskSchema" | "forms" | "coverages" | "availability" | "lifecycle" | "documents"
+  | "riskSchema"
+  | "forms"
+  | "coverages"
+  | "availability"
+  | "lifecycle"
+  | "documents"
+  | "rules"
+  | "rating"
 >;
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
@@ -37,6 +47,8 @@ const pick = (version: ProductVersion): Contents => ({
   availability: version.availability,
   lifecycle: version.lifecycle,
   documents: version.documents,
+  rules: version.rules,
+  rating: version.rating,
 });
 
 export function VersionEditorProvider({

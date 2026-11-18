@@ -1,3 +1,4 @@
+import { DECISION_KINDS, type DecisionKind } from "@pas/decisions-engine";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { type DocumentSection, documentTitle } from "./documents";
 import { formTitle } from "./forms";
@@ -11,7 +12,26 @@ export type IssueLink =
   | {
       to: "/products/$productId/versions/$versionId/documents";
       search: { section: DocumentSection; item?: string; block?: string };
-    };
+    }
+  | { to: "/products/$productId/versions/$versionId/rules"; search: { decision?: string } }
+  | { to: "/products/$productId/versions/$versionId/rating"; search: RatingSearch };
+
+export interface RatingSearch {
+  section?: "rater" | "golden";
+  table?: string;
+  coverage?: string;
+  golden?: string;
+  settings?: boolean;
+}
+
+const RATING_SECTIONS: Record<string, string> = {
+  engine: "Engine",
+  tables: "Rate tables",
+  algorithms: "Algorithms",
+  workbook: "Workbook",
+  manifest: "Bindings",
+  golden: "Golden cases",
+};
 
 const COVERAGE_FIELDS: Record<string, string> = {
   name: "Name",
@@ -95,6 +115,47 @@ export function describeIssue(
             section: target.section,
             ...(target.key && { item: target.key }),
             ...(target.block && { block: target.block }),
+          },
+        },
+      };
+    }
+    case "rules": {
+      const decision = contents.rules.find((d) => `${d.kind}.${d.key}` === target.decision);
+      const test = decision?.tests.find((t) => t.id === target.test);
+
+      return {
+        area: "Rules",
+        where: [
+          decision ? DECISION_KINDS[decision.kind as DecisionKind].label : undefined,
+          decision?.name,
+          test?.name,
+        ].filter((part): part is string => !!part),
+        link: {
+          to: "/products/$productId/versions/$versionId/rules",
+          search: target.decision ? { decision: target.decision } : {},
+        },
+      };
+    }
+    case "rating": {
+      const golden = contents.rating?.goldenCases.find((c) => c.id === target.golden);
+      const coverage = contents.coverages.find((c) => c.code === target.coverage);
+
+      return {
+        area: "Rating",
+        where: [
+          RATING_SECTIONS[target.section],
+          target.table,
+          coverage?.name ?? target.coverage,
+          target.step,
+          golden?.name,
+        ].filter((part): part is string => !!part),
+        link: {
+          to: "/products/$productId/versions/$versionId/rating",
+          search: {
+            section: target.section === "golden" ? "golden" : "rater",
+            ...(target.table && { table: target.table }),
+            ...(target.coverage && { coverage: target.coverage }),
+            ...(target.golden && { golden: target.golden }),
           },
         },
       };

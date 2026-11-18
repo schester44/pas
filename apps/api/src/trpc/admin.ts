@@ -1,10 +1,14 @@
 import { seesTenantBook } from "@pas/auth";
+import { riskSchemaSchema } from "@pas/forms-core";
 import { asId } from "@pas/kernel";
 import type { SubmissionScope } from "@pas/submissions";
 import { z } from "zod";
 import {
   byId,
   byProduct,
+  ratingConfigInput,
+  ratingInput,
+  raterSourceInput,
   resolveReleaseInput,
   updateVersionInput,
   versionLabel,
@@ -83,11 +87,15 @@ export const adminRouter = router({
           });
         }),
       update: tenantProcedure.input(updateVersionInput).mutation(async ({ ctx, input }) => {
-        const { id: _, documents, ...product } = input;
+        const { id: _, documents, rules, rating, ...product } = input;
 
         if (documents) await assertPermission(ctx, { document: ["write"] });
 
-        if (Object.keys(product).length > 0 || !documents) {
+        if (rules) await assertPermission(ctx, { decision: ["write"] });
+
+        if (rating !== undefined) await assertPermission(ctx, { rating: ["write"] });
+
+        if (Object.keys(product).length > 0 || (!documents && !rules && rating === undefined)) {
           await assertPermission(ctx, { product: ["write"] });
         }
 
@@ -125,6 +133,29 @@ export const adminRouter = router({
           ctx.container.useCases.catalog.resolveRelease(ctx.tenant, input),
         ),
     }),
+  }),
+
+  rating: router({
+    workbooks: router({
+      list: requirePermission({ rating: ["read"] }).query(({ ctx }) =>
+        ctx.container.useCases.rating.listWorkbooks(ctx.tenant),
+      ),
+      get: requirePermission({ rating: ["read"] })
+        .input(byId)
+        .query(({ ctx, input }) => ctx.container.useCases.rating.getWorkbook(ctx.tenant, input)),
+    }),
+    check: requirePermission({ rating: ["read"] })
+      .input(
+        z.object({
+          rating: ratingConfigInput.nullable(),
+          riskSchema: riskSchemaSchema,
+          coverageCodes: z.array(z.string().max(64)).max(500),
+        }),
+      )
+      .mutation(({ ctx, input }) => ctx.container.useCases.rating.check(ctx.tenant, input)),
+    preview: requirePermission({ rating: ["read"] })
+      .input(z.object({ rating: raterSourceInput, input: ratingInput }))
+      .mutation(({ ctx, input }) => ctx.container.useCases.rating.preview(ctx.tenant, input)),
   }),
 
   documents: router({

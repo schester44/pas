@@ -1,6 +1,8 @@
 import { FORM_CHANNELS, FORM_STAGES } from "@pas/catalog";
+import { DECISION_KIND_KEYS, type JdmDecision } from "@pas/decisions-engine";
 import { documentSetSchema } from "@pas/documents";
 import { formDefinitionSchema, riskSchemaSchema } from "@pas/forms-core";
+import type { BindingManifest, RatingPlan } from "@pas/rating-engine";
 import { z } from "zod";
 
 const id = z.uuid();
@@ -41,6 +43,120 @@ const coverage = z.object({
   dependsOn: z.array(z.string().max(64)).max(100),
 });
 
+const json = z.record(z.string(), z.unknown());
+
+// Drafts may be incomplete: the publish checks validate these artifacts in depth.
+const draft = <T>(required: string[]) =>
+  z.custom<T>(
+    (value) =>
+      typeof value === "object" &&
+      value !== null &&
+      required.every((key) => Array.isArray((value as Record<string, unknown>)[key])),
+  );
+
+const artifact = draft<JdmDecision>(["nodes", "edges"]);
+const plan = draft<RatingPlan>(["tables", "algorithms"]);
+const manifest = draft<BindingManifest>(["inputs", "outputs"]);
+
+const decision = z.object({
+  kind: z.enum(DECISION_KIND_KEYS),
+  key: z.string().max(64),
+  name: z.string().max(200),
+  decision: artifact,
+  tests: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(64),
+        name: z.string().max(200),
+        input: json,
+        expected: z.unknown(),
+      }),
+    )
+    .max(200),
+});
+
+const coverageSelection = z.object({
+  coverage: z.string().min(1).max(64),
+  exposure: z.string().max(200).optional(),
+  limit: decimal.optional(),
+  deductible: decimal.optional(),
+  options: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional(),
+});
+
+export const ratingInput = z.object({
+  risk: json,
+  coverages: z.array(coverageSelection).max(500),
+  term: z.object({ effective: plainDate, expiration: plainDate }),
+  transaction: z.object({
+    type: z.enum([
+      "NEW_BUSINESS",
+      "ENDORSEMENT",
+      "CANCELLATION",
+      "CANCELLATION_RESCISSION",
+      "REINSTATEMENT",
+      "RENEWAL",
+      "REWRITE",
+      "AUDIT",
+    ]),
+    effective: plainDate,
+  }),
+  enrichment: json.optional(),
+  jurisdiction: jurisdictionInput,
+  currency: z.string().regex(/^[A-Z]{3}$/),
+});
+
+const goldenCase = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().max(200),
+  input: ratingInput,
+  expected: z.object({
+    coverages: z
+      .array(
+        z.object({
+          coverage: z.string().max(64),
+          exposure: z.string().max(200).optional(),
+          premium: decimal,
+        }),
+      )
+      .max(500)
+      .optional(),
+    factors: z
+      .array(
+        z.object({
+          name: z.string().max(64),
+          coverage: z.string().max(64).optional(),
+          exposure: z.string().max(200).optional(),
+          value: decimal,
+        }),
+      )
+      .max(500)
+      .optional(),
+    total: decimal.optional(),
+  }),
+  tolerance: z.object({ absolute: decimal.optional(), relative: decimal.optional() }).optional(),
+});
+
+export const raterSourceInput = z.discriminatedUnion("engine", [
+  z.object({ engine: z.literal("plan"), plan }),
+  z.object({ engine: z.literal("spreadsheet"), workbookId: z.uuid().nullable(), manifest }),
+]);
+
+export const ratingConfigInput = z.discriminatedUnion("engine", [
+  z.object({
+    engine: z.literal("plan"),
+    plan,
+    goldenCases: z.array(goldenCase).max(500),
+  }),
+  z.object({
+    engine: z.literal("spreadsheet"),
+    workbookId: z.uuid().nullable(),
+    manifest,
+    goldenCases: z.array(goldenCase).max(500),
+  }),
+]);
+
 export const versionContentsInput = z.object({
   riskSchema: riskSchemaSchema,
   forms: z
@@ -60,6 +176,8 @@ export const versionContentsInput = z.object({
     .max(300),
   lifecycle: z.record(z.string(), z.unknown()),
   documents: documentSetSchema,
+  rules: z.array(decision).max(100),
+  rating: ratingConfigInput.nullable(),
 });
 
 export const byId = z.object({ id });
