@@ -1,0 +1,285 @@
+import { z } from "zod";
+import { DecisionError } from "./errors";
+
+type Row = z.ZodObject;
+
+interface KindDefinition<R extends Row | undefined, Result> {
+  label: string;
+  cardinality: "many" | "one";
+  row: R;
+  aggregate: (rows: R extends Row ? z.output<R>[] : unknown, raw: unknown) => Result;
+}
+
+const defineKind = <R extends Row | undefined, Result>(definition: KindDefinition<R, Result>) =>
+  definition;
+
+const text = z.string().trim().min(1);
+const codes = z.array(text);
+
+function toDecimal(value: number | string): string {
+  if (typeof value === "string") return value;
+
+  const plain = String(value);
+
+  return /e/i.test(plain) ? value.toFixed(20).replace(/\.?0+$/, "") : plain;
+}
+
+const decimal = z
+  .union([z.number().finite(), z.string().regex(/^-?\d+(\.\d+)?$/, "Use a decimal number")])
+  .transform(toDecimal);
+
+export const UNDERWRITING_OUTCOMES = ["pass", "info_needed", "refer", "decline"] as const;
+
+export type UnderwritingOutcome = (typeof UNDERWRITING_OUTCOMES)[number];
+
+const outcomeRow = <O extends readonly [string, ...string[]]>(outcomes: O) =>
+  z.object({
+    rule: text.optional(),
+    outcome: z.enum(outcomes),
+    reasonCode: text,
+    message: text,
+    internalMessage: text.optional(),
+    authority: text.optional(),
+  });
+
+const PRECEDENCE: readonly UnderwritingOutcome[] = ["decline", "refer", "info_needed"];
+
+export function overallOutcome<O extends UnderwritingOutcome>(
+  outcomes: readonly { outcome: O }[],
+): O | "pass" {
+  for (const candidate of PRECEDENCE) {
+    if (outcomes.some((o) => o.outcome === candidate)) return candidate as O;
+  }
+
+  return "pass";
+}
+
+const withRuleNames = <T extends { rule?: string; reasonCode: string }>(rows: T[]) =>
+  rows.map((row) => ({ ...row, rule: row.rule ?? row.reasonCode }));
+
+export const DECISION_KINDS = {
+  underwriting: defineKind({
+    label: "Underwriting",
+    cardinality: "many",
+    row: outcomeRow(UNDERWRITING_OUTCOMES),
+    aggregate: (rows) => {
+      const outcomes = withRuleNames(rows);
+
+      return { outcomes, overall: overallOutcome(outcomes) };
+    },
+  }),
+  eligibility: defineKind({
+    label: "Eligibility",
+    cardinality: "many",
+    row: outcomeRow(["pass", "decline"] as const),
+    aggregate: (rows) => {
+      const outcomes = withRuleNames(rows);
+
+      return { outcomes, overall: overallOutcome(outcomes) };
+    },
+  }),
+  coverage_options: defineKind({
+    label: "Coverage options",
+    cardinality: "many",
+    row: z.object({
+      coverage: text,
+      options: z.array(z.union([z.string(), z.number()])).optional(),
+      default: z.union([z.string(), z.number()]).optional(),
+    }),
+    aggregate: (rows) => {
+      const coverages: Record<string, { options: (string | number)[]; default?: string | number }> =
+        {};
+
+      for (const row of rows) {
+        const entry = (coverages[row.coverage] ??= { options: [] });
+
+        for (const option of row.options ?? []) {
+          if (!entry.options.includes(option)) entry.options.push(option);
+        }
+
+        if (row.default !== undefined && entry.default === undefined) entry.default = row.default;
+      }
+
+      return { coverages };
+    },
+  }),
+  taxes_fees: defineKind({
+    label: "Taxes and fees",
+    cardinality: "many",
+    row: z
+      .object({
+        code: text,
+        label: text,
+        rate: decimal.optional(),
+        amount: decimal.optional(),
+        currency: z
+          .string()
+          .regex(/^[A-Z]{3}$/, "Use an ISO 4217 currency code")
+          .optional(),
+        basis: z.enum(["premium", "premium_and_fees", "flat"]),
+        taxable: z.boolean(),
+        remitter: z.enum(["licensee", "carrier", "producer"]),
+      })
+      .refine((line) => (line.rate === undefined) !== (line.amount === undefined), {
+        message: "Give either a rate or an amount",
+        path: ["rate"],
+      })
+      .refine((line) => line.amount === undefined || line.currency !== undefined, {
+        message: "Amounts need a currency",
+        path: ["currency"],
+      }),
+    aggregate: (rows) => ({ lines: rows }),
+  }),
+  form_schedule: defineKind({
+    label: "Form schedule",
+    cardinality: "many",
+    row: z.object({ document: text }),
+    aggregate: (rows) => ({ documents: [...new Set(rows.map((row) => row.document))] }),
+  }),
+  notice_rules: defineKind({
+    label: "Notice rules",
+    cardinality: "one",
+    row: z.object({
+      minDaysNotice: z.number().int().min(0),
+      mailingDaysAdded: z.number().int().min(0),
+      allowedReasons: codes,
+      deliveryMethods: codes.min(1),
+      recipients: codes.min(1),
+      mustStateReason: z.boolean().optional(),
+    }),
+    aggregate: (rows) => rows[0] ?? null,
+  }),
+  dea: defineKind({
+    label: "Diligent search",
+    cardinality: "one",
+    row: z
+      .object({
+        required: z.boolean(),
+        declinationsRequired: z.number().int().min(0),
+        timing: z.enum(["pre_bind", "post_bind"]).optional(),
+        exemptions: codes,
+      })
+      .refine((dea) => !dea.required || dea.timing !== undefined, {
+        message: "Say when the diligent search is due",
+        path: ["timing"],
+      }),
+    aggregate: (rows) => rows[0] ?? null,
+  }),
+  referral_triggers: defineKind({
+    label: "Referral triggers",
+    cardinality: "many",
+    row: z.object({ code: text, message: text, authority: text.optional() }),
+    aggregate: (rows) => ({ triggers: rows }),
+  }),
+  custom: defineKind({
+    label: "Custom",
+    cardinality: "many",
+    row: undefined,
+    aggregate: (_rows, raw) => raw,
+  }),
+};
+
+export type DecisionKind = keyof typeof DECISION_KINDS;
+
+export const DECISION_KIND_KEYS = Object.keys(DECISION_KINDS) as DecisionKind[];
+
+export type DecisionResult<K extends DecisionKind> = ReturnType<
+  (typeof DECISION_KINDS)[K]["aggregate"]
+>;
+
+export interface ContractField {
+  key: string;
+  required: boolean;
+  options?: readonly string[];
+}
+
+export function contractFields(kind: DecisionKind): ContractField[] {
+  const row = DECISION_KINDS[kind].row;
+
+  if (!row) return [];
+
+  return Object.entries(row.shape).map(([key, schema]) => {
+    const field = schema as z.ZodType;
+    const inner = field instanceof z.ZodOptional ? field.unwrap() : field;
+
+    return {
+      key,
+      required: !field.safeParse(undefined).success,
+      ...(inner instanceof z.ZodEnum ? { options: inner.options as string[] } : {}),
+    };
+  });
+}
+
+export function checkContractValue(
+  kind: DecisionKind,
+  field: string,
+  value: unknown,
+): string | undefined {
+  const shape: Record<string, z.ZodType> | undefined = DECISION_KINDS[kind].row?.shape;
+  const schema = shape?.[field];
+
+  if (!schema) return undefined;
+
+  const parsed = schema.safeParse(value);
+
+  if (parsed.success) return undefined;
+
+  const options = contractFields(kind).find((f) => f.key === field)?.options;
+
+  return options ? `Use one of ${options.join(", ")}` : parsed.error.issues[0]?.message;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const withoutNulls = (row: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(row).filter(([, value]) => value != null));
+
+export function rowsOf(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw.map((row) => (isRecord(row) ? withoutNulls(row) : row));
+
+  if (isRecord(raw)) return Object.keys(raw).length > 0 ? [withoutNulls(raw)] : [];
+
+  return [];
+}
+
+export interface ContractIssue {
+  row: number;
+  path: string;
+  message: string;
+}
+
+export function aggregate<K extends DecisionKind>(kind: K, raw: unknown): DecisionResult<K> {
+  const definition = DECISION_KINDS[kind] as KindDefinition<Row | undefined, DecisionResult<K>>;
+
+  if (!definition.row) return definition.aggregate(raw, raw);
+
+  const rows = rowsOf(raw);
+  const issues: ContractIssue[] = [];
+  const parsed: unknown[] = [];
+
+  if (definition.cardinality === "one" && rows.length > 1) {
+    issues.push({ row: 1, path: "", message: `Expected one result, got ${rows.length}` });
+  }
+
+  for (const [index, row] of rows.entries()) {
+    const result = definition.row.safeParse(row);
+
+    if (result.success) parsed.push(result.data);
+    else {
+      for (const issue of result.error.issues) {
+        issues.push({ row: index, path: issue.path.join("."), message: issue.message });
+      }
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new DecisionError(
+      "contract_violation",
+      `The decision's output doesn't match the ${definition.label.toLowerCase()} contract`,
+      { kind, issues },
+    );
+  }
+
+  return definition.aggregate(parsed as never, raw);
+}

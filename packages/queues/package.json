@@ -7,12 +7,16 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup": "tsx --env-file-if-exists=../../.env src/setup.ts"
   },
   "dependencies": {
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
     "pg-boss": "^12.38.2",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
   }
 }

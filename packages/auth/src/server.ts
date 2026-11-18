@@ -9,6 +9,7 @@ export interface AuthConfig {
   baseURL: string;
   secret: string;
   trustedOrigins: string[];
+  isTrustedTenantOrigin?: (origin: string) => Promise<boolean>;
 }
 
 /**
@@ -19,7 +20,15 @@ export function createAuth(config: AuthConfig) {
   return betterAuth({
     baseURL: config.baseURL,
     secret: config.secret,
-    trustedOrigins: config.trustedOrigins,
+    trustedOrigins: async (request) => {
+      const origin = request?.headers.get("origin");
+
+      if (!origin || !config.isTrustedTenantOrigin) return config.trustedOrigins;
+
+      const trusted = await config.isTrustedTenantOrigin(origin);
+
+      return trusted ? [...config.trustedOrigins, origin] : config.trustedOrigins;
+    },
     database: prismaAdapter(config.prisma, { provider: "postgresql" }),
     emailAndPassword: { enabled: true },
     plugins: [

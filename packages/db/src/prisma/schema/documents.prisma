@@ -1,0 +1,20 @@
+/// An uploaded policy form edition (PLAN §10.3). Immutable: a new edition is a new row.
+model FormEdition {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  formNumber    String   @map("form_number")
+  edition       String   @db.Char(7)
+  title         String
+  jurisdictions String[] @default([])
+  carrier       String?
+  storageKey    String   @map("storage_key")
+  contentSha256 String   @map("content_sha256") @db.Char(64)
+  pageCount     Int      @map("page_count")
+  sizeBytes     Int      @map("size_bytes")
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, formNumber, edition])
+  @@index([tenantId, createdAt])
+  @@map("form_editions")
+}

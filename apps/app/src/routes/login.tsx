@@ -8,6 +8,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FileCheck2, Gauge, Headset, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "@/lib/auth";
+import { type TenantBranding, useTenant } from "@/lib/tenant";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -38,6 +39,7 @@ const benefits = [
 
 function LoginPage() {
   const navigate = useNavigate();
+  const tenant = useTenant();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,14 +52,19 @@ function LoginPage() {
     const password = String(form.get("password"));
     setPending(true);
     setError(null);
+
     const result = isSignIn
       ? await authClient.signIn.email({ email, password })
       : await authClient.signUp.email({ email, password, name: String(form.get("name")) });
+
     setPending(false);
+
     if (result.error) {
       setError(result.error.message ?? "Something went wrong. Try again.");
+
       return;
     }
+
     await navigate({ to: "/" });
   }
 
@@ -66,6 +73,9 @@ function LoginPage() {
       headline="Quote, bind and service in one place."
       subline="For agents, brokers and policyholders."
       benefits={benefits}
+      brandName={tenant?.displayName}
+      brandLogoUrl={tenant?.logoUrl}
+      footnote={tenant && <SupportContact tenant={tenant} />}
     >
       <AuthHeader
         title={isSignIn ? "Sign in" : "Create your account"}
@@ -121,5 +131,31 @@ function LoginPage() {
         </button>
       </p>
     </AuthLayout>
+  );
+}
+
+function SupportContact({ tenant }: { tenant: TenantBranding }) {
+  const { supportEmail, supportPhone } = tenant;
+
+  if (!supportEmail && !supportPhone) return null;
+
+  return (
+    <p className="m-0">
+      Need help?{" "}
+      {supportEmail && (
+        <a href={`mailto:${supportEmail}`} className="font-medium text-foreground hover:underline">
+          {supportEmail}
+        </a>
+      )}
+      {supportEmail && supportPhone && <span aria-hidden> · </span>}
+      {supportPhone && (
+        <a
+          href={`tel:${supportPhone.replace(/[^0-9+]/g, "")}`}
+          className="font-medium text-foreground tabular-nums hover:underline"
+        >
+          {supportPhone}
+        </a>
+      )}
+    </p>
   );
 }

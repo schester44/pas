@@ -21,6 +21,7 @@ export class QueueClient {
 
   start(): Promise<unknown> {
     this.started ??= this.boss.start();
+
     return this.started;
   }
 
@@ -31,8 +32,10 @@ export class QueueClient {
   /** Create queues that don't exist yet. Call once at startup with every definition you use. */
   async ensureQueues(definitions: readonly QueueDefinition[]): Promise<void> {
     await this.start();
+
     for (const definition of definitions) {
       const existing = await this.boss.getQueue(definition.name);
+
       if (!existing) await this.boss.createQueue(definition.name, definition.queueOptions);
     }
   }
@@ -44,6 +47,7 @@ export class QueueClient {
   ): Promise<string | null> {
     await this.start();
     const payload = queue.schema.parse(data) as Record<string, unknown>;
+
     return this.boss.send(
       queue.name,
       { ...payload, [TRACE_KEY]: injectTraceContext() },
@@ -57,9 +61,11 @@ export class QueueClient {
     handler: (data: QueuePayload<Q>, job: Job<Envelope>) => Promise<void>,
   ): Promise<string> {
     await this.start();
+
     return this.boss.work<Envelope>(queue.name, async (jobs) => {
       for (const job of jobs) {
         const { [TRACE_KEY]: carrier, ...rest } = job.data;
+
         await withExtractedContext(carrier, `job ${queue.name}`, async (span) => {
           span.setAttribute("job.id", job.id);
           span.setAttribute("job.retry_count", job.retryCount);

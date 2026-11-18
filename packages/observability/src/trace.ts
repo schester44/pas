@@ -6,6 +6,7 @@ export const tracer = trace.getTracer("pas");
 export function injectTraceContext(): Record<string, string> {
   const carrier: Record<string, string> = {};
   propagation.inject(context.active(), carrier);
+
   return carrier;
 }
 
@@ -16,6 +17,7 @@ export function withExtractedContext<T>(
   fn: (span: Span) => Promise<T>,
 ): Promise<T> {
   const parent = carrier ? propagation.extract(context.active(), carrier) : context.active();
+
   return context.with(parent, () =>
     tracer.startActiveSpan(spanName, async (span) => {
       try {

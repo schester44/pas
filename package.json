@@ -16,9 +16,13 @@
     "db:migrate": "pnpm --filter @pas/db migrate:dev",
     "db:deploy": "pnpm --filter @pas/db migrate:deploy",
     "db:reset": "pnpm --filter @pas/db reset",
-    "db:seed": "pnpm --filter @pas/db seed"
+    "db:app-role": "pnpm --filter @pas/db app-role",
+    "db:seed": "pnpm --filter @pas/db seed",
+    "queues:setup": "pnpm --filter @pas/queues run setup",
+    "workflows:setup": "pnpm --filter @pas/workflows run setup"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^6.0.1",
     "@types/node": "^26",
     "oxfmt": "^0.79.0",
     "oxlint": "^1.94.0",

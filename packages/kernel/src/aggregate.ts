@@ -11,6 +11,7 @@ export abstract class AggregateRoot {
   pullEvents(): DomainEvent[] {
     const events = this.pendingEvents;
     this.pendingEvents = [];
+
     return events;
   }
 }

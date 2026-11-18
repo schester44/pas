@@ -13,8 +13,10 @@ export class PgBossOutbox implements Outbox {
 
   async add(tx: Transaction, events: readonly DomainEvent[]): Promise<void> {
     if (events.length === 0) return;
+
     await this.queues.start();
     const db = fromPrisma(tx as unknown as PrismaTransactionLike);
+
     for (const event of events) {
       await this.queues.boss.send(
         domainEventsQueue.name,

@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@pas/db": "workspace:*",
+    "@pas/documents": "workspace:*",
+    "@pas/forms-core": "workspace:*",
     "@pas/kernel": "workspace:*"
   }
 }

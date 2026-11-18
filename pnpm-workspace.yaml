@@ -22,3 +22,5 @@ minimumReleaseAgeExclude:
   - "@trpc/client@11.29.4"
   - "@trpc/tanstack-react-query@11.29.4"
   - lucide-react@1.75.0
+patchedDependencies:
+  pg-workflows@0.19.0: patches/pg-workflows@0.19.0.patch

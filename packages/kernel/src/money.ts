@@ -31,11 +31,13 @@ export class Money {
 
   plus(other: Money): Money {
     this.assertSameCurrency(other);
+
     return new Money(this.amount.plus(other.amount), this.currency);
   }
 
   minus(other: Money): Money {
     this.assertSameCurrency(other);
+
     return new Money(this.amount.minus(other.amount), this.currency);
   }
 

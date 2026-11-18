@@ -19,6 +19,7 @@ export class PrismaUnitOfWork implements UnitOfWork {
   run<T>(ctx: TenantContext, work: (tx: Transaction) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select set_config('app.tenant_id', ${ctx.tenantId}, true)`;
+
       return work(tx as unknown as Transaction);
     });
   }

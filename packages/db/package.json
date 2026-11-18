@@ -12,6 +12,7 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "reset": "prisma migrate reset --force",
+    "app-role": "sh ./sql/app-role.sh",
     "seed": "prisma db seed",
     "data-migrate": "tsx ./src/data-migrations/runner.ts",
     "typecheck": "tsc --noEmit"

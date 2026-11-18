@@ -1,0 +1,23 @@
+{
+  "name": "@pas/expressions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/node.ts",
+    "./src/browser.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "browser": "./src/browser.ts",
+      "default": "./src/node.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gorules/zen-engine-wasm": "0.23.1"
+  }
+}

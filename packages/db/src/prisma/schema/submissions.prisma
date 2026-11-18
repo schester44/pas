@@ -1,0 +1,46 @@
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  WITHDRAWN
+
+  @@map("submission_status")
+}
+
+/// Pinned to the product release it was started on; never re-resolved (CLAUDE.md rule 5).
+model Submission {
+  id               String           @id @db.Uuid
+  tenantId         String           @map("tenant_id")
+  number           String
+  productId        String           @map("product_id") @db.Uuid
+  productReleaseId String           @map("product_release_id") @db.Uuid
+  productVersionId String           @map("product_version_id") @db.Uuid
+  productVersion   String           @map("product_version")
+  formKey          String           @map("form_key")
+  country          String           @db.Char(2)
+  subdivision      String?          @db.VarChar(6)
+  effectiveDate    DateTime         @map("effective_date") @db.Date
+  channel          String
+  stage            String
+  producerId       String           @map("producer_id")
+  producerName     String           @map("producer_name")
+  insuredName      String?          @map("insured_name")
+  riskData         Json             @map("risk_data")
+  status           SubmissionStatus @default(DRAFT)
+  createdAt        DateTime         @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @map("updated_at") @db.Timestamptz(6)
+  submittedAt      DateTime?        @map("submitted_at") @db.Timestamptz(6)
+  withdrawnAt      DateTime?        @map("withdrawn_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, number])
+  @@index([tenantId, updatedAt])
+  @@index([tenantId, producerId, updatedAt])
+  @@index([tenantId, status, updatedAt])
+  @@map("submissions")
+}
+
+model SubmissionSequence {
+  tenantId  String @id @map("tenant_id")
+  lastValue Int    @map("last_value")
+
+  @@map("submission_sequences")
+}

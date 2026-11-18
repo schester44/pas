@@ -103,5 +103,21 @@ export const roles = {
 };
 
 export type RoleName = keyof typeof roles;
+
+const OWN_BOOK_ROLES: ReadonlySet<string> = new Set(["agency_admin", "agent", "customer"]);
+
+/**
+ * ABAC on top of RBAC (PLAN §5.7): staff roles see the tenant's whole book; distribution roles
+ * and custom roles see only what they produced until agencies and custom scopes exist.
+ */
+export function seesTenantBook(role: string): boolean {
+  return role
+    .split(",")
+    .map((name) => name.trim())
+    .some((name) => Object.hasOwn(roles, name) && !OWN_BOOK_ROLES.has(name));
+}
+
 export type Statements = typeof statements;
 export type Permission = { [R in keyof Statements]?: Statements[R][number][] };
+
+export * from "./labels";

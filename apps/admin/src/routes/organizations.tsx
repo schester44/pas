@@ -14,6 +14,7 @@ import { slugify } from "@/lib/format";
 export const Route = createFileRoute("/organizations")({
   beforeLoad: async () => {
     const { data } = await authClient.getSession();
+
     if (!data) throw redirect({ to: "/login" });
   },
   component: OrganizationsPage,
@@ -38,10 +39,13 @@ function OrganizationsPage() {
     setError(null);
     const result = await authClient.organization.create({ name, slug: slugify(name) });
     setCreating(false);
+
     if (result.error) {
       setError(result.error.message ?? "Couldn't create the organization. Try another name.");
+
       return;
     }
+
     await activate(result.data.id);
   }
 

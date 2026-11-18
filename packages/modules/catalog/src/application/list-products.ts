@@ -6,6 +6,7 @@ export function makeListProducts(deps: { uow: UnitOfWork; products: ProductRepos
   return async function listProducts(ctx: TenantContext): Promise<ProductDto[]> {
     return deps.uow.run(ctx, async (tx) => {
       const products = await deps.products.list(tx, ctx);
+
       return products.map(toProductDto);
     });
   };

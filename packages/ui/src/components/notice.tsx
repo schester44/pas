@@ -15,6 +15,7 @@ function Notice({
   className?: string;
 }) {
   const Icon = tone === "error" ? CircleAlert : Info;
+
   return (
     <div
       role={tone === "error" ? "alert" : "status"}

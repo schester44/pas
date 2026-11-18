@@ -9,13 +9,17 @@ export type { Logger };
  */
 export function createLogger(service: string): Logger {
   const pretty = process.env.LOG_PRETTY === "true";
+
   return pino({
     name: service,
     level: process.env.LOG_LEVEL ?? "info",
     mixin() {
       const span = trace.getActiveSpan();
+
       if (!span) return {};
+
       const { traceId, spanId } = span.spanContext();
+
       return { traceId, spanId };
     },
     ...(pretty ? { transport: { target: "pino-pretty", options: { colorize: true } } } : {}),

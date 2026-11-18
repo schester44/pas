@@ -11,6 +11,8 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     port: 5174,
+    strictPort: true,
+    allowedHosts: [".localhost"],
     // Same-origin in dev: auth cookies and tRPC go through the proxy.
     proxy: { "/api": api, "/trpc": api },
   },

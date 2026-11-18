@@ -12,5 +12,6 @@ export interface Context {
 export async function createContext(container: Container, req: FastifyRequest): Promise<Context> {
   const headers = toFetchHeaders(req);
   const session = await container.auth.api.getSession({ headers });
+
   return { container, headers, session };
 }

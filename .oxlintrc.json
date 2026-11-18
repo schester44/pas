@@ -11,11 +11,55 @@
     "typescript/consistent-type-imports": "error",
     "import/no-duplicates": "error",
     "no-console": "warn",
+    "no-underscore-dangle": [
+      "warn",
+      {
+        "allow": ["_id", "_description"]
+      }
+    ],
     "react/react-in-jsx-scope": "off",
     "import/no-unassigned-import": [
       "warn",
       {
         "allow": ["**/*.css"]
+      }
+    ],
+    "@stylistic/padding-line-between-statements": [
+      "error",
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": "return"
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": ["if", "for", "while", "do", "switch", "try"]
+      },
+      {
+        "blankLine": "always",
+        "prev": ["if", "for", "while", "do", "switch", "try"],
+        "next": "*"
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": ["multiline-block-like", "multiline-expression", "multiline-const", "multiline-let"]
+      },
+      {
+        "blankLine": "always",
+        "prev": [
+          "multiline-block-like",
+          "multiline-expression",
+          "multiline-const",
+          "multiline-let"
+        ],
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": ["case", "default"],
+        "next": "*"
       }
     ]
   },
@@ -31,6 +75,10 @@
                 "group": [
                   "@pas/*",
                   "!@pas/kernel",
+                  "!@pas/decisions-engine",
+                  "!@pas/forms-core",
+                  "!@pas/expressions",
+                  "!@pas/documents",
                   "@prisma/*",
                   "pg-boss",
                   "fastify",
@@ -40,7 +88,7 @@
                   "**/infrastructure/**",
                   "**/ports/**"
                 ],
-                "message": "domain/ is pure: import only @pas/kernel and other domain/ files (see CLAUDE.md)."
+                "message": "domain/ is pure: import only @pas/kernel, the pure engines (@pas/forms-core, @pas/expressions, @pas/documents) and other domain/ files (see CLAUDE.md)."
               }
             ]
           }
@@ -111,5 +159,6 @@
         "no-console": "off"
       }
     }
-  ]
+  ],
+  "jsPlugins": ["@stylistic/eslint-plugin"]
 }

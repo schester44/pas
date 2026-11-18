@@ -74,15 +74,11 @@ Sources: [openkoda.com](https://openkoda.com), [features](https://openkoda.com/f
 - **Time-to-first-product in days, not quarters.** Starter content packs + UI + tests + sandboxes. Self-serve; no SI required.
 - **Developer experience incumbents can't match.** `docker compose up` locally, TypeScript extensions, config-as-code optional, typed SDKs from OpenAPI, webhooks, a sandbox with a clock.
 - **Performance by design.** Immutable, pinned config compiled and cached in-process; rating and decisions evaluated without network hops; stateless horizontal scale; Postgres-only infrastructure to start (pg-boss, no Kafka needed until it is).
-- **Open core + hosted.** The engine is open source, so anyone can self-host. Revenue from:
+- **Source-available core + hosted.** Anyone can read the code and self-host. Revenue from:
   1. **Hosted cloud** (multi-tenant SaaS, SOC 2, backups, scaling).
   2. **Maintained regulatory content**: jurisdiction packs (surplus-lines tax/fee tables, filing deadlines, notice rules, mandatory notice wording) and line-of-business starter products, kept current. This is the moat: rules change constantly, and keeping them right is the job people will pay for.
   3. **Certified adapters** (carriers, stamping offices, data vendors, billing) and enterprise features (SSO/SCIM, advanced audit, data residency, dedicated databases).
-- **License options** (decide before the first public commit):
-  - AGPL-3.0 core + commercial license: strongest protection against a competitor hosting it; some enterprises avoid AGPL.
-  - FSL / BSL (source-available, converts to Apache-2.0 after 2–4 years): protects the hosted business; "not OSI open source", which some communities dislike.
-  - Apache-2.0 core with proprietary content/adapters/cloud: the most adoption-friendly; the moat is entirely content + hosting.
-  - Either way, SDKs, the CLI, the forms renderer and adapter interfaces should be **Apache-2.0/MIT** so the ecosystem can build adapters. Watch dependency licenses (e.g. HyperFormula is GPLv3/commercial).
+- **License: FSL-1.1-ALv2** (Functional Source License 1.1, Apache 2.0 future license; see [`LICENSE`](../LICENSE)). Source-available, not OSI open source: anyone can use, modify and self-host PAS for their own business, but offering it as a competing product or hosted service needs a commercial license. Each release converts to Apache-2.0 two years after it ships. SDKs, the CLI and the config bundle format are MIT so the ecosystem can build on them freely. Watch dependency licenses: no GPL in the core. The spreadsheet rating engine is our own, built on MIT parts (ExcelJS, `fast-formula-parser`, `@formulajs/formulajs`) rather than HyperFormula (GPLv3/commercial).
 
 ## Sources
 

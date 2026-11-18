@@ -38,13 +38,17 @@ export class Product extends AggregateRoot {
     clock: Clock,
   ): Product {
     const key = input.key.trim().toLowerCase();
+
     if (!KEY_PATTERN.test(key)) {
       throw invalid("Product key must be 2-63 lowercase letters, digits or dashes", { key });
     }
+
     const name = input.name.trim();
+
     if (!name) throw invalid("Product name is required");
 
     const now = clock.now();
+
     const product = new Product({
       id: newId<"Product">(),
       tenantId: input.tenantId,
@@ -55,6 +59,7 @@ export class Product extends AggregateRoot {
       createdAt: now,
       updatedAt: now,
     });
+
     product.record({
       id: newId(),
       type: "catalog.product_created",
@@ -64,6 +69,7 @@ export class Product extends AggregateRoot {
       occurredAt: now,
       payload: { key, name },
     });
+
     return product;
   }
 
@@ -74,6 +80,12 @@ export class Product extends AggregateRoot {
 
   get id(): ProductId {
     return this.props.id;
+  }
+
+  activate(clock: Clock): void {
+    if (this.props.status !== "draft") return;
+
+    this.props = { ...this.props, status: "active", updatedAt: clock.now() };
   }
 
   toSnapshot(): Readonly<ProductProps> {

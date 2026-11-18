@@ -1,0 +1,19 @@
+{
+  "name": "@pas/submissions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/public.ts",
+    "./infrastructure": "./src/infrastructure.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/catalog": "workspace:*",
+    "@pas/db": "workspace:*",
+    "@pas/forms-core": "workspace:*",
+    "@pas/kernel": "workspace:*"
+  }
+}

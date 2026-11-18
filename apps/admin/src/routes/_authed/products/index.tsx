@@ -26,13 +26,16 @@ import {
   TableRow,
 } from "@pas/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layers, Plus } from "lucide-react";
 import { useState } from "react";
 import { formatDate, slugify } from "@/lib/format";
+import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
-export const Route = createFileRoute("/_authed/products")({
+export const Route = createFileRoute("/_authed/products/")({
+  validateSearch: (search: Record<string, unknown>): { new?: true } =>
+    search.new === true || search.new === "true" ? { new: true } : {},
   component: ProductsPage,
 });
 
@@ -44,29 +47,49 @@ const STATUS: Record<string, { label: string; tone: StatusTone }> = {
 
 function ProductsPage() {
   const trpc = useTRPC();
+  const access = useAccess();
   const products = useQuery(trpc.catalog.products.list.queryOptions());
-  const [open, setOpen] = useState(false);
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const open = !!search.new && access.products.write;
+  const setOpen = (next: boolean) => navigate({ search: next ? { new: true } : {}, replace: true });
 
-  const newProduct = (
+  const newProduct = access.products.write ? (
     <Button size="sm" onClick={() => setOpen(true)}>
       <Plus /> New product
     </Button>
-  );
+  ) : undefined;
 
   return (
     <>
       <PageHeader title="Products" actions={newProduct} />
       <PageBody className="max-w-6xl">
         <Panel flush>
-          {products.data && products.data.length === 0 ? (
+          {products.error ? (
+            <EmptyState
+              icon={<Layers />}
+              title={
+                products.error.data?.code === "FORBIDDEN"
+                  ? "You don't have access to products"
+                  : "Couldn't load products"
+              }
+              description={
+                products.error.data?.code === "FORBIDDEN"
+                  ? "Ask an admin for a role that can view products."
+                  : "Refresh the page to try again."
+              }
+            />
+          ) : products.data && products.data.length === 0 ? (
             <EmptyState
               icon={<Layers />}
               title="No products yet"
-              description="A product holds everything about one offering: its data, forms, rating, rules and documents."
+              description="A product holds everything about one offering: its data, questions, rating, rules and documents."
               action={
-                <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-                  Create a product
-                </Button>
+                access.products.write && (
+                  <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+                    Create a product
+                  </Button>
+                )
               }
             />
           ) : (
@@ -93,11 +116,28 @@ function ProductsPage() {
                     label: product.status,
                     tone: "neutral" as const,
                   };
+
                   return (
-                    <TableRow key={product.id} className="hover:bg-muted/40">
+                    <TableRow
+                      key={product.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() =>
+                        navigate({
+                          to: "/products/$productId",
+                          params: { productId: product.id },
+                        })
+                      }
+                    >
                       <TableCell>
                         <div className="grid gap-0.5">
-                          <span className="font-medium">{product.name}</span>
+                          <Link
+                            to="/products/$productId"
+                            params={{ productId: product.id }}
+                            className="font-medium outline-none hover:underline focus-visible:underline"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {product.name}
+                          </Link>
                           <span className="font-mono text-xs text-muted-foreground">
                             {product.key}
                           </span>
@@ -137,11 +177,13 @@ function CreateProductDialog({
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [keyEdited, setKeyEdited] = useState(false);
+  const navigate = useNavigate();
+
   const create = useMutation(
     trpc.catalog.products.create.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (product) => {
         await queryClient.invalidateQueries({ queryKey: trpc.catalog.products.list.queryKey() });
-        onOpenChange(false);
+        await navigate({ to: "/products/$productId", params: { productId: product.id } });
       },
     }),
   );
@@ -164,6 +206,7 @@ function CreateProductDialog({
       open={open}
       onOpenChange={(next) => {
         if (!next) reset();
+
         onOpenChange(next);
       }}
     >
@@ -188,6 +231,7 @@ function CreateProductDialog({
               required
               onChange={(event) => {
                 setName(event.target.value);
+
                 if (!keyEdited) setKey(slugify(event.target.value));
               }}
             />

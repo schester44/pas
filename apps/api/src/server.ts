@@ -7,6 +7,8 @@ import { toFetchHeaders } from "./http";
 import { adminRouter } from "./trpc/admin";
 import { appRouter } from "./trpc/app";
 import { createContext } from "./trpc/context";
+import { platformRouter } from "./trpc/platform";
+import { uploadRoutes } from "./uploads";
 
 export async function buildServer(container: Container) {
   const server = Fastify({
@@ -21,12 +23,15 @@ export async function buildServer(container: Container) {
 
   server.get("/health", async () => ({ ok: true }));
 
+  await server.register(uploadRoutes(container));
+
   // Better Auth handles everything under /api/auth.
   server.route({
     method: ["GET", "POST"],
     url: "/api/auth/*",
     async handler(req, reply) {
       const url = new URL(req.url, `http://${req.headers.host}`);
+
       const response = await container.auth.handler(
         new Request(url, {
           method: req.method,
@@ -34,8 +39,10 @@ export async function buildServer(container: Container) {
           ...(req.body ? { body: JSON.stringify(req.body) } : {}),
         }),
       );
+
       reply.status(response.status);
       response.headers.forEach((value, key) => reply.header(key, value));
+
       return reply.send(response.body ? await response.text() : null);
     },
   });
@@ -48,10 +55,20 @@ export async function buildServer(container: Container) {
         createContext(container, req),
     },
   });
+
   await server.register(fastifyTRPCPlugin, {
     prefix: "/trpc/app",
     trpcOptions: {
       router: appRouter,
+      createContext: ({ req }: { req: Parameters<typeof createContext>[1] }) =>
+        createContext(container, req),
+    },
+  });
+
+  await server.register(fastifyTRPCPlugin, {
+    prefix: "/trpc/platform",
+    trpcOptions: {
+      router: platformRouter,
       createContext: ({ req }: { req: Parameters<typeof createContext>[1] }) =>
         createContext(container, req),
     },

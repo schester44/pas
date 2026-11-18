@@ -14,6 +14,7 @@
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
     "@pas/queues": "workspace:*",
+    "@pas/workflows": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {

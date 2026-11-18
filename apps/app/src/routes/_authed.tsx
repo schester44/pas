@@ -10,13 +10,15 @@ import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/re
 import { LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth";
 import { initials } from "@/lib/format";
+import { useTenant } from "@/lib/tenant";
 import { queryClient } from "@/lib/trpc";
 
-// TODO: resolve the tenant from the host (subdomain / custom domain) and apply its brand colour and logo.
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async () => {
     const { data } = await authClient.getSession();
+
     if (!data) throw redirect({ to: "/login" });
+
     return { session: data };
   },
   component: AuthedLayout,
@@ -25,13 +27,14 @@ export const Route = createFileRoute("/_authed")({
 function AuthedLayout() {
   const { session } = Route.useRouteContext();
   const router = useRouter();
+  const tenant = useTenant();
 
   return (
     <div className="min-h-svh bg-canvas">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-6 px-4 sm:px-6">
           <Link to="/">
-            <Brand />
+            <Brand name={tenant?.displayName} logoUrl={tenant?.logoUrl} />
           </Link>
           <div className="ml-auto">
             <DropdownMenu>

@@ -1,0 +1,23 @@
+{
+  "name": "@pas/rating-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@formulajs/formulajs": "^4.6.1",
+    "@pas/expressions": "workspace:*",
+    "@pas/forms-core": "workspace:*",
+    "@pas/kernel": "workspace:*",
+    "decimal.js": "^10.6.0",
+    "exceljs": "^4.4.0",
+    "fast-formula-parser": "^1.0.19",
+    "zod": "^4.6.7"
+  }
+}

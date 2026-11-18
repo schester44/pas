@@ -16,12 +16,16 @@ function AuthLayout({
   subline,
   benefits,
   footnote,
+  brandName,
+  brandLogoUrl,
   children,
 }: {
   headline: string;
   subline: string;
   benefits: AuthBenefit[];
   footnote?: React.ReactNode;
+  brandName?: string;
+  brandLogoUrl?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -31,7 +35,7 @@ function AuthLayout({
           aria-hidden
           className="pointer-events-none absolute -top-40 -left-40 size-[480px] rounded-full bg-primary/10 blur-3xl"
         />
-        <Brand className="relative" />
+        <Brand name={brandName} logoUrl={brandLogoUrl} className="relative" />
         <div className="relative max-w-md py-12">
           <h2 className="m-0 text-4xl leading-tight font-semibold tracking-tight text-balance">
             {headline}
@@ -55,7 +59,7 @@ function AuthLayout({
       </aside>
       <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-[400px]">
-          <Brand className="mb-10 lg:hidden" />
+          <Brand name={brandName} logoUrl={brandLogoUrl} className="mb-10 lg:hidden" />
           {children}
         </div>
       </main>

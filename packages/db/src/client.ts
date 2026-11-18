@@ -14,8 +14,11 @@ const globalForPrisma = globalThis as unknown as { pasPrisma?: PrismaClient };
 export function getPrismaClient(): PrismaClient {
   if (!globalForPrisma.pasPrisma) {
     const url = process.env.DATABASE_URL;
+
     if (!url) throw new Error("DATABASE_URL is required");
+
     globalForPrisma.pasPrisma = createPrismaClient(url);
   }
+
   return globalForPrisma.pasPrisma;
 }

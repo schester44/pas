@@ -13,6 +13,7 @@ async function main() {
     const mod = (await import(resolve(dir, file))) as { default: DataMigration };
     const { name, up } = mod.default;
     const done = await db.dataMigration.findUnique({ where: { name } });
+
     if (done) continue;
 
     console.log(`Running data migration ${name}`);

@@ -12,6 +12,8 @@
   "dependencies": {
     "@pas/api-client": "workspace:*",
     "@pas/auth": "workspace:*",
+    "@pas/forms-core": "workspace:*",
+    "@pas/forms-react": "workspace:*",
     "@pas/ui": "workspace:*",
     "@tanstack/react-query": "^5.108.0",
     "@tanstack/react-router": "^1.170.46",

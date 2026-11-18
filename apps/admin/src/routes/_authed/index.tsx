@@ -1,9 +1,12 @@
+import { roleLabel } from "@pas/auth/permissions";
 import { Button } from "@pas/ui/components/button";
 import { IconTile } from "@pas/ui/components/icon-tile";
 import { PageBody, PageHeader } from "@pas/ui/components/page";
+import { Panel } from "@pas/ui/components/panel";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Rocket } from "lucide-react";
+import { ArrowRight, House, Rocket } from "lucide-react";
+import { useAccess, useActiveRole } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/")({
@@ -14,7 +17,7 @@ const steps = [
   { title: "Create a product", detail: "Name it and choose its line of business." },
   {
     title: "Describe the risk",
-    detail: "Define the data you collect and the forms agents fill in.",
+    detail: "Define the data you collect and the questions agents answer.",
   },
   {
     title: "Price and publish",
@@ -24,8 +27,42 @@ const steps = [
 
 function OverviewPage() {
   const trpc = useTRPC();
-  const products = useQuery(trpc.catalog.products.list.queryOptions());
+  const access = useAccess();
+  const role = useActiveRole();
+  const { session } = Route.useRouteContext();
+
+  const products = useQuery({
+    ...trpc.catalog.products.list.queryOptions(),
+    enabled: access.products.read,
+  });
+
   const hasProduct = (products.data?.length ?? 0) > 0;
+
+  if (!access.products.write) {
+    return (
+      <>
+        <PageHeader title="Overview" />
+        <PageBody className="max-w-4xl">
+          <Panel>
+            <div className="flex items-start gap-3">
+              <IconTile>
+                <House />
+              </IconTile>
+              <div className="grid gap-1">
+                <h2 className="m-0 text-base leading-6 font-semibold">
+                  Welcome, {session.user.name.split(" ")[0]}
+                </h2>
+                <p className="m-0 text-sm text-muted-foreground">
+                  {role ? `You're signed in as ${roleLabel(role)}. ` : ""}
+                  Ask an admin if you need access to configure products.
+                </p>
+              </div>
+            </div>
+          </Panel>
+        </PageBody>
+      </>
+    );
+  }
 
   return (
     <>
@@ -52,6 +89,7 @@ function OverviewPage() {
             <ol className="m-0 grid list-none gap-4 p-0">
               {steps.map((step, index) => {
                 const done = index === 0 && hasProduct;
+
                 return (
                   <li key={step.title} className="flex gap-3">
                     <span

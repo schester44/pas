@@ -1,4 +1,6 @@
+import { Brand } from "@pas/ui/components/brand";
 import { AppShell, NavSection, navItemClassName } from "@pas/ui/components/app-shell";
+import { Kbd } from "@pas/ui/components/command";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,55 +10,137 @@ import {
   DropdownMenuTrigger,
 } from "@pas/ui/components/dropdown-menu";
 import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
-import { Check, ChevronsUpDown, House, Layers, LogOut, Plus } from "lucide-react";
+import {
+  Building2,
+  Check,
+  ChevronsUpDown,
+  FileStack,
+  House,
+  Inbox,
+  Layers,
+  LogOut,
+  Plus,
+  Search,
+  Settings,
+} from "lucide-react";
+import { useState } from "react";
+import { CommandPalette, modKey, useCommandPaletteShortcut } from "@/components/command-palette";
 import { authClient } from "@/lib/auth";
 import { initials } from "@/lib/format";
+import { prefetchAccess, useAccess } from "@/lib/permissions";
+import { useSignOut, useSwitchOrganization } from "@/lib/session";
 import { queryClient } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async () => {
-    const { data } = await authClient.getSession();
-    if (!data) throw redirect({ to: "/login" });
-    if (!data.session.activeOrganizationId) {
-      // One organization: just use it. Otherwise let the user choose.
-      const { data: organizations } = await authClient.organization.list();
-      const only = organizations?.length === 1 ? organizations[0] : undefined;
-      if (!only) throw redirect({ to: "/organizations" });
-      await authClient.organization.setActive({ organizationId: only.id });
-      const refreshed = await authClient.getSession({ query: { disableCookieCache: true } });
-      if (!refreshed.data) throw redirect({ to: "/login" });
-      return { session: refreshed.data };
-    }
-    return { session: data };
+    const session = await resolveSession();
+    const organizationId = session.session.activeOrganizationId;
+
+    if (organizationId) await prefetchAccess(queryClient, organizationId);
+
+    return { session };
   },
   component: AuthedLayout,
 });
 
+async function resolveSession() {
+  const { data } = await authClient.getSession();
+
+  if (!data) throw redirect({ to: "/login" });
+
+  if (data.session.activeOrganizationId) return data;
+
+  // One organization: just use it. Otherwise let the user choose.
+  const { data: organizations } = await authClient.organization.list();
+  const only = organizations?.length === 1 ? organizations[0] : undefined;
+
+  if (!only) throw redirect({ to: "/organizations" });
+
+  await authClient.organization.setActive({ organizationId: only.id });
+  const refreshed = await authClient.getSession({ query: { disableCookieCache: true } });
+
+  if (!refreshed.data) throw redirect({ to: "/login" });
+
+  return refreshed.data;
+}
+
 function AuthedLayout() {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useCommandPaletteShortcut(setPaletteOpen);
+
   return (
-    <AppShell sidebar={<Sidebar />}>
+    <AppShell
+      sidebar={<Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
+      mobileTitle={<Brand />}
+    >
       <Outlet />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </AppShell>
   );
 }
 
-function Sidebar() {
+function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
+  const access = useAccess();
+
+  const isPlatformAdmin = Route.useRouteContext().session.user.role === "admin";
+
   return (
     <>
-      <OrganizationSwitcher />
+      <div className="grid gap-2">
+        <OrganizationSwitcher />
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="flex h-8 items-center gap-2.5 rounded-md px-2 text-sm text-muted-foreground transition-colors outline-none hover:bg-black/[0.03] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <Search aria-hidden className="size-4 shrink-0" />
+          <span className="flex-1 text-left">Search</span>
+          <Kbd>{modKey}K</Kbd>
+        </button>
+      </div>
       <div className="grid gap-6">
         <NavSection>
           <Link to="/" className={navItemClassName} activeOptions={{ exact: true }}>
             <House /> Overview
           </Link>
         </NavSection>
-        <NavSection label="Configure">
-          <Link to="/products" className={navItemClassName}>
-            <Layers /> Products
-          </Link>
-        </NavSection>
+        {access.submissions.read && (
+          <NavSection label="Operate">
+            <Link to="/submissions" className={navItemClassName}>
+              <Inbox /> Submissions
+            </Link>
+          </NavSection>
+        )}
+        {(access.products.read || access.documents.read) && (
+          <NavSection label="Configure">
+            {access.products.read && (
+              <Link to="/products" className={navItemClassName}>
+                <Layers /> Products
+              </Link>
+            )}
+            {access.documents.read && (
+              <Link to="/documents/forms" className={navItemClassName}>
+                <FileStack /> Forms library
+              </Link>
+            )}
+          </NavSection>
+        )}
       </div>
-      <div className="mt-auto">
+      <div className="mt-auto grid gap-2">
+        {isPlatformAdmin && (
+          <NavSection>
+            <Link to="/platform/tenants" className={navItemClassName}>
+              <Building2 /> Platform
+            </Link>
+          </NavSection>
+        )}
+        {access.settings && (
+          <NavSection>
+            <Link to="/settings" className={navItemClassName}>
+              <Settings /> Settings
+            </Link>
+          </NavSection>
+        )}
         <UserMenu />
       </div>
     </>
@@ -65,15 +149,10 @@ function Sidebar() {
 
 function OrganizationSwitcher() {
   const router = useRouter();
+  const switchTo = useSwitchOrganization();
   const { session } = Route.useRouteContext();
   const { data: organizations } = authClient.useListOrganizations();
   const active = organizations?.find((org) => org.id === session.session.activeOrganizationId);
-
-  async function switchTo(organizationId: string) {
-    await authClient.organization.setActive({ organizationId });
-    queryClient.clear();
-    await router.invalidate();
-  }
 
   return (
     <DropdownMenu>
@@ -104,7 +183,7 @@ function OrganizationSwitcher() {
 }
 
 function UserMenu() {
-  const router = useRouter();
+  const signOut = useSignOut();
   const { session } = Route.useRouteContext();
   const { user } = session;
 
@@ -120,13 +199,7 @@ function UserMenu() {
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="w-56">
-        <DropdownMenuItem
-          onSelect={async () => {
-            await authClient.signOut();
-            queryClient.clear();
-            await router.navigate({ to: "/login" });
-          }}
-        >
+        <DropdownMenuItem onSelect={signOut}>
           <LogOut /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

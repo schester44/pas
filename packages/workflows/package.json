@@ -1,0 +1,25 @@
+{
+  "name": "@pas/workflows",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "setup": "tsx --env-file-if-exists=../../.env src/setup.ts"
+  },
+  "dependencies": {
+    "@pas/kernel": "workspace:*",
+    "@pas/observability": "workspace:*",
+    "pg": "^8.16.3",
+    "pg-boss": "^12.38.2",
+    "pg-workflows": "^0.19.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.23.15"
+  }
+}

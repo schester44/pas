@@ -12,10 +12,16 @@
   "dependencies": {
     "@pas/api-client": "workspace:*",
     "@pas/auth": "workspace:*",
+    "@pas/decisions-engine": "workspace:*",
+    "@pas/documents": "workspace:*",
+    "@pas/expressions": "workspace:*",
+    "@pas/forms-core": "workspace:*",
+    "@pas/forms-react": "workspace:*",
     "@pas/ui": "workspace:*",
     "@tanstack/react-query": "^5.108.0",
     "@tanstack/react-router": "^1.170.46",
     "lucide-react": "^1.75.0",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

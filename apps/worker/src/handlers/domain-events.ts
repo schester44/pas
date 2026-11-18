@@ -14,10 +14,13 @@ export function createDomainEventDispatcher(
 ) {
   return async (event: DomainEventMessage) => {
     const matched = handlers[event.type] ?? [];
+
     if (matched.length === 0) {
       logger.debug({ type: event.type, id: event.id }, "domain event has no handlers");
+
       return;
     }
+
     for (const handler of matched) await handler(event);
   };
 }

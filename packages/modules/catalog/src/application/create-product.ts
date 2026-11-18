@@ -27,11 +27,14 @@ export function makeCreateProduct(deps: {
   ): Promise<ProductDto> {
     return deps.uow.run(ctx, async (tx) => {
       const product = Product.create({ tenantId: ctx.tenantId, ...input }, deps.clock);
+
       if (await deps.products.existsByKey(tx, ctx, product.toSnapshot().key)) {
         throw conflict(`A product with key "${input.key}" already exists`);
       }
+
       await deps.products.save(tx, product);
       await deps.outbox.add(tx, product.pullEvents());
+
       return toProductDto(product);
     });
   };

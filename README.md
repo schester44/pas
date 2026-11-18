@@ -59,16 +59,20 @@ pnpm --filter @pas/db exec prisma migrate deploy
 pnpm dev                      # api :4000 · worker · admin :5173 · app :5174
 ```
 
+In local dev the app connects as the database owner, so Postgres row-level security is not enforced (owners bypass it). Deployed environments run migrations and `pnpm queues:setup` (pg-boss schema and queues) as the owner (`DATABASE_URL_OWNER`), set `PGBOSS_MANAGE_SCHEMA=false` for the api and worker, then create the non-owner app role once with `PAS_APP_PASSWORD=... pnpm db:app-role` ([`packages/db/sql/app-role.sql`](./packages/db/sql/app-role.sql)) and point the api and worker's `DATABASE_URL` at `pas_app`.
+
 Open http://localhost:5173, create an account, create an organization (your tenant), then add a product. The worker logs the `catalog.product_created` domain event.
 
-| Command                                                  | Description                                  |
-| -------------------------------------------------------- | -------------------------------------------- |
-| `pnpm dev`                                               | Run api, worker, admin and app in watch mode |
-| `pnpm build`                                             | Build all apps                               |
-| `pnpm typecheck`                                         | TypeScript across the workspace              |
-| `pnpm lint` / `pnpm fmt`                                 | oxlint / oxfmt                               |
-| `pnpm test`                                              | vitest (critical code only; see CLAUDE.md)   |
-| `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:reset` | Prisma client / new migration / reset        |
+| Command                                                  | Description                                                     |
+| -------------------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev`                                               | Run api, worker, admin and app in watch mode                    |
+| `pnpm build`                                             | Build all apps                                                  |
+| `pnpm typecheck`                                         | TypeScript across the workspace                                 |
+| `pnpm lint` / `pnpm fmt`                                 | oxlint / oxfmt                                                  |
+| `pnpm test`                                              | vitest (critical code only; see CLAUDE.md)                      |
+| `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:reset` | Prisma client / new migration / reset                           |
+| `pnpm queues:setup`                                      | Install the pg-boss schema and queues (owner role, deploy step) |
+| `pnpm db:app-role`                                       | Create/update the non-owner `pas_app` role (RLS applies to it)  |
 
 ## Documents
 
@@ -79,4 +83,4 @@ Open http://localhost:5173, create an account, create an organization (your tena
 
 ## License
 
-To be decided (see PLAN §19 #10).
+[Functional Source License 1.1, Apache 2.0 future license](./LICENSE). You can use, modify and self-host PAS for your own business. You can't sell or host it as a competing product or service without a commercial license. Each release becomes Apache-2.0 two years after it ships.
