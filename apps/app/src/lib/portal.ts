@@ -9,6 +9,7 @@ export type ClientInvoice = AppOutputs["client"]["invoices"]["list"][number];
 export const POLICY_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   pending_effective: { label: "Upcoming", tone: "accent" },
   in_force: { label: "Active", tone: "success" },
+  pending_cancellation: { label: "Cancelling", tone: "warning" },
   expired: { label: "Expired", tone: "neutral" },
   cancelled: { label: "Cancelled", tone: "danger" },
 };
@@ -23,7 +24,14 @@ export const INVOICE_STATUS: Record<string, { label: string; tone: StatusTone }>
 export const policyStatus = (status: string) =>
   POLICY_STATUS[status] ?? { label: status, tone: "neutral" as const };
 
-export const invoiceStatus = (status: string) =>
+const CREDIT_STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  open: { label: "Credit", tone: "neutral" },
+  partially_paid: { label: "Part refunded", tone: "neutral" },
+  paid: { label: "Refunded", tone: "success" },
+};
+
+export const invoiceStatus = (status: string, kind?: string) =>
+  (kind === "credit_note" ? CREDIT_STATUS[status] : undefined) ??
   INVOICE_STATUS[status] ?? { label: status, tone: "neutral" as const };
 
 export const isDue = (invoice: ClientInvoice) =>

@@ -1,11 +1,11 @@
 import {
   asId,
-  type Clock,
   DomainError,
   newId,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { claimAttemptsLeft, claimWindowStart, postalCodeMatches } from "../domain/claim";
 import type { ClientScope } from "../domain/client-scope";
@@ -28,7 +28,7 @@ export function makeClaimClientPolicy(deps: {
   accounts: ClientAccountRepository;
   parties: PolicyPartyRepository;
   users: ClientUserRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function claimClientPolicy(
     ctx: TenantContext,
@@ -38,7 +38,7 @@ export function makeClaimClientPolicy(deps: {
     const policyNumber = input.policyNumber.trim().toUpperCase();
 
     const outcome = await deps.uow.run(ctx, async (tx) => {
-      const now = deps.clock.now();
+      const now = deps.clocks.forTenant(ctx.tenantId).now();
 
       const failures = await deps.users.countFailedClaims(
         tx,
@@ -69,7 +69,8 @@ export function makeClaimClientPolicy(deps: {
         return { status: "no_match" as const, attemptsLeft: claimAttemptsLeft(failures + 1) };
       }
 
-      if (identity.emailVerified) account.verifyEmail(identity.email, deps.clock);
+      if (identity.emailVerified)
+        account.verifyEmail(identity.email, deps.clocks.forTenant(ctx.tenantId));
 
       await deps.accounts.save(tx, account);
 

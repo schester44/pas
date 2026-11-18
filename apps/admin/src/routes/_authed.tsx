@@ -1,6 +1,8 @@
 import { Brand } from "@pas/ui/components/brand";
 import { AppShell, NavSection, navItemClassName } from "@pas/ui/components/app-shell";
 import { Kbd } from "@pas/ui/components/command";
+import { SandboxBanner } from "@pas/ui/components/sandbox-banner";
+import { StatusChip } from "@pas/ui/components/status-chip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +30,7 @@ import {
 import { useState } from "react";
 import { CommandPalette, modKey, useCommandPaletteShortcut } from "@/components/command-palette";
 import { authClient } from "@/lib/auth";
+import { formatDateTime, isSandboxOrganization, useEnvironment } from "@/lib/environment";
 import { initials } from "@/lib/format";
 import { prefetchAccess, useAccess } from "@/lib/permissions";
 import { useSignOut, useSwitchOrganization } from "@/lib/session";
@@ -69,15 +72,37 @@ async function resolveSession() {
 function AuthedLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   useCommandPaletteShortcut(setPaletteOpen);
+  const environment = useEnvironment();
 
   return (
     <AppShell
+      banner={
+        environment.data?.kind === "sandbox" && <EnvironmentBanner now={environment.data.now} />
+      }
       sidebar={<Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
       mobileTitle={<Brand />}
     >
       <Outlet />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </AppShell>
+  );
+}
+
+function EnvironmentBanner({ now }: { now: string }) {
+  const { session } = Route.useRouteContext();
+  const { data: organizations } = authClient.useListOrganizations();
+  const active = organizations?.find((org) => org.id === session.session.activeOrganizationId);
+
+  return (
+    <SandboxBanner
+      name={active?.name}
+      time={`Sandbox time ${formatDateTime(now)}`}
+      action={
+        <Link to="/settings/sandbox" className="font-medium underline-offset-2 hover:underline">
+          Advance time
+        </Link>
+      }
+    />
   );
 }
 
@@ -174,8 +199,11 @@ function OrganizationSwitcher() {
         <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
           {(active?.name ?? "·").slice(0, 1).toUpperCase()}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-          {active?.name ?? "Organization"}
+        <span className="grid min-w-0 flex-1 leading-tight">
+          <span className="truncate text-sm font-semibold">{active?.name ?? "Organization"}</span>
+          {active && isSandboxOrganization(active) && (
+            <span className="text-xs text-amber-700">Sandbox</span>
+          )}
         </span>
         <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -184,6 +212,7 @@ function OrganizationSwitcher() {
         {organizations?.map((org) => (
           <DropdownMenuItem key={org.id} onSelect={() => switchTo(org.id)}>
             <span className="min-w-0 flex-1 truncate">{org.name}</span>
+            {isSandboxOrganization(org) && <StatusChip tone="warning">Sandbox</StatusChip>}
             {org.id === active?.id && <Check className="text-primary!" />}
           </DropdownMenuItem>
         ))}

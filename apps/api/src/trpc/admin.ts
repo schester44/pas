@@ -30,6 +30,8 @@ import {
   policyDocument,
 } from "./quotes-input";
 import { listSubmissionsInput, submissionById } from "./submissions-input";
+import { policyChangesRouter, staffScope } from "./policy-changes";
+import { adminSearch } from "./search";
 
 const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ ctx, next }) => {
   const { role } = await ctx.container.auth.api.getActiveMemberRole({ headers: ctx.headers });
@@ -264,7 +266,10 @@ export const adminRouter = router({
 
       return { fileName: file.fileName, title: file.title, pdf: base64(file.body) };
     }),
+    changes: policyChangesRouter(staffScope),
   }),
+
+  search: router({ query: adminSearch }),
 
   clients: router({
     list: clientsAdmin
@@ -301,6 +306,33 @@ export const adminRouter = router({
         )
         .mutation(({ ctx, input }) =>
           ctx.container.useCases.tenants.updateProfile(ctx.tenant, input),
+        ),
+    }),
+    environment: tenantProcedure.query(({ ctx }) =>
+      ctx.container.useCases.tenants.environment(ctx.tenant),
+    ),
+    createSandbox: requirePermission({ organization: ["update"] })
+      .input(z.object({ name: z.string().max(120) }))
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.tenants.createSandbox(ctx.tenant, input),
+      ),
+    time: router({
+      preview: requirePermission({ organization: ["update"] })
+        .input(z.object({ to: z.iso.datetime({ offset: true }).nullable() }))
+        .query(({ ctx, input }) =>
+          ctx.container.useCases.tenants.sandboxTime.preview(ctx.tenant, {
+            to: input.to ? Temporal.Instant.from(input.to) : null,
+          }),
+        ),
+      history: requirePermission({ organization: ["update"] }).query(({ ctx }) =>
+        ctx.container.useCases.tenants.sandboxTime.history(ctx.tenant),
+      ),
+      advance: requirePermission({ organization: ["update"] })
+        .input(z.object({ to: z.iso.datetime({ offset: true }) }))
+        .mutation(({ ctx, input }) =>
+          ctx.container.useCases.tenants.sandboxTime.advance(ctx.tenant, {
+            to: Temporal.Instant.from(input.to),
+          }),
         ),
     }),
   }),

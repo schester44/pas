@@ -1,4 +1,4 @@
-import type { Clock, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import type { ProductVersionRepository } from "../ports/product-version-repository";
 import {
   fromContentsDto,
@@ -13,7 +13,7 @@ export type UpdateProductVersionInput = { id: string } & Partial<VersionContents
 export function makeUpdateProductVersion(deps: {
   uow: UnitOfWork;
   versions: ProductVersionRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function updateProductVersion(
     ctx: TenantContext,
@@ -21,7 +21,7 @@ export function makeUpdateProductVersion(deps: {
   ): Promise<ProductVersionDto> {
     return deps.uow.run(ctx, async (tx) => {
       const version = await loadVersion(deps.versions, tx, ctx, id);
-      version.update(fromContentsDto(changes), deps.clock);
+      version.update(fromContentsDto(changes), deps.clocks.forTenant(ctx.tenantId));
       await deps.versions.save(tx, version);
 
       return toVersionDto(version);

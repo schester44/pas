@@ -1,5 +1,4 @@
 import {
-  type Clock,
   invalid,
   jurisdiction,
   Money,
@@ -8,6 +7,7 @@ import {
   parsePlainDate,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { type NewBusinessLine, Policy } from "../domain/policy";
 import { categoryOf } from "../domain/policy-event";
@@ -67,7 +67,7 @@ export function makeIssueNewBusiness(deps: {
   policies: PolicyRepository;
   invoices: InvoiceIssuer;
   parties: PolicyParties;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function issueNewBusiness(
     ctx: TenantContext,
@@ -132,7 +132,7 @@ export function makeIssueNewBusiness(deps: {
             taxesAndFees,
             lines,
             snapshot: input.snapshot,
-            today: deps.clock.today("UTC"),
+            today: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
             actor: input.actor,
             history: input.history.map((entry) => ({
               ...entry,
@@ -142,10 +142,10 @@ export function makeIssueNewBusiness(deps: {
               data: { ...entry.data, source: "quote", quoteId: input.quoteId },
             })),
           },
-          deps.clock,
+          deps.clocks.forTenant(ctx.tenantId),
         );
 
-      const today = deps.clock.today("UTC").toString();
+      const today = deps.clocks.forTenant(ctx.tenantId).today("UTC").toString();
 
       const invoice = await deps.invoices.issue(tx, ctx, {
         policyId: policy.id,
@@ -169,7 +169,7 @@ export function makeIssueNewBusiness(deps: {
           policy.firstTransaction.id,
           { ...invoice, total: money(invoice.total) },
           input.actor,
-          deps.clock,
+          deps.clocks.forTenant(ctx.tenantId),
         );
 
         await deps.policies.save(tx, policy);

@@ -1,4 +1,10 @@
-import { checkDecision, DECISION_KINDS, evaluateDecision } from "@pas/decisions-engine";
+import {
+  checkDecision,
+  DECISION_KINDS,
+  type DecisionKind,
+  evaluateDecision,
+  kindContextPaths,
+} from "@pas/decisions-engine";
 import { type RiskSchema, schemaIndex } from "@pas/forms-core";
 import { canonicalJson } from "@pas/kernel";
 import type { CheckIssue } from "./checks";
@@ -18,8 +24,12 @@ export const DECISION_CONTEXT_PATHS = [
   "jurisdiction.subdivision",
 ] as const;
 
-export function decisionInputPaths(schema: RiskSchema): string[] {
-  return [...schemaIndex(schema).keys(), ...DECISION_CONTEXT_PATHS];
+export function decisionInputPaths(schema: RiskSchema, kind?: DecisionKind): string[] {
+  return [
+    ...schemaIndex(schema).keys(),
+    ...DECISION_CONTEXT_PATHS,
+    ...(kind ? kindContextPaths(kind) : []),
+  ];
 }
 
 export type DecisionTestResult =
@@ -39,7 +49,6 @@ export function runDecisionTest(decision: VersionDecision, test: DecisionTest): 
 
 export function checkRules(contents: VersionContents): CheckIssue[] {
   const issues: CheckIssue[] = [];
-  const paths = decisionInputPaths(contents.riskSchema);
   const seen = new Set<string>();
 
   for (const decision of contents.rules) {
@@ -58,7 +67,11 @@ export function checkRules(contents: VersionContents): CheckIssue[] {
 
     seen.add(ref);
 
-    const found = checkDecision(decision.kind, decision.decision, paths);
+    const found = checkDecision(
+      decision.kind,
+      decision.decision,
+      decisionInputPaths(contents.riskSchema, decision.kind),
+    );
 
     for (const issue of found) {
       issues.push({

@@ -23,3 +23,37 @@ model TenantDomain {
   @@index([tenantId])
   @@map("tenant_domains")
 }
+
+enum TenantEnvironmentKind {
+  production
+  sandbox
+
+  @@map("tenant_environment_kind")
+}
+
+/// Absent for production tenants. A sandbox is its own organization linked to its production tenant.
+model TenantEnvironment {
+  tenantId       String                @id @map("tenant_id")
+  kind           TenantEnvironmentKind
+  parentTenantId String?               @map("parent_tenant_id")
+  clockOffsetMs  BigInt                @default(0) @map("clock_offset_ms")
+  createdAt      DateTime              @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @map("updated_at") @db.Timestamptz(6)
+
+  @@index([parentTenantId])
+  @@map("tenant_environments")
+}
+
+/// Append-only log of sandbox time travel.
+model SandboxTimeAdvance {
+  id        String   @id @db.Uuid
+  tenantId  String   @map("tenant_id")
+  fromTime  DateTime @map("from_time") @db.Timestamptz(6)
+  toTime    DateTime @map("to_time") @db.Timestamptz(6)
+  actor     Json
+  fired     Json
+  createdAt DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@map("sandbox_time_advances")
+}

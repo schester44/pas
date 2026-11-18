@@ -118,6 +118,7 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
     await prismaTx(tx).payment.create({
       data: {
         id: payment.id,
+        kind: payment.kind,
         tenantId: ctx.tenantId,
         policyId: payment.policyId,
         invoiceId: payment.invoiceId,
@@ -217,6 +218,7 @@ function toInvoice(row: InvoiceRow, lines: LineRow[]): Invoice {
 function toPayment(row: Prisma.PaymentGetPayload<object>): PaymentProps {
   return {
     id: row.id,
+    kind: row.kind as PaymentProps["kind"],
     policyId: row.policyId,
     invoiceId: asId(row.invoiceId),
     provider: row.provider,

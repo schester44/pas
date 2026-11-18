@@ -15,3 +15,4 @@ export type { BillingTimelineEntry, PolicyTimeline } from "./ports/policy-timeli
 export { makeListInvoices, type ListInvoices } from "./application/list-invoices";
 export { makePayInvoice, type PayInvoice, type PayInvoiceResult } from "./application/pay-invoice";
 export type { CardMethod, PaymentGateway } from "./ports/payment-gateway";
+export { makeRefundCreditNote, type RefundCreditNote } from "./application/refund-credit-note";

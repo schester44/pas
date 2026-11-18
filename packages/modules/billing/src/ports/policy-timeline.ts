@@ -2,7 +2,7 @@ import type { TenantContext, Transaction } from "@pas/kernel";
 
 export interface BillingTimelineEntry {
   policyId: string;
-  type: "payment_received";
+  type: "payment_received" | "refund_issued";
   invoiceId: string;
   actor: { type: "user" | "system" | "api"; id?: string; name: string };
   summary: string;

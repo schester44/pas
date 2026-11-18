@@ -1,4 +1,4 @@
-import type { Clock, Outbox, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import type { CoverageChoice } from "../domain/coverages";
 import type { SubmissionScope } from "../domain/scope";
 import type { ProductCatalog } from "../ports/product-catalog";
@@ -18,7 +18,7 @@ export function makeCustomizeQuote(
     quotes: QuoteRepository;
     catalog: ProductCatalog;
     journey: QuoteJourney;
-    clock: Clock;
+    clocks: ClockProvider;
   },
 ) {
   return async function customizeQuote(
@@ -52,7 +52,7 @@ export function makeCustomizeQuote(
         evaluation,
         reviewWithin,
         { type: "user", id: producer.userId, name: producer.name },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.quotes.save(tx, quote);

@@ -27,6 +27,7 @@ export interface InvoiceDto {
 
 export interface PaymentDto {
   id: string;
+  kind: "payment" | "refund";
   invoiceId: string;
   provider: string;
   reference: string;
@@ -65,6 +66,7 @@ export function toInvoiceDto(invoice: Invoice): InvoiceDto {
 export function toPaymentDto(payment: PaymentProps): PaymentDto {
   return {
     id: payment.id,
+    kind: payment.kind,
     invoiceId: payment.invoiceId,
     provider: payment.provider,
     reference: payment.providerRef,

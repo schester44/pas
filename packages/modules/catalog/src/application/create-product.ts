@@ -1,9 +1,9 @@
 import {
-  type Clock,
   conflict,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { Product } from "../domain/product";
 import type { ProductRepository } from "../ports/product-repository";
@@ -19,14 +19,17 @@ export function makeCreateProduct(deps: {
   uow: UnitOfWork;
   outbox: Outbox;
   products: ProductRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function createProduct(
     ctx: TenantContext,
     input: CreateProductInput,
   ): Promise<ProductDto> {
     return deps.uow.run(ctx, async (tx) => {
-      const product = Product.create({ tenantId: ctx.tenantId, ...input }, deps.clock);
+      const product = Product.create(
+        { tenantId: ctx.tenantId, ...input },
+        deps.clocks.forTenant(ctx.tenantId),
+      );
 
       if (await deps.products.existsByKey(tx, ctx, product.toSnapshot().key)) {
         throw conflict(`A product with key "${input.key}" already exists`);

@@ -3,11 +3,13 @@ import { Panel } from "@pas/ui/components/panel";
 import { cn } from "@pas/ui/lib/utils";
 import {
   Banknote,
+  CalendarClock,
   Check,
   CircleAlert,
   FileSignature,
   FileText,
   Gavel,
+  Mail,
   Receipt,
   ScrollText,
 } from "lucide-react";
@@ -24,6 +26,7 @@ const ICONS: Record<string, typeof Check> = {
   underwriting: Gavel,
   billing: Banknote,
   document: FileText,
+  communication: Mail,
 };
 
 const iconFor = (event: PolicyEvent) =>
@@ -33,7 +36,9 @@ const iconFor = (event: PolicyEvent) =>
       ? Receipt
       : event.type === "payment_failed"
         ? CircleAlert
-        : (ICONS[event.category] ?? Check);
+        : event.type === "pending_cancellation"
+          ? CalendarClock
+          : (ICONS[event.category] ?? Check);
 
 const titleOf = (type: string) => {
   const text = type.replaceAll("_", " ").replace(/^uw /, "underwriting ");

@@ -28,7 +28,13 @@ export class PrismaTenantDirectory implements TenantDirectory {
         select: { id: true },
       });
 
-      return hasProfile ? null : { organization: toOrganizationRef(org), profile: null };
+      return hasProfile
+        ? null
+        : {
+            organization: toOrganizationRef(org),
+            profile: null,
+            sandbox: await isSandbox(db, org.id),
+          };
     });
   }
 
@@ -45,12 +51,15 @@ export class PrismaTenantDirectory implements TenantDirectory {
 
   list(): Promise<TenantListRecord[]> {
     return this.platformRead(async (db) => {
-      const [orgs, memberCounts, profiles, domains] = await Promise.all([
+      const [orgs, memberCounts, profiles, domains, sandboxes] = await Promise.all([
         db.organization.findMany({ select: orgSelect, orderBy: { createdAt: "desc" } }),
         db.member.groupBy({ by: ["organizationId"], _count: true }),
         db.tenantProfile.findMany(),
         db.tenantDomain.findMany({ select: { tenantId: true, hostname: true } }),
+        db.tenantEnvironment.findMany({ where: { kind: "sandbox" }, select: { tenantId: true } }),
       ]);
+
+      const sandboxIds = new Set(sandboxes.map((s) => s.tenantId));
 
       const membersByTenant = new Map(
         memberCounts.map((row) => [row.organizationId, Number(row["_count"])]),
@@ -72,6 +81,7 @@ export class PrismaTenantDirectory implements TenantDirectory {
           organization: toOrganizationRef(org),
           profile,
           memberCount: membersByTenant.get(org.id) ?? 0,
+          sandbox: sandboxIds.has(org.id),
         };
       });
     });
@@ -82,12 +92,17 @@ export class PrismaTenantDirectory implements TenantDirectory {
 
     if (!org) return null;
 
-    const [row, domains] = await Promise.all([
+    const [row, domains, sandbox] = await Promise.all([
       db.tenantProfile.findUnique({ where: { tenantId } }),
       db.tenantDomain.findMany({ where: { tenantId }, select: { hostname: true } }),
+      isSandbox(db, tenantId),
     ]);
 
-    return { organization: toOrganizationRef(org), profile: row ? toProfile(row, domains) : null };
+    return {
+      organization: toOrganizationRef(org),
+      profile: row ? toProfile(row, domains) : null,
+      sandbox,
+    };
   }
 
   private platformRead<T>(work: (db: PrismaTx) => Promise<T>): Promise<T> {
@@ -97,4 +112,13 @@ export class PrismaTenantDirectory implements TenantDirectory {
       return work(db);
     });
   }
+}
+
+async function isSandbox(db: PrismaTx, tenantId: string): Promise<boolean> {
+  const environment = await db.tenantEnvironment.findUnique({
+    where: { tenantId },
+    select: { kind: true },
+  });
+
+  return environment?.kind === "sandbox";
 }

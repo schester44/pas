@@ -1,4 +1,10 @@
-import { type Clock, DomainError, type Money, newId, type TenantContext } from "@pas/kernel";
+import {
+  type ClockProvider,
+  DomainError,
+  type Money,
+  newId,
+  type TenantContext,
+} from "@pas/kernel";
 import type {
   Authorization,
   PaymentGateway,
@@ -31,11 +37,12 @@ export class FakeCardGateway implements PaymentGateway {
   readonly provider = "test_card";
   private readonly byKey = new Map<string, Held>();
   private readonly byId = new Map<string, Held>();
+  private readonly refunds = new Map<string, string>();
 
-  constructor(private readonly clock: Clock) {}
+  constructor(private readonly clocks: ClockProvider) {}
 
   async authorize(
-    _ctx: TenantContext,
+    ctx: TenantContext,
     input: { reference: string; idempotencyKey: string; amount: Money; method: PaymentMethodInput },
   ): Promise<Authorization> {
     if (input.method.kind !== "card") {
@@ -58,7 +65,7 @@ export class FakeCardGateway implements PaymentGateway {
       return { status: "authorized", authorizationId: existing.id, method: existing.method };
     }
 
-    const declined = this.decline(number, card.expMonth, card.expYear);
+    const declined = this.decline(ctx, number, card.expMonth, card.expYear);
 
     if (declined) return { status: "declined", ...declined, method };
 
@@ -95,8 +102,25 @@ export class FakeCardGateway implements PaymentGateway {
     if (held && held.status === "authorized") held.status = "voided";
   }
 
-  private decline(number: string, expMonth: number, expYear: number) {
-    const today = this.clock.today("UTC");
+  async refund(
+    _ctx: TenantContext,
+    input: { paymentRef: string; amount: Money; idempotencyKey: string },
+  ): Promise<{ refundId: string }> {
+    if (!input.amount.amount.isPositive())
+      throw new DomainError("invalid", "Refunds must be positive");
+
+    const existing = this.refunds.get(input.idempotencyKey);
+
+    if (existing) return { refundId: existing };
+
+    const refundId = `re_${newId()}`;
+    this.refunds.set(input.idempotencyKey, refundId);
+
+    return { refundId };
+  }
+
+  private decline(ctx: TenantContext, number: string, expMonth: number, expYear: number) {
+    const today = this.clocks.forTenant(ctx.tenantId).today("UTC");
 
     if (expYear < today.year || (expYear === today.year && expMonth < today.month)) {
       return { code: "expired_card", message: "The card has expired." };

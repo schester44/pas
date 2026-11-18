@@ -18,6 +18,7 @@ import {
   makeUpdateProductVersion,
 } from "@pas/catalog";
 import {
+  PrismaCatalogCloner,
   PrismaProductReleaseRepository,
   PrismaProductRepository,
   PrismaProductVersionRepository,
@@ -29,8 +30,12 @@ import {
   makeListFormEditions,
   makeUploadFormEdition,
 } from "@pas/form-library";
-import { PdfLibInspector, PrismaFormEditionRepository } from "@pas/form-library/infrastructure";
-import { systemClock, type TenantContext } from "@pas/kernel";
+import {
+  PdfLibInspector,
+  PrismaFormEditionCloner,
+  PrismaFormEditionRepository,
+} from "@pas/form-library/infrastructure";
+import { sameJurisdiction, type TenantContext } from "@pas/kernel";
 import {
   makeApplyPayment,
   makeGetPolicyBilling,
@@ -41,15 +46,33 @@ import {
 import { PrismaInvoiceRepository } from "@pas/billing/infrastructure";
 import {
   makeAttachPolicyDocuments,
+  makeCancellationReasons,
+  makeDiscardTransaction,
+  makeGetEndorsementSetup,
   makeGetPolicy,
+  makeInitiateCancellation,
   makeIssueNewBusiness,
+  makeIssueTransaction,
   makeListChangeRequests,
   makeListPolicies,
-  makeRequestPolicyChange,
+  makeQuoteCancellation,
+  makeQuoteEndorsement,
+  makeQuoteReinstatement,
   makeRecordPolicyEvent,
+  makeTermTimers,
+  makeReinstatePolicy,
+  makeRequestPolicyChange,
+  makeRescindCancellation,
+  type PolicyProductConfig,
+  type PolicyRelease,
   type PolicyScope,
+  type TermRater,
 } from "@pas/policy";
-import { PrismaChangeRequestRepository, PrismaPolicyRepository } from "@pas/policy/infrastructure";
+import {
+  PrismaChangeRequestRepository,
+  PrismaPolicyRepository,
+  ReactPdfNoticeDocuments,
+} from "@pas/policy/infrastructure";
 import {
   type BillingDirectory,
   makeClaimClientPolicy,
@@ -81,26 +104,42 @@ import {
   makeUploadRaterWorkbook,
   makeWorkbookModels,
 } from "@pas/rating";
-import { PrismaRaterWorkbookRepository } from "@pas/rating/infrastructure";
+import {
+  PrismaRaterWorkbookCloner,
+  PrismaRaterWorkbookRepository,
+} from "@pas/rating/infrastructure";
+import { makeSearch } from "@pas/search";
+import { PostgresSearchIndex } from "@pas/search/infrastructure";
 import {
   AppHosts,
   makeGetProfile,
+  makeCreateSandbox,
+  makeGetEnvironment,
   makeListTenants,
   makeResolveTenantByHost,
+  makeSandboxTime,
   makeUpdateProfile,
 } from "@pas/tenants";
-import { PrismaTenantDirectory, PrismaTenantProfileRepository } from "@pas/tenants/infrastructure";
+import {
+  PrismaSandboxOrganizations,
+  PrismaTenantDirectory,
+  PrismaTenantEnvironmentRepository,
+  PrismaTenantProfileRepository,
+  TenantClocks,
+} from "@pas/tenants/infrastructure";
 import {
   makeBindQuote,
   makeCustomizeQuote,
   makeDecideReferral,
   makeGetQuote,
+  makeRateTerm,
   makeGetSubmission,
   makeListSubmissions,
   makeRenderQuotePacket,
   makeSaveBindDetails,
   makeSaveDraft,
   makeSignQuote,
+  makeQuoteTimers,
   makeStartSubmission,
   makeSubmitSubmission,
   QuoteJourney,
@@ -121,6 +160,9 @@ import { createStorageFromEnv } from "@pas/storage";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import { env } from "./env";
+import { sandboxAccess } from "./sandbox-access";
+import { sandboxed } from "./sandboxed";
+import { makeSandboxTimers } from "./sandbox-timers";
 
 const party = (policyIds: readonly string[]) => ({ kind: "party" as const, policyIds });
 
@@ -131,7 +173,7 @@ export function compose() {
 
   const uow = new PrismaUnitOfWork(prisma);
   const outbox = new PgBossOutbox(queues);
-  const clock = systemClock;
+  const clocks = new TenantClocks(prisma);
 
   const products = new PrismaProductRepository();
   const versions = new PrismaProductVersionRepository();
@@ -150,7 +192,7 @@ export function compose() {
       editions: formEditions,
       storage,
       pdf: new PdfLibInspector(),
-      clock,
+      clocks,
     }),
     list: makeListFormEditions({ uow, editions: formEditions }),
     getFile: makeGetFormEditionFile({ uow, editions: formEditions, storage }),
@@ -168,7 +210,7 @@ export function compose() {
       outbox,
       workbooks: raterWorkbooks,
       storage,
-      clock,
+      clocks,
     }),
     listWorkbooks: makeListRaterWorkbooks({ uow, workbooks: raterWorkbooks }),
     getWorkbook: makeGetRaterWorkbook({ models: workbookModels }),
@@ -192,27 +234,33 @@ export function compose() {
   const getProfile = makeGetProfile({ uow, profiles: tenantProfiles, hosts: appHosts });
 
   // The API only starts and signals runs; the worker executes them.
-  const workflows = new PostgresWorkflows({ ...workflowConnectionFromEnv(), logger });
+  const workflows = new PostgresWorkflows({
+    ...workflowConnectionFromEnv(),
+    logger,
+    tenantTime: clocks,
+  });
+
   const journey = new QuoteJourney(workflows);
   const quotes = new PrismaQuoteRepository();
   const policies = new PrismaPolicyRepository();
 
   const invoices = new PrismaInvoiceRepository();
-  const issueInvoice = makeIssueInvoice({ invoices, clock });
-  const recordPolicyEvent = makeRecordPolicyEvent({ policies, clock });
+  const issueInvoice = makeIssueInvoice({ invoices, clocks });
+  const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks });
   const getPolicyBilling = makeGetPolicyBilling({ uow, invoices });
 
   const clientAccounts = new PrismaClientAccountRepository();
   const policyParties = new PrismaPolicyPartyRepository();
   const clientUsers = new PrismaClientUserRepository();
   const changeRequests = new PrismaChangeRequestRepository();
-  const cardGateway = new FakeCardGateway(clock);
+
+  const cardGateway = sandboxed(clocks, new FakeCardGateway(clocks), new FakeCardGateway(clocks));
 
   const linkPolicyInsureds = makeLinkPolicyInsureds({
     accounts: clientAccounts,
     parties: policyParties,
     outbox,
-    clock,
+    clocks,
   });
 
   const policy = {
@@ -222,9 +270,9 @@ export function compose() {
       policies,
       invoices: { issue: issueInvoice },
       parties: { linkInsureds: linkPolicyInsureds },
-      clock,
+      clocks,
     }),
-    attachDocuments: makeAttachPolicyDocuments({ uow, policies, clock }),
+    attachDocuments: makeAttachPolicyDocuments({ uow, policies, clocks }),
     list: makeListPolicies({ uow, policies }),
     get: makeGetPolicy({ uow, policies, storage }),
   };
@@ -233,13 +281,13 @@ export function compose() {
     uow,
     invoices,
     timeline: { record: (tx, ctx, entry) => recordPolicyEvent(tx, ctx, entry) },
-    clock,
+    clocks,
   });
 
   const listInvoices = makeListInvoices({ uow, invoices });
   const payInvoice = makePayInvoice({ uow, invoices, gateway: cardGateway, applyPayment });
   const listChangeRequests = makeListChangeRequests({ uow, policies, changeRequests });
-  const requestChange = makeRequestPolicyChange({ uow, outbox, policies, changeRequests, clock });
+  const requestChange = makeRequestPolicyChange({ uow, outbox, policies, changeRequests, clocks });
   const partyRepos = { accounts: clientAccounts, parties: policyParties, users: clientUsers };
 
   const policyDirectory = {
@@ -285,41 +333,89 @@ export function compose() {
   };
 
   const parties = {
-    resolveScope: makeResolveClientScope({ uow, ...partyRepos, clock }),
-    claim: makeClaimClientPolicy({ uow, outbox, ...partyRepos, clock }),
+    resolveScope: makeResolveClientScope({ uow, ...partyRepos, clocks }),
+    claim: makeClaimClientPolicy({ uow, outbox, ...partyRepos, clocks }),
     profile: makeGetClientProfile({ uow, accounts: clientAccounts }),
     policies: makeListClientPolicies(portal),
     policy: makeGetClientPolicy(portal),
     invoices: makeClientInvoices(portal),
     requestChange: makeRequestClientChange(portal),
     search: makeSearchClientAccounts({ uow, ...partyRepos }),
-    merge: makeMergeClientAccounts({ uow, outbox, ...partyRepos, clock }),
+    merge: makeMergeClientAccounts({ uow, outbox, ...partyRepos, clocks }),
     policyClients: makeGetPolicyClients({ uow, ...partyRepos }),
-    resendInvite: makeResendPortalInvite({ uow, outbox, ...partyRepos, clock }),
+    resendInvite: makeResendPortalInvite({ uow, outbox, ...partyRepos, clocks }),
   };
 
   const evaluation = {
     rater: new RatingModuleQuoteRater(makeRateRisk({ models: workbookModels })),
     enricher: new PassThroughRiskEnricher(),
-    clock,
+    clocks,
+  };
+
+  const documentBranding = async (ctx: TenantContext) => {
+    const profile = await getProfile(ctx);
+
+    return {
+      name: profile.displayName,
+      primaryColor: profile.primaryColor,
+      ...(profile.supportEmail && { supportEmail: profile.supportEmail }),
+      ...(profile.supportPhone && { supportPhone: profile.supportPhone }),
+    };
   };
 
   const quoteDocuments = new ReactPdfQuoteDocuments({
     formEdition: formLibrary.getFile,
     jurisdictionName,
-    branding: async (ctx) => {
-      const profile = await getProfile(ctx);
-
-      return {
-        name: profile.displayName,
-        primaryColor: profile.primaryColor,
-        ...(profile.supportEmail && { supportEmail: profile.supportEmail }),
-        ...(profile.supportPhone && { supportPhone: profile.supportPhone }),
-      };
-    },
+    branding: documentBranding,
   });
 
-  const quoting = { uow, outbox, submissions, quotes, catalog: productCatalog, journey, clock };
+  const quoting = { uow, outbox, submissions, quotes, catalog: productCatalog, journey, clocks };
+
+  const policyRelease = async (ctx: TenantContext, id: string): Promise<PolicyRelease> => {
+    const r = await productCatalog.getRelease(ctx, id);
+
+    return {
+      id: r.id,
+      productId: r.productId,
+      version: r.version,
+      jurisdiction: r.jurisdiction,
+      riskSchema: r.riskSchema,
+      forms: r.forms,
+      rules: r.rules,
+      documents: r.documents,
+      lifecycle: r.lifecycle,
+    };
+  };
+
+  const policyConfig: PolicyProductConfig = {
+    release: policyRelease,
+    publishedReleases: async (ctx, input) => {
+      const listed = await makeListProductReleases({ uow, releases })(ctx, {
+        productId: input.productId,
+      });
+
+      const ids = listed
+        .filter((r) => sameJurisdiction(r.jurisdiction, input.jurisdiction))
+        .toSorted((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+        .map((r) => r.id);
+
+      return Promise.all(ids.map((id) => policyRelease(ctx, id)));
+    },
+  };
+
+  const termRater: TermRater = makeRateTerm({ ...evaluation, catalog: productCatalog });
+
+  const policyChanges = {
+    uow,
+    outbox,
+    policies,
+    invoices: { issue: issueInvoice },
+    config: policyConfig,
+    rater: termRater,
+    clocks,
+    storage,
+    notices: new ReactPdfNoticeDocuments({ branding: documentBranding, jurisdictionName }),
+  };
 
   const renderQuotePacket = makeRenderQuotePacket({
     ...quoting,
@@ -332,6 +428,19 @@ export function compose() {
   });
 
   const mailer = new ConsoleMailer(logger);
+  const environments = new PrismaTenantEnvironmentRepository();
+
+  const sandboxTimers = makeSandboxTimers({
+    workflows,
+    terms: makeTermTimers({
+      uow,
+      outbox,
+      policies,
+      invoices: { issue: issueInvoice },
+      clocks,
+    }),
+    quotes: makeQuoteTimers({ uow, outbox, quotes, clocks }),
+  });
 
   const auth = createAuth({
     prisma,
@@ -356,18 +465,19 @@ export function compose() {
     prisma,
     queues,
     workflows,
+    clocks,
     useCases: {
       catalog: {
-        createProduct: makeCreateProduct({ uow, outbox, products, clock }),
+        createProduct: makeCreateProduct({ uow, outbox, products, clocks }),
         ...catalog,
         listAvailableProducts: makeListAvailableProducts({ uow, products, releases }),
         listVersions: makeListProductVersions({ uow, versions }),
         getVersion: makeGetProductVersion({ uow, versions }),
-        createVersion: makeCreateProductVersion({ uow, outbox, products, versions, clock }),
-        updateVersion: makeUpdateProductVersion({ uow, versions, clock }),
-        submitVersion: makeSubmitProductVersion({ uow, outbox, versions, clock }),
-        reopenVersion: makeReturnProductVersionToDraft({ uow, outbox, versions, clock }),
-        retireVersion: makeRetireProductVersion({ uow, outbox, versions, clock }),
+        createVersion: makeCreateProductVersion({ uow, outbox, products, versions, clocks }),
+        updateVersion: makeUpdateProductVersion({ uow, versions, clocks }),
+        submitVersion: makeSubmitProductVersion({ uow, outbox, versions, clocks }),
+        reopenVersion: makeReturnProductVersionToDraft({ uow, outbox, versions, clocks }),
+        retireVersion: makeRetireProductVersion({ uow, outbox, versions, clocks }),
         checkVersion: makeCheckProductVersion({
           uow,
           versions,
@@ -382,7 +492,7 @@ export function compose() {
           releases,
           formEditions: formEditionDirectory,
           rating: ratingVerifier,
-          clock,
+          clocks,
         }),
         listReleases: makeListProductReleases({ uow, releases }),
       },
@@ -394,22 +504,22 @@ export function compose() {
           outbox,
           submissions,
           catalog: productCatalog,
-          clock,
+          clocks,
         }),
         get: makeGetSubmission({ uow, submissions, quotes, catalog: productCatalog }),
-        saveDraft: makeSaveDraft({ uow, submissions, clock }),
+        saveDraft: makeSaveDraft({ uow, submissions, clocks }),
         submit: makeSubmitSubmission({ ...quoting, ...evaluation }),
         list: makeListSubmissions({ uow, submissions, quotes, catalog: productCatalog }),
       },
       quotes: {
         get: makeGetQuote({ uow, submissions, quotes }),
         customize: makeCustomizeQuote({ ...quoting, ...evaluation }),
-        saveDetails: makeSaveBindDetails({ uow, submissions, quotes, clock }),
+        saveDetails: makeSaveBindDetails({ uow, submissions, quotes, clocks }),
         packet: renderQuotePacket,
         sign: makeSignQuote({
           ...quoting,
           renderPacket: renderQuotePacket,
-          esign: new ClickToSignGateway(),
+          esign: sandboxed(clocks, new ClickToSignGateway(), new ClickToSignGateway()),
           storage,
         }),
         bind: makeBindQuote({
@@ -429,6 +539,7 @@ export function compose() {
         decideReferral: makeDecideReferral(quoting),
       },
       parties,
+      search: makeSearch({ uow, index: new PostgresSearchIndex() }),
       policies: {
         list: policy.list,
         get: policy.get,
@@ -438,6 +549,16 @@ export function compose() {
 
           return getPolicyBilling(ctx, { policyId: input.id });
         },
+        endorsementSetup: makeGetEndorsementSetup(policyChanges),
+        quoteEndorsement: makeQuoteEndorsement(policyChanges),
+        issueTransaction: makeIssueTransaction(policyChanges),
+        discardTransaction: makeDiscardTransaction(policyChanges),
+        cancellationReasons: makeCancellationReasons(policyChanges),
+        quoteCancellation: makeQuoteCancellation(policyChanges),
+        initiateCancellation: makeInitiateCancellation(policyChanges),
+        rescindCancellation: makeRescindCancellation(policyChanges),
+        quoteReinstatement: makeQuoteReinstatement(policyChanges),
+        reinstate: makeReinstatePolicy(policyChanges),
       },
       tenants: {
         getProfile,
@@ -447,10 +568,31 @@ export function compose() {
           profiles: tenantProfiles,
           directory: tenantDirectory,
           hosts: appHosts,
-          clock,
+          clocks,
         }),
         resolveTenantByHost,
         listTenants: makeListTenants({ directory: tenantDirectory }),
+        environment: makeGetEnvironment({ uow, environments, clocks }),
+        createSandbox: makeCreateSandbox({
+          uow,
+          outbox,
+          environments,
+          profiles: tenantProfiles,
+          organizations: new PrismaSandboxOrganizations(prisma, sandboxAccess(prisma)),
+          seeds: [
+            new PrismaFormEditionCloner(uow),
+            new PrismaRaterWorkbookCloner(uow),
+            new PrismaCatalogCloner(uow),
+          ],
+          clocks,
+        }),
+        sandboxTime: makeSandboxTime({
+          uow,
+          outbox,
+          environments,
+          timers: sandboxTimers,
+          clocks,
+        }),
       },
     },
   };

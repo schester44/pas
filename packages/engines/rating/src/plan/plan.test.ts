@@ -174,7 +174,7 @@ describe("rating plan engine", () => {
       ],
     };
 
-    expect(() => compileRatingPlan(broken)).toThrow(/issue/);
+    expect(() => compileRatingPlan(broken)).toThrow(/Circular steps/);
 
     expect(
       checkRatingPlan(

@@ -1,10 +1,10 @@
 import {
   asId,
-  type Clock,
   notFound,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { ClientAccountRepository } from "../ports/client-account-repository";
 import type { ClientUserRepository } from "../ports/client-user-repository";
@@ -17,7 +17,7 @@ export function makeMergeClientAccounts(deps: {
   accounts: ClientAccountRepository;
   parties: PolicyPartyRepository;
   users: ClientUserRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function mergeClientAccounts(
     ctx: TenantContext,
@@ -33,7 +33,7 @@ export function makeMergeClientAccounts(deps: {
 
       if (!merged) throw notFound("Client account", input.mergedId);
 
-      survivor.absorbMerged(merged, deps.clock);
+      survivor.absorbMerged(merged, deps.clocks.forTenant(ctx.tenantId));
 
       await deps.parties.moveAccount(tx, ctx, merged.id, survivor.id);
       await deps.users.moveAccount(tx, ctx, merged.id, survivor.id);

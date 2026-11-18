@@ -30,6 +30,7 @@
     "@pas/queues": "workspace:*",
     "@pas/rating": "workspace:*",
     "@pas/rating-engine": "workspace:*",
+    "@pas/search": "workspace:*",
     "@pas/storage": "workspace:*",
     "@pas/submissions": "workspace:*",
     "@pas/tenants": "workspace:*",

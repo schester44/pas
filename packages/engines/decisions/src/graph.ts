@@ -24,6 +24,7 @@ export interface MatchedRule {
   ruleId: string;
   description?: string;
   reference_map: Record<string, unknown>;
+  inputs?: { name: string; field: string; value: unknown }[];
 }
 
 export interface NodeTrace {
@@ -230,9 +231,11 @@ function runTable(node: JdmNode, content: DecisionTableContent, context: Json) {
           }
         }
 
-        const reference_map = Object.fromEntries(
-          columns.flatMap(({ column, value }) => (column.field ? [[column.field, value]] : [])),
+        const inputs = columns.flatMap(({ column, value }) =>
+          column.field ? [{ name: column.name, field: column.field, value }] : [],
         );
+
+        const reference_map = Object.fromEntries(inputs.map((input) => [input.field, input.value]));
 
         hits.push({
           output,
@@ -241,6 +244,7 @@ function runTable(node: JdmNode, content: DecisionTableContent, context: Json) {
             ruleId: rule._id,
             ...(rule._description ? { description: rule._description } : {}),
             reference_map,
+            inputs,
           },
         });
 

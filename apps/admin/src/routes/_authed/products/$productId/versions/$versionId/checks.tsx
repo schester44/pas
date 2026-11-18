@@ -8,6 +8,7 @@ import { IssueDot } from "@/components/catalog/issue-dot";
 import { describeIssue } from "@/components/catalog/issues";
 import { useVersionEditor } from "@/components/catalog/version-editor";
 import { useTRPC } from "@/lib/trpc";
+import { readable } from "@/lib/readable";
 
 export const Route = createFileRoute("/_authed/products/$productId/versions/$versionId/checks")({
   component: ChecksTab,
@@ -84,7 +85,7 @@ function ChecksTab() {
                   >
                     <IssueDot severity={issue.severity} />
                     <span className="grid min-w-0 flex-1 gap-0.5">
-                      <span className="text-sm">{issue.message}</span>
+                      <span className="text-sm">{readable(issue.message, contents.coverages)}</span>
                       <span className="truncate text-xs text-muted-foreground">
                         {[area, ...where].join(" · ")}
                       </span>

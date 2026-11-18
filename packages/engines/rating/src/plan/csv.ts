@@ -1,7 +1,15 @@
 import { RatingError } from "../contract";
 import type { Band, RateDimension, RateTable, RowKey } from "./schema";
 
+// Rows pasted from a spreadsheet arrive tab-separated.
+const delimiterOf = (text: string) => {
+  const first = text.split(/\r?\n/, 1)[0] ?? "";
+
+  return first.includes("\t") && !first.includes(",") ? "\t" : ",";
+};
+
 export function parseCsv(text: string): string[][] {
+  const delimiter = delimiterOf(text);
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -21,7 +29,7 @@ export function parseCsv(text: string): string[][] {
     }
 
     if (char === '"') quoted = true;
-    else if (char === ",") {
+    else if (char === delimiter) {
       row.push(cell);
       cell = "";
     } else if (char === "\n" || char === "\r") {
@@ -89,6 +97,14 @@ export function rateTableFromCsv(csv: string, options: CsvTableOptions): RateTab
 
   body.forEach((cells, index) => {
     const line = index + 2;
+
+    if (cells.length !== columns.length) {
+      throw new RatingError(
+        `Line ${line} has ${cells.length} ${cells.length === 1 ? "value" : "values"}; the header has ${columns.length} (${columns.join(", ")})`,
+        { line },
+      );
+    }
+
     const value = cells[valueColumn]?.trim() ?? "";
 
     if (!NUMBER.test(value))

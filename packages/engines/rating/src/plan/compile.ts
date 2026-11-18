@@ -287,12 +287,41 @@ export interface CompiledRatingPlan {
   rate(input: RatingInput): RatingResult;
 }
 
+function locate(source: RatingPlan, path: PropertyKey[]): string {
+  const [section, index, child, childIndex] = path;
+
+  if (section !== "algorithms" || typeof index !== "number") return path.join(".");
+
+  const coverage = source.algorithms?.[index]?.coverage ?? `Algorithm ${index + 1}`;
+
+  return child === "steps" && typeof childIndex === "number"
+    ? `${coverage}, step ${childIndex + 1}`
+    : coverage;
+}
+
 export function compileRatingPlan(source: RatingPlan): CompiledRatingPlan {
-  const plan = ratingPlanSchema.parse(source);
+  const parsed = ratingPlanSchema.safeParse(source);
+
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => ({
+      path: issue.path.join("."),
+      message:
+        issue.code === "too_small" && issue.origin === "array"
+          ? `${locate(source, issue.path)} needs at least one value`
+          : `${locate(source, issue.path)}: ${issue.message}`,
+    }));
+
+    throw new RatingError(issues[0]!.message, { issues });
+  }
+
+  const plan = parsed.data;
   const issues = structuralIssues(plan);
 
   if (issues.length) {
-    throw new RatingError(`Rating plan ${plan.key} has ${issues.length} issue(s)`, { issues });
+    const [first] = issues;
+    const more = issues.length > 1 ? ` (+${issues.length - 1} more)` : "";
+
+    throw new RatingError(`${first!.message}${more}`, { issues });
   }
 
   const tables = new Map(plan.tables.map((table) => [table.key, compileTable(table)]));

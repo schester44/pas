@@ -20,6 +20,7 @@ export const KIND_COPY: Record<DecisionKind, string> = {
   taxes_fees: "Adds taxes, surcharges and fees on top of the premium.",
   form_schedule: "Chooses the forms attached to the policy.",
   notice_rules: "Sets notice periods, reasons and delivery for cancellations.",
+  cancellation_terms: "Sets the refund method, minimum earned premium and fully earned fees.",
   dea: "Says when a surplus lines diligent search is required.",
   attestations: "Lists the statements the insured must confirm before binding.",
   referral_triggers: "Flags conditions that need an underwriter's review.",
@@ -36,7 +37,10 @@ export function blankDecision(kind: DecisionKind, name: string): JdmDecision {
   const outputs = fields.length > 0 ? fields.map((field) => field.key) : ["result"];
 
   return tableDecision(name, {
-    hitPolicy: kind === "dea" || kind === "notice_rules" ? "first" : "collect",
+    hitPolicy:
+      kind === "dea" || kind === "notice_rules" || kind === "cancellation_terms"
+        ? "first"
+        : "collect",
     inputs: [],
     outputs: outputs.map((field) => ({ id: newId(), name: humanize(field), field })),
     rules: [],
@@ -165,6 +169,15 @@ export function summarize(kind: DecisionKind, result: unknown): string {
       const notice = result as DecisionResult<"notice_rules">;
 
       return notice ? `${notice.minDaysNotice} days notice` : "No result";
+    }
+    case "cancellation_terms": {
+      const terms = result as DecisionResult<"cancellation_terms">;
+
+      if (!terms) return "No result";
+
+      return terms.minimumEarnedType
+        ? `${terms.minimumEarnedType === "percent" ? `${terms.minimumEarnedValue}%` : terms.minimumEarnedValue} minimum earned`
+        : "Pro rata";
     }
     case "custom":
       return JSON.stringify(result).slice(0, 80);

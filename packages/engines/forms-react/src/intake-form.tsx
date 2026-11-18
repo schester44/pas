@@ -32,7 +32,9 @@ export interface IntakeFormProps {
   form: FormDefinition;
   value: FormData;
   onChange: (value: FormData) => void;
-  onSubmit: (data: FormData) => void | Promise<void>;
+  onSubmit?: (data: FormData) => void | Promise<void>;
+  /** Every step at once in one column, without panels, steps or submit: for editing data inline. */
+  compact?: boolean;
   busy?: boolean;
   error?: React.ReactNode;
   /** Authoritative errors from the server, keyed by path. Each clears once its field is edited. */
@@ -60,6 +62,7 @@ function ReadyIntakeForm({
   serverErrors,
   copy: copyOverrides,
   uploadFile,
+  compact,
 }: IntakeFormProps) {
   const copy = useMemo(() => ({ ...defaultCopy, ...copyOverrides }), [copyOverrides]);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -164,8 +167,40 @@ function ReadyIntakeForm({
       return;
     }
 
-    await onSubmit(submission.data);
+    await onSubmit?.(submission.data);
   };
+
+  if (compact) {
+    return (
+      <div className="grid gap-6">
+        {visibleSteps.flatMap((candidate) => {
+          const definition = form.steps.find((s) => s.id === candidate.id);
+
+          return (definition?.sections ?? []).map((section, index) => {
+            const sectionState = candidate.sections[index]!;
+
+            if (!sectionState.visible) return null;
+
+            return (
+              <Section
+                key={section.id}
+                compact
+                schema={schema}
+                section={section}
+                state={sectionState}
+                value={value}
+                onChange={onChange}
+                onEdit={dismiss}
+                showErrors={false}
+                copy={copy}
+                uploadFile={uploadFile}
+              />
+            );
+          });
+        })}
+      </div>
+    );
+  }
 
   if (!step || !stepState) return null;
 
@@ -235,6 +270,34 @@ interface SectionProps {
   showErrors: boolean;
   copy: Copy;
   uploadFile?: (file: File) => Promise<FileValue>;
+  compact?: boolean;
+}
+
+function CompactSection({
+  title,
+  description,
+  action,
+  children,
+}: {
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="grid gap-3">
+      {(title || action) && (
+        <header className="flex items-center justify-between gap-3">
+          <div className="grid min-w-0 gap-0.5">
+            {title && <h3 className="m-0 text-sm leading-5 font-semibold">{title}</h3>}
+            {description && <p className="m-0 text-xs text-muted-foreground">{description}</p>}
+          </div>
+          {action && <div className="-my-1 shrink-0">{action}</div>}
+        </header>
+      )}
+      {children}
+    </section>
+  );
 }
 
 function Section({
@@ -247,11 +310,13 @@ function Section({
   showErrors,
   copy,
   uploadFile,
+  compact,
 }: SectionProps) {
   const index = schemaIndex(schema);
+  const Container = compact ? CompactSection : Panel;
 
   const fields = (base: string | null, entry: SectionState["entries"][number]) => (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className={compact ? "grid gap-4" : "grid gap-4 sm:grid-cols-2"}>
       {section.items.map((item, i) => {
         const itemState = entry.items[i]!;
         const canonical = base ? `${section.repeat}[].${item.path}` : item.path;
@@ -273,6 +338,7 @@ function Section({
             showErrors={showErrors}
             copy={copy}
             uploadFile={uploadFile}
+            compact={compact}
           />
         );
       })}
@@ -281,9 +347,9 @@ function Section({
 
   if (!section.repeat) {
     return (
-      <Panel title={section.title} description={section.description}>
+      <Container title={section.title} description={section.description}>
         {fields(null, state.entries[0]!)}
-      </Panel>
+      </Container>
     );
   }
 
@@ -319,7 +385,7 @@ function Section({
   );
 
   return (
-    <Panel title={section.title ?? plural} description={section.description} action={addButton}>
+    <Container title={section.title ?? plural} description={section.description} action={addButton}>
       <div className="grid gap-4">
         {state.entries.length === 0 && (
           <p className="m-0 py-2 text-sm text-muted-foreground">{copy.empty(plural)}</p>
@@ -328,7 +394,12 @@ function Section({
           const base = joinPath(repeat, `[${entry.index}]`);
 
           return (
-            <section key={entry.index} className="grid gap-4 rounded-lg border p-4">
+            <section
+              key={entry.index}
+              className={
+                compact ? "grid gap-3 rounded-lg border p-3" : "grid gap-4 rounded-lg border p-4"
+              }
+            >
               <header className="flex items-center justify-between gap-4">
                 <h3 className="m-0 text-sm leading-5 font-medium">
                   {copy.entry(noun, entry.index! + 1)}
@@ -353,7 +424,7 @@ function Section({
           <p className="m-0 text-sm text-destructive">{state.errors[0]}</p>
         )}
       </div>
-    </Panel>
+    </Container>
   );
 }
 

@@ -1,5 +1,5 @@
 import { validateSubmission } from "@pas/forms-core";
-import type { Clock, Outbox, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import { Quote } from "../domain/quote";
 import type { RiskData } from "../domain/submission";
 import type { SubmissionScope } from "../domain/scope";
@@ -25,7 +25,7 @@ export function makeSubmitSubmission(
     quotes: QuoteRepository;
     catalog: ProductCatalog;
     journey: QuoteJourney;
-    clock: Clock;
+    clocks: ClockProvider;
   },
 ) {
   return async function submitSubmission(
@@ -50,7 +50,7 @@ export function makeSubmitSubmission(
     if (!result.ok) {
       await deps.uow.run(ctx, async (tx) => {
         const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
-        submission.saveDraft(input.riskData, deps.clock);
+        submission.saveDraft(input.riskData, deps.clocks.forTenant(ctx.tenantId));
         await deps.submissions.save(tx, submission);
       });
 
@@ -70,7 +70,7 @@ export function makeSubmitSubmission(
 
     const quote = await deps.uow.run(ctx, async (tx) => {
       const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
-      submission.submit(result.data, deps.clock);
+      submission.submit(result.data, deps.clocks.forTenant(ctx.tenantId));
 
       const created = Quote.create(
         {
@@ -84,12 +84,15 @@ export function makeSubmitSubmission(
           selection,
           evaluation,
           timing: {
-            expiresAt: deps.clock.now().add({ hours: terms.validityDays * 24 }),
+            expiresAt: deps.clocks
+              .forTenant(ctx.tenantId)
+              .now()
+              .add({ hours: terms.validityDays * 24 }),
             reviewWithin,
           },
           actor: { type: "user", id: d.producer.userId, name: d.producer.name },
         },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.submissions.save(tx, submission);

@@ -76,11 +76,16 @@ export interface PolicyEventProps {
   data: Record<string, unknown>;
 }
 
-/** A transactional event names its transaction and the invoice or credit note that bills it. */
+/**
+ * A transactional event names its transaction and the invoice or credit note that bills it;
+ * only a premium-neutral transaction has no bill.
+ */
 export function assertLinked(
-  event: Pick<PolicyEventProps, "category" | "transactionId" | "invoiceId" | "type">,
+  event: Pick<PolicyEventProps, "category" | "transactionId" | "invoiceId" | "type" | "data">,
 ) {
-  if (event.category === "transactional" && (!event.transactionId || !event.invoiceId)) {
+  if (event.category !== "transactional") return;
+
+  if (!event.transactionId || (!event.invoiceId && event.data.premiumNeutral !== true)) {
     throw new Error(`A ${event.type} event needs its transaction and invoice`);
   }
 }

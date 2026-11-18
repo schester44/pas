@@ -15,7 +15,8 @@ import { humanize } from "@/components/decisions/jdm-edit";
 import { ActivityTimeline } from "@/components/policies/activity";
 import { BillingPanel, InvoiceSheet } from "@/components/policies/billing";
 import { PolicyClients } from "@/components/policies/clients";
-import { PolicyStatus } from "@/components/policies/policy-status";
+import { PolicyActions, RescindDialog } from "@/components/policies/policy-actions";
+import { countdown, PolicyStatus } from "@/components/policies/policy-status";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 
@@ -65,7 +66,14 @@ function PolicyPage() {
             current={policy.data && <span className="tabular-nums">{policy.data.number}</span>}
           />
         }
-        actions={policy.data && <PolicyStatus status={policy.data.status} />}
+        actions={
+          policy.data && (
+            <>
+              <PolicyStatus status={policy.data.status} cancellation={policy.data.cancellation} />
+              <PolicyActions policy={policy.data} />
+            </>
+          )
+        }
       />
       <PageBody className="max-w-6xl">
         {policy.error ? (
@@ -80,6 +88,7 @@ function PolicyPage() {
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-6">
+              <Callouts policy={policy.data} />
               <Coverages policy={policy.data} />
               <ActivityTimeline
                 policy={policy.data}
@@ -106,6 +115,78 @@ function PolicyPage() {
   );
 }
 
+const TYPE_LABELS: Record<string, string> = {
+  NEW_BUSINESS: "New business",
+  ENDORSEMENT: "Endorsement",
+  CANCELLATION: "Cancellation",
+  CANCELLATION_RESCISSION: "Cancellation rescission",
+  REINSTATEMENT: "Reinstatement",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  quoted: "Quoted",
+  pending_approval: "Pending approval",
+  scheduled: "Scheduled",
+  issued: "Issued",
+};
+
+/** One-line callouts for what needs attention: a pending cancellation, an open change. */
+function Callouts({ policy }: { policy: Policy }) {
+  const [rescinding, setRescinding] = useState(false);
+  const pending = policy.status === "pending_cancellation" && policy.cancellation;
+  const open = policy.openTransaction;
+  const openChange = open && open.type !== "CANCELLATION" ? open : null;
+
+  if (!pending && !openChange && !(open?.status === "pending_approval")) return null;
+
+  return (
+    <div className="grid gap-2">
+      {pending && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2.5 text-sm">
+          <span aria-hidden className="size-2 shrink-0 rounded-full bg-amber-500" />
+          <span className="min-w-0 flex-1">
+            Cancels{" "}
+            <span className="font-medium tabular-nums">
+              {formatPlainDate(pending.effectiveDate)}
+            </span>{" "}
+            <span className="text-muted-foreground tabular-nums">
+              ({countdown(pending.effectiveDate)}) · {pending.reasonLabel}
+            </span>
+          </span>
+          <Button size="sm" variant="outline" onClick={() => setRescinding(true)}>
+            Rescind
+          </Button>
+          <RescindDialog policy={policy} open={rescinding} onOpenChange={setRescinding} />
+        </div>
+      )}
+      {open && (openChange || open.status === "pending_approval") && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2.5 text-sm">
+          <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
+          <span className="min-w-0 flex-1">
+            {TYPE_LABELS[open.type]} {STATUS_LABELS[open.status]?.toLowerCase()}{" "}
+            <span className="text-muted-foreground tabular-nums">
+              · effective {formatPlainDate(open.effectiveDate)} · {money(open.total)}
+              {open.createdBy && ` · by ${open.createdBy}`}
+            </span>
+          </span>
+          <Button size="sm" variant="outline" asChild>
+            <Link
+              to={
+                open.type === "CANCELLATION"
+                  ? "/policies/$policyId/cancel"
+                  : "/policies/$policyId/endorse"
+              }
+              params={{ policyId: policy.id }}
+            >
+              Review
+            </Link>
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Term({ policy }: { policy: Policy }) {
   return (
     <Panel title="Term">
@@ -120,10 +201,10 @@ function Term({ policy }: { policy: Policy }) {
             {formatPlainDate(policy.effectiveDate)} – {formatPlainDate(policy.expirationDate)}
           </span>
         </Fact>
-        <Fact label="Written premium">
-          <span className="tabular-nums">{money(policy.writtenPremium)}</span>
+        <Fact label="Annual premium">
+          <span className="tabular-nums">{money(policy.annualPremium)}</span>
           <span className="block text-xs text-muted-foreground tabular-nums">
-            {money(policy.taxesAndFees)} taxes and fees · {money(policy.total)} total
+            {money(policy.writtenPremium)} written · {money(policy.taxesAndFees)} taxes and fees
           </span>
         </Fact>
         <Fact label="Producer">{policy.producerName}</Fact>
@@ -192,12 +273,21 @@ function Transactions({ policy }: { policy: Policy }) {
         {policy.transactions.map((t) => (
           <li key={t.id} className="flex items-center gap-4 px-(--card-p) py-3">
             <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="text-sm font-medium">{humanize(t.type.toLowerCase())}</span>
+              <span className="text-sm font-medium">
+                {TYPE_LABELS[t.type] ?? humanize(t.type.toLowerCase())}
+              </span>
               <span className="text-xs text-muted-foreground tabular-nums">
-                Effective {formatPlainDate(t.effectiveDate)} · issued {formatDate(t.issuedAt)}
+                Effective {formatPlainDate(t.effectiveDate)}
+                {t.issuedAt
+                  ? ` · issued ${formatDate(t.issuedAt)}`
+                  : t.createdBy
+                    ? ` · by ${t.createdBy}`
+                    : ""}
               </span>
             </span>
-            <span className="text-xs text-muted-foreground">{humanize(t.status)}</span>
+            <span className="text-xs text-muted-foreground">
+              {STATUS_LABELS[t.status] ?? humanize(t.status)}
+            </span>
             <span className="w-24 text-right text-sm tabular-nums">{money(t.premiumDelta)}</span>
           </li>
         ))}

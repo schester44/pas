@@ -1,4 +1,4 @@
-import type { Clock, Outbox, TenantContext, Transaction } from "@pas/kernel";
+import type { Outbox, TenantContext, Transaction, ClockProvider } from "@pas/kernel";
 import { ClientAccount } from "../domain/client-account";
 import { contactKeys, type InsuredContact } from "../domain/contact";
 import { matchClientAccount } from "../domain/matching";
@@ -13,7 +13,7 @@ export function makeLinkPolicyInsureds(deps: {
   accounts: ClientAccountRepository;
   parties: PolicyPartyRepository;
   outbox: Outbox;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function linkPolicyInsureds(
     tx: Transaction,
@@ -38,14 +38,18 @@ export function makeLinkPolicyInsureds(deps: {
 
       const existing = match && candidates.find((c) => c.id === match.accountId);
 
-      const account = existing ?? ClientAccount.open(ctx.tenantId, insured, deps.clock);
+      const account =
+        existing ?? ClientAccount.open(ctx.tenantId, insured, deps.clocks.forTenant(ctx.tenantId));
 
-      if (existing) existing.absorb(insured, deps.clock);
+      if (existing) existing.absorb(insured, deps.clocks.forTenant(ctx.tenantId));
 
       const role = index === 0 ? "named_insured" : "additional_named_insured";
 
       if (role === "named_insured" && account.primaryEmail) {
-        account.invite({ id: input.policyId, number: input.policyNumber }, deps.clock);
+        account.invite(
+          { id: input.policyId, number: input.policyNumber },
+          deps.clocks.forTenant(ctx.tenantId),
+        );
       }
 
       await deps.accounts.save(tx, account);

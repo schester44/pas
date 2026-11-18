@@ -1,10 +1,10 @@
 import {
   asId,
-  type Clock,
   notFound,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { ClientAccountRepository } from "../ports/client-account-repository";
 import type { PolicyPartyRepository } from "../ports/policy-party-repository";
@@ -14,7 +14,7 @@ export function makeResendPortalInvite(deps: {
   outbox: Outbox;
   accounts: ClientAccountRepository;
   parties: PolicyPartyRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function resendPortalInvite(
     ctx: TenantContext,
@@ -30,7 +30,11 @@ export function makeResendPortalInvite(deps: {
 
       if (!account) throw notFound("Client account", input.clientAccountId);
 
-      account.invite({ id: link.policyId, number: link.policyNumber }, deps.clock, true);
+      account.invite(
+        { id: link.policyId, number: link.policyNumber },
+        deps.clocks.forTenant(ctx.tenantId),
+        true,
+      );
 
       await deps.accounts.save(tx, account);
       await deps.outbox.add(tx, account.pullEvents());

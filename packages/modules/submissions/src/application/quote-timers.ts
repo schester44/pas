@@ -1,4 +1,10 @@
-import { asId, type Clock, type Outbox, type TenantContext, type UnitOfWork } from "@pas/kernel";
+import {
+  asId,
+  type Outbox,
+  type TenantContext,
+  type UnitOfWork,
+  type ClockProvider,
+} from "@pas/kernel";
 import type { QuoteStatus } from "../domain/quote";
 import type { QuoteRepository } from "../ports/quote-repository";
 
@@ -12,7 +18,7 @@ export function makeQuoteTimers(deps: {
   uow: UnitOfWork;
   outbox: Outbox;
   quotes: QuoteRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return {
     async state(ctx: TenantContext, input: { quoteId: string }): Promise<JourneyState> {
@@ -26,8 +32,18 @@ export function makeQuoteTimers(deps: {
 
       return {
         status: quote.status,
-        msUntilExpiry: Math.max(0, deps.clock.now().until(expiresAt).total("milliseconds")),
+        msUntilExpiry: Math.max(
+          0,
+          deps.clocks.forTenant(ctx.tenantId).now().until(expiresAt).total("milliseconds"),
+        ),
       };
+    },
+    async describe(ctx: TenantContext, input: { quoteId: string }) {
+      const quote = await deps.uow.run(ctx, (tx) =>
+        deps.quotes.findById(tx, ctx, asId(input.quoteId)),
+      );
+
+      return quote && { submissionNumber: quote.toSnapshot().submissionNumber };
     },
     async expire(ctx: TenantContext, input: { quoteId: string }): Promise<QuoteStatus> {
       return deps.uow.run(ctx, async (tx) => {
@@ -35,7 +51,7 @@ export function makeQuoteTimers(deps: {
 
         if (!quote) throw new Error(`Quote ${input.quoteId} is gone`);
 
-        if (quote.expire(deps.clock)) {
+        if (quote.expire(deps.clocks.forTenant(ctx.tenantId))) {
           await deps.quotes.save(tx, quote);
           await deps.outbox.add(tx, quote.pullEvents());
         }

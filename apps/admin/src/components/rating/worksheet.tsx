@@ -8,6 +8,7 @@ import type { Coverage } from "@/components/catalog/version-editor";
 import { formatMoney } from "@/lib/format";
 import { coverageLabel, exposureLabel } from "./model";
 import type { RatingPreview } from "./use-rating";
+import { readable } from "@/lib/readable";
 
 const NUMBER = /^-?\d+(\.\d+)?$/;
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
@@ -57,7 +58,7 @@ export function Worksheet({
       ) : preview.status === "error" ? (
         <div className="p-(--card-p)">
           <Notice tone="error" title="Couldn't rate the sample">
-            {preview.message}
+            {readable(preview.message, coverages)}
           </Notice>
         </div>
       ) : (
@@ -153,13 +154,16 @@ function WorksheetBody({
         })}
       </table>
       <dl className="m-0 grid gap-1.5 border-t bg-muted/40 px-(--card-p) py-3 text-sm">
-        {result.coverages.map((c) => {
+        {result.coverages.map((c, i) => {
           const adjustment = result.adjustments.find(
             (a) => a.scope === "coverage" && a.coverage === c.coverage && a.exposure === c.exposure,
           );
 
           return (
-            <div key={groupKey(c.coverage, c.exposure)} className="flex items-baseline gap-3">
+            <div
+              key={`${groupKey(c.coverage, c.exposure)}-${i}`}
+              className="flex items-baseline gap-3"
+            >
               <dt className="min-w-0 flex-1 truncate text-muted-foreground">
                 {coverageLabel(coverages, c.coverage)}
                 {c.exposure && ` · ${exposureLabel(schema, c.exposure)}`}

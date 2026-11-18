@@ -16,6 +16,7 @@ export interface ClientPolicySummaryDto {
   productName: string;
   insuredName: string;
   status: PolicySummaryDto["status"];
+  cancellation: { effectiveDate: string; reasonLabel: string; status: string } | null;
   jurisdiction: PolicySummaryDto["jurisdiction"];
   effectiveDate: string;
   expirationDate: string;
@@ -71,6 +72,11 @@ export function toClientPolicySummary(
     productName: policy.productName,
     insuredName: policy.insuredName,
     status: policy.status,
+    cancellation: policy.cancellation && {
+      effectiveDate: policy.cancellation.effectiveDate,
+      reasonLabel: policy.cancellation.reasonLabel,
+      status: policy.cancellation.status,
+    },
     jurisdiction: policy.jurisdiction,
     effectiveDate: policy.effectiveDate,
     expirationDate: policy.expirationDate,

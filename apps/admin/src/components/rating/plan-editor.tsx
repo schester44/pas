@@ -31,6 +31,7 @@ import { AlgorithmEditor } from "./algorithm-editor";
 import { newAlgorithm } from "./model";
 import { TableEditor } from "./table-editor";
 import type { RatingIssue } from "./use-rating";
+import { readable } from "@/lib/readable";
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -88,7 +89,7 @@ export function PlanEditor({
       <Panel flush className="lg:sticky lg:top-20">
         <Nav title="Algorithms">
           {coverages.map((c) => {
-            const rated = plan.algorithms.some((a) => a.coverage === c.code);
+            const rated = plan.algorithms.find((a) => a.coverage === c.code);
 
             return (
               <NavItem
@@ -97,7 +98,11 @@ export function PlanEditor({
                 problem={coverageIssues(c.code).length > 0}
                 onClick={() => select({ coverage: c.code })}
                 title={c.name}
-                meta={rated ? c.code : "Not rated yet"}
+                meta={
+                  rated
+                    ? `${rated.steps.length} ${rated.steps.length === 1 ? "step" : "steps"}`
+                    : "Not rated yet"
+                }
               />
             );
           })}
@@ -373,7 +378,7 @@ function PlanSettings({
       {issues.length > 0 && (
         <ul className="m-0 mt-5 grid list-none gap-1 p-0 text-sm text-red-700">
           {issues.map((issue, i) => (
-            <li key={i}>{issue.message}</li>
+            <li key={i}>{readable(issue.message)}</li>
           ))}
         </ul>
       )}

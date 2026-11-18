@@ -83,9 +83,9 @@ export function OperandPicker({
             {value && "value" in value && <Hash className="text-muted-foreground" />}
             {current ? (
               <>
-                <span className="truncate tabular-nums">{current.label}</span>
+                <span className="max-w-full shrink-0 truncate tabular-nums">{current.label}</span>
                 {current.detail && (
-                  <code className="truncate font-mono text-xs text-muted-foreground">
+                  <code className="min-w-0 truncate font-mono text-xs text-muted-foreground">
                     {current.detail}
                   </code>
                 )}

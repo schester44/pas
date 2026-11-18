@@ -30,8 +30,15 @@ const exposureLabel = (exposure: string) => {
   return match ? `Location ${Number(match[1]) + 1}` : exposure;
 };
 
-export function InvoiceStatus({ status }: { status: string }) {
-  const { label, tone } = STATUS[status] ?? { label: status, tone: "neutral" as const };
+const CREDIT_STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  open: { label: "Credit", tone: "neutral" },
+  partially_paid: { label: "Part refunded", tone: "neutral" },
+  paid: { label: "Refunded", tone: "success" },
+};
+
+export function InvoiceStatus({ status, kind }: { status: string; kind?: string }) {
+  const { label, tone } = (kind === "credit_note" ? CREDIT_STATUS[status] : undefined) ??
+    STATUS[status] ?? { label: status, tone: "neutral" as const };
 
   return <StatusChip tone={tone}>{label}</StatusChip>;
 }
@@ -69,14 +76,15 @@ export function BillingPanel({
             >
               <span className="grid min-w-0 flex-1 gap-0.5">
                 <span className="text-sm font-medium whitespace-nowrap tabular-nums">
-                  {invoice.kind === "credit_note" && "Credit note "}
                   {invoice.number}
                 </span>
-                <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                  Due {formatPlainDate(invoice.dueOn)}
+                <span className="truncate text-xs text-muted-foreground tabular-nums">
+                  {invoice.kind === "credit_note"
+                    ? "Credit note"
+                    : `Due ${formatPlainDate(invoice.dueOn)}`}
                 </span>
               </span>
-              <InvoiceStatus status={invoice.status} />
+              <InvoiceStatus status={invoice.status} kind={invoice.kind} />
               <span className="text-right text-sm whitespace-nowrap tabular-nums">
                 {money(invoice.total)}
               </span>
@@ -98,6 +106,7 @@ export function BillingPanel({
                 <li key={payment.id} className="flex items-center gap-3 px-(--card-p) py-2 text-sm">
                   <span className="grid min-w-0 flex-1 gap-0.5">
                     <span>
+                      {payment.kind === "refund" ? "Refund to " : ""}
                       {method.brand} ending {method.last4}
                     </span>
                     <span className="text-xs text-muted-foreground tabular-nums">
@@ -130,7 +139,7 @@ export function InvoiceSheet({
             <SheetHeader>
               <SheetTitle className="flex items-center gap-3 tabular-nums">
                 {invoice.kind === "credit_note" ? "Credit note" : "Invoice"} {invoice.number}
-                <InvoiceStatus status={invoice.status} />
+                <InvoiceStatus status={invoice.status} kind={invoice.kind} />
               </SheetTitle>
               <SheetDescription className="tabular-nums">
                 {invoice.policyNumber} · issued {formatPlainDate(invoice.issuedOn)} · due{" "}

@@ -193,7 +193,7 @@ function ExposureFields({
 
   return (
     <>
-      <InspectorSection title="Exposure table" readOnly={readOnly}>
+      <InspectorSection title="Content" readOnly={readOnly}>
         <TextProp
           label="Title"
           optional
@@ -309,20 +309,20 @@ function BlockFields(props: Props) {
   switch (block.type) {
     case "header":
       return (
-        <InspectorSection title="Header" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {text("Document title", "title")}
           {text("Subtitle", "subtitle", { optional: true })}
         </InspectorSection>
       );
     case "heading":
       return (
-        <InspectorSection title="Heading" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {text("Text", "text")}
         </InspectorSection>
       );
     case "text":
       return (
-        <InspectorSection title="Text" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {text("Wording", "body", {
             multiline: true,
             hint: "Blank lines start paragraphs, - starts a bullet, **bold** for emphasis.",
@@ -331,7 +331,7 @@ function BlockFields(props: Props) {
       );
     case "notice":
       return (
-        <InspectorSection title="Notice" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {text("Title", "title", { optional: true })}
           {text("Wording", "body", { multiline: true })}
         </InspectorSection>
@@ -342,7 +342,7 @@ function BlockFields(props: Props) {
       return <ExposureFields {...props} block={block} onChange={onChange as never} />;
     case "coverageSchedule":
       return (
-        <InspectorSection title="Coverage schedule" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {text("Title", "title", { optional: true, merge: false })}
           {(["limit", "deductible", "premium"] as const).map((column) => (
             <FlagProp
@@ -362,13 +362,13 @@ function BlockFields(props: Props) {
       );
     case "formsSchedule":
       return (
-        <InspectorSection title="Forms schedule" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {text("Title", "title", { optional: true, merge: false })}
         </InspectorSection>
       );
     case "clause":
       return (
-        <InspectorSection title="Clause" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           {readOnly ? (
             <Prop
               readOnly
@@ -402,7 +402,7 @@ function BlockFields(props: Props) {
       );
     case "signature":
       return (
-        <InspectorSection title="Signature" readOnly={readOnly}>
+        <InspectorSection title="Content" readOnly={readOnly}>
           <PropRow>
             {text("Signer role", "role", { merge: false })}
             {text("Printed name", "name", { optional: true })}

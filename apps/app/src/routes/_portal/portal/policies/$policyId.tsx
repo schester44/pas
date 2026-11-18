@@ -105,6 +105,22 @@ function ClientPolicyPage() {
         </div>
       </div>
 
+      {p.status === "pending_cancellation" && p.cancellation && (
+        <p className="m-0 flex items-start gap-3 rounded-lg border px-3 py-2.5 text-sm">
+          <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-amber-500" />
+          <span>
+            Your policy is scheduled to cancel on{" "}
+            <span className="font-medium tabular-nums">
+              {formatPlainDate(p.cancellation.effectiveDate)}
+            </span>
+            .{" "}
+            <span className="text-muted-foreground">
+              Contact {p.agent.name} if you have questions.
+            </span>
+          </span>
+        </p>
+      )}
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="order-2 grid gap-6 lg:order-1">
           <Coverage policy={p} />
@@ -211,7 +227,7 @@ function Billing({
       ) : (
         <ul className="m-0 list-none divide-y p-0">
           {invoices.map((invoice) => {
-            const status = invoiceStatus(invoice.status);
+            const status = invoiceStatus(invoice.status, invoice.kind);
             const due = isDue(invoice);
 
             return (
@@ -221,8 +237,10 @@ function Billing({
                     {formatMoney(due ? invoice.balance : invoice.total, { cents: true })}
                   </span>
                   <span className="truncate text-xs text-muted-foreground tabular-nums">
-                    {invoice.number} · {due && "Due "}
-                    {formatPlainDate(due ? invoice.dueOn : invoice.issuedOn)}
+                    {invoice.number} ·{" "}
+                    {invoice.kind === "credit_note"
+                      ? "Credit note"
+                      : `${due ? "Due " : ""}${formatPlainDate(due ? invoice.dueOn : invoice.issuedOn)}`}
                   </span>
                 </span>
                 {due ? (

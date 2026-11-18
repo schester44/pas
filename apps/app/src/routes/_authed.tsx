@@ -8,6 +8,7 @@ import {
 } from "@pas/ui/components/dropdown-menu";
 import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
+import { SearchTrigger } from "@/components/search-palette";
 import { authClient } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { currentTenant, useTenant } from "@/lib/tenant";
@@ -43,7 +44,8 @@ function AuthedLayout() {
           <Link to="/">
             <Brand name={tenant?.displayName} logoUrl={tenant?.logoUrl} />
           </Link>
-          <div className="ml-auto">
+          <div className="ml-auto flex flex-1 items-center justify-end gap-3">
+            <SearchTrigger userId={session.user.id} />
             <DropdownMenu>
               <DropdownMenuTrigger className="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                 {initials(session.user.name)}

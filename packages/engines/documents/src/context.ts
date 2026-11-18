@@ -70,6 +70,15 @@ export interface DocumentContext {
   coverages: SelectedCoverage[];
   premium?: { total: MoneyValue };
   forms: FormsScheduleRow[];
+  /** Set when rendering a notice (cancellation, rescission, reinstatement). */
+  notice?: {
+    title: string;
+    reason: string;
+    noticeDate: string;
+    effectiveDate: string;
+    minDaysNotice: number;
+    returnPremium: MoneyValue;
+  };
 }
 
 export interface ScheduleContext {
@@ -110,6 +119,7 @@ export function documentData(context: DocumentContext): Record<string, unknown> 
     namedInsured: context.namedInsured,
     producer: context.producer ?? {},
     premium: context.premium ?? {},
+    notice: context.notice ?? {},
   };
 }
 
@@ -164,6 +174,14 @@ export function contextSchema(risk: RiskSchema, scope: "document" | "schedule"):
         field("email", "Email", "email"),
       ]),
       group("premium", "Premium", [field("total", "Total premium", "money")]),
+      group("notice", "Notice", [
+        field("title", "Notice title"),
+        field("reason", "Reason"),
+        field("noticeDate", "Notice date", "date"),
+        field("effectiveDate", "Cancellation effective date", "date"),
+        field("minDaysNotice", "Days of notice", "integer"),
+        field("returnPremium", "Return premium", "money"),
+      ]),
     ],
   };
 }

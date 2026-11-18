@@ -1,4 +1,4 @@
-import { asId, type Clock, newId, type TenantContext, type Transaction } from "@pas/kernel";
+import { asId, newId, type TenantContext, type Transaction, type ClockProvider } from "@pas/kernel";
 import {
   assertLinked,
   categoryOf,
@@ -9,7 +9,7 @@ import {
 import type { PolicyRepository } from "../ports/policy-repository";
 
 /** Appends to a policy's timeline inside the caller's transaction (billing, notes). */
-export function makeRecordPolicyEvent(deps: { policies: PolicyRepository; clock: Clock }) {
+export function makeRecordPolicyEvent(deps: { policies: PolicyRepository; clocks: ClockProvider }) {
   return async function recordPolicyEvent(
     tx: Transaction,
     ctx: TenantContext,
@@ -30,7 +30,7 @@ export function makeRecordPolicyEvent(deps: { policies: PolicyRepository; clock:
       invoiceId: input.invoiceId ?? null,
       type: input.type,
       category: categoryOf(input.type),
-      occurredAt: deps.clock.now(),
+      occurredAt: deps.clocks.forTenant(ctx.tenantId).now(),
       effectiveDate: null,
       actor: input.actor,
       summary: input.summary,

@@ -1,4 +1,4 @@
-import type { Clock, TenantContext, Transaction, UnitOfWork } from "@pas/kernel";
+import type { TenantContext, Transaction, UnitOfWork, ClockProvider } from "@pas/kernel";
 import { type ClientScope, clientScopeFor } from "../domain/client-scope";
 import { emailKey } from "../domain/contact";
 import type { ClientAccountRepository } from "../ports/client-account-repository";
@@ -15,7 +15,7 @@ type Deps = {
   accounts: ClientAccountRepository;
   parties: PolicyPartyRepository;
   users: ClientUserRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 };
 
 export async function loadClientScope(
@@ -61,14 +61,14 @@ export function makeResolveClientScope(deps: Deps & { uow: UnitOfWork }) {
         const matches = await deps.accounts.findByEmailKey(tx, ctx, key);
 
         for (const account of matches.filter((a) => !linked.has(a.id))) {
-          account.verifyEmail(identity.email, deps.clock);
+          account.verifyEmail(identity.email, deps.clocks.forTenant(ctx.tenantId));
           await deps.accounts.save(tx, account);
 
           await deps.users.link(tx, ctx, {
             userId: identity.userId,
             clientAccountId: account.id,
             method: "email",
-            verifiedAt: deps.clock.now(),
+            verifiedAt: deps.clocks.forTenant(ctx.tenantId).now(),
           });
         }
       }

@@ -1,9 +1,9 @@
 import {
-  type Clock,
   conflict,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { AppHosts } from "../domain/hosts";
 import { TenantProfile, type TenantProfileChanges } from "../domain/tenant-profile";
@@ -19,7 +19,7 @@ export function makeUpdateProfile(deps: {
   profiles: TenantProfileRepository;
   directory: TenantDirectory;
   hosts: AppHosts;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function updateProfile(
     ctx: TenantContext,
@@ -30,7 +30,7 @@ export function makeUpdateProfile(deps: {
         (await deps.profiles.find(tx, ctx)) ??
         TenantProfile.initial(await deps.profiles.organization(tx, ctx));
 
-      profile.update(input, deps.clock);
+      profile.update(input, deps.clocks.forTenant(ctx.tenantId));
       const next = profile.toSnapshot();
 
       // Pre-checked only for a precise message; the unique indexes are the real guarantee.

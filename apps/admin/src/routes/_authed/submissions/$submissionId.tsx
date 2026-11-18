@@ -77,6 +77,7 @@ function SubmissionPage() {
                 <>
                   <ReferralPanel
                     quote={quote.data}
+                    schema={submission.data.riskSchema}
                     submissionId={submissionId}
                     canDecide={access.underwriting.approve}
                   />

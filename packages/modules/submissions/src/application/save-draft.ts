@@ -1,4 +1,4 @@
-import type { Clock, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import type { RiskData } from "../domain/submission";
 import type { SubmissionScope } from "../domain/scope";
 import type { SubmissionRepository } from "../ports/submission-repository";
@@ -7,7 +7,7 @@ import { loadSubmission } from "./intake";
 export function makeSaveDraft(deps: {
   uow: UnitOfWork;
   submissions: SubmissionRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function saveDraft(
     ctx: TenantContext,
@@ -16,7 +16,7 @@ export function makeSaveDraft(deps: {
   ): Promise<{ updatedAt: string }> {
     return deps.uow.run(ctx, async (tx) => {
       const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
-      submission.saveDraft(input.riskData, deps.clock);
+      submission.saveDraft(input.riskData, deps.clocks.forTenant(ctx.tenantId));
       await deps.submissions.save(tx, submission);
 
       return { updatedAt: submission.toSnapshot().updatedAt.toString() };

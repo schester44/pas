@@ -59,10 +59,15 @@ function simulate(kind: DecisionKind, value: JdmDecision, input: RiskData): Simu
       return {
         status: "error",
         message: "The result doesn't match the contract",
-        details: issues.map(
-          (issue) =>
-            `Result ${issue.row + 1}${issue.path ? `, ${issue.path}` : ""}: ${issue.message}.`,
-        ),
+        details: issues.map((issue) => {
+          const field = issue.path ? humanize(issue.path) : "Result";
+
+          const text = issue.message.startsWith("is ")
+            ? `${field} ${issue.message}`
+            : `${field}: ${issue.message}`;
+
+          return `Result ${issue.row + 1}: ${text}.`;
+        }),
       };
     }
 
@@ -169,7 +174,8 @@ export function DecisionEditor({
         description={
           content && (
             <>
-              {DECISION_KINDS[kind].label} · {readOnly && `${HIT_POLICIES[content.hitPolicy]} · `}
+              {active?.name !== DECISION_KINDS[kind].label && `${DECISION_KINDS[kind].label} · `}
+              {readOnly && `${HIT_POLICIES[content.hitPolicy]} · `}
               <span className="tabular-nums">
                 {content.rules.length} {content.rules.length === 1 ? "row" : "rows"}
               </span>

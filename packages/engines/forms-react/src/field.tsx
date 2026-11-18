@@ -13,6 +13,7 @@ interface FieldProps {
   showErrors: boolean;
   copy: Copy;
   uploadFile?: (file: File) => Promise<FileValue>;
+  compact?: boolean;
 }
 
 const domId = (path: string) => `field-${path.replace(/[^A-Za-z0-9_-]/g, "-")}`;
@@ -26,10 +27,11 @@ export function Field({
   showErrors,
   copy,
   uploadFile,
+  compact,
 }: FieldProps) {
   const id = domId(state.path);
   const errors = showErrors ? state.errors : [];
-  const help = item.help ?? field.description;
+  const help = compact ? undefined : (item.help ?? field.description);
 
   const wide =
     item.width === "full" ||

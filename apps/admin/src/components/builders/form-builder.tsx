@@ -82,11 +82,20 @@ export function FormBuilder({ schema, value: form, onChange, readOnly }: FormBui
     setView("edit");
   };
 
+  const collapseKey = (id: string) => {
+    const [s, c] = id.split(".").map(Number);
+    const stepEntry = form.steps[s!];
+
+    return c === undefined
+      ? (stepEntry?.id ?? id)
+      : `${stepEntry?.id}/${stepEntry?.sections[c]?.id}`;
+  };
+
   const expand = (...ids: string[]) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
 
-      for (const id of ids) next.delete(id);
+      for (const id of ids) next.delete(collapseKey(id));
 
       return next;
     });
@@ -181,8 +190,9 @@ export function FormBuilder({ schema, value: form, onChange, readOnly }: FormBui
   const toggle = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
+      const key = collapseKey(id);
 
-      if (!next.delete(id)) next.add(id);
+      if (!next.delete(key)) next.add(key);
 
       return next;
     });
@@ -378,7 +388,7 @@ function outlineRows(
 
   form.steps.forEach((step, s) => {
     const stepId = String(s);
-    const stepOpen = !collapsed.has(stepId);
+    const stepOpen = !collapsed.has(step.id);
 
     rows.push({
       id: stepId,
@@ -404,7 +414,7 @@ function outlineRows(
 
     step.sections.forEach((section, c) => {
       const sectionId = `${s}.${c}`;
-      const sectionOpen = !collapsed.has(sectionId);
+      const sectionOpen = !collapsed.has(`${step.id}/${section.id}`);
 
       const repeatLabel = section.repeat
         ? schema.fields.find((node) => node.key === section.repeat)?.label

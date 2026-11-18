@@ -17,6 +17,7 @@ import type { WorkflowConnection } from "./config";
 import { Halted, replayStep, Suspended } from "./replay";
 import { DEFAULT_WORKFLOWS_SCHEMA, EXECUTE_QUEUE, schemaDdl, TIMER_QUEUE } from "./schema";
 import { WorkflowStore, type Queryable, type RunKey, type RunRow } from "./store";
+import { realTime, timerPlan, type TenantTime } from "./tenant-time";
 
 export interface PostgresWorkflowsOptions extends WorkflowConnection {
   logger: Logger;
@@ -25,6 +26,16 @@ export interface PostgresWorkflowsOptions extends WorkflowConnection {
   schema?: string;
   bossSchema?: string;
   workers?: number;
+  tenantTime?: TenantTime;
+}
+
+export interface ScheduledTimer {
+  runId: string;
+  workflowId: string;
+  stepId: string;
+  input: unknown;
+  /** Tenant time. */
+  dueAt: Temporal.Instant;
 }
 
 const DEFAULT_RETRIES = 3;
@@ -43,11 +54,13 @@ export class PostgresWorkflows implements Workflows {
   private readonly boss: PgBoss;
   private readonly definitions: Map<string, WorkflowDefinition>;
   private readonly schema: string;
+  private readonly tenantTime: TenantTime;
   private opened: Promise<void> | undefined;
   private closed: Promise<void> | undefined;
 
   constructor(private readonly options: PostgresWorkflowsOptions) {
     this.schema = options.schema ?? DEFAULT_WORKFLOWS_SCHEMA;
+    this.tenantTime = options.tenantTime ?? realTime;
 
     this.store = new WorkflowStore(
       new Pool({ connectionString: options.connectionString, application_name: "pas-workflows" }),
@@ -154,6 +167,46 @@ export class PostgresWorkflows implements Workflows {
     return toRunState(run);
   }
 
+  async timers(
+    ctx: TenantContext,
+    options: { until?: Temporal.Instant; limit?: number } = {},
+  ): Promise<ScheduledTimer[]> {
+    await this.open();
+
+    const until = options.until ? new Date(options.until.epochMilliseconds) : null;
+    const rows = await this.store.timers(ctx.tenantId, until, options.limit ?? 500);
+
+    return rows.map((row) => ({
+      runId: row.run_id,
+      workflowId: row.workflow_id,
+      stepId: row.step_id,
+      input: row.input,
+      dueAt: toInstant(row.wake_at),
+    }));
+  }
+
+  /** After the tenant's offset changed: wakes the timers now due and re-arms the rest earlier. */
+  async retime(ctx: TenantContext): Promise<void> {
+    await this.open();
+
+    const offsetMs = await this.tenantTime.offsetMs(ctx.tenantId);
+    const now = new Date();
+
+    for (const row of await this.store.timers(ctx.tenantId, null, 10_000)) {
+      const key = { runId: row.run_id, tenantId: ctx.tenantId };
+      const plan = timerPlan(row.wake_at, offsetMs, now);
+
+      if (plan.due) await this.enqueue(this.store.pool, key);
+      else await this.scheduleTimer(this.store.pool, key, plan.startAfter);
+    }
+  }
+
+  async activeRuns(ctx: TenantContext): Promise<number> {
+    await this.open();
+
+    return this.store.activeRuns(ctx.tenantId);
+  }
+
   private key(ctx: TenantContext, runId: string): RunKey {
     if (!UUID.test(runId)) throw notFound("WorkflowRun", runId);
 
@@ -247,9 +300,15 @@ export class PostgresWorkflows implements Workflows {
       span.setAttribute("tenant.id", run.tenant_id);
 
       const memo = await this.store.loadSteps(key);
+      const offsetMs = await this.tenantTime.offsetMs(key.tenantId);
 
-      const step = replayStep(this.store, key, memo, (db, wakeAt) =>
-        this.scheduleTimer(db, key, wakeAt),
+      const step = replayStep(
+        this.store,
+        key,
+        memo,
+        (db, wakeAt) =>
+          this.scheduleTimer(db, key, timerPlan(wakeAt, offsetMs, new Date()).startAfter),
+        offsetMs,
       );
 
       try {

@@ -1,10 +1,10 @@
 import {
-  type Clock,
   conflict,
   invalid,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { ProductVersion } from "../domain/product-version";
 import type { ProductRepository } from "../ports/product-repository";
@@ -23,7 +23,7 @@ export function makeCreateProductVersion(deps: {
   outbox: Outbox;
   products: ProductRepository;
   versions: ProductVersionRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function createProductVersion(
     ctx: TenantContext,
@@ -42,7 +42,7 @@ export function makeCreateProductVersion(deps: {
 
       const draft = ProductVersion.draft(
         { tenantId: ctx.tenantId, productId: product.id, version: input.version, basedOn },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       const label = draft.toSnapshot().version;

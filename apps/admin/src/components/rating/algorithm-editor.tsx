@@ -36,6 +36,7 @@ import {
 } from "./model";
 import { OperandPicker } from "./operand-picker";
 import type { RatingIssue } from "./use-rating";
+import { readable } from "@/lib/readable";
 
 const ROUNDING = { half_up: "Half up", half_even: "Half even", up: "Up", down: "Down" } as const;
 
@@ -241,9 +242,12 @@ export function AlgorithmEditor({
                         <span className="truncate text-sm font-medium">
                           {s.label || humanize(s.name)}
                         </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {STEP_OPS[s.op].label}
-                        </span>
+                        {STEP_OPS[s.op].label.toLowerCase() !==
+                          (s.label || humanize(s.name)).toLowerCase() && (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {STEP_OPS[s.op].label}
+                          </span>
+                        )}
                         {algorithm.premium === s.name && (
                           <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-px text-[11px] font-medium text-primary">
                             Premium
@@ -391,7 +395,7 @@ function IssueList({ issues }: { issues: RatingIssue[] }) {
       {issues.map((issue, i) => (
         <li key={i} className="flex items-center gap-2 px-(--card-p) py-2.5 text-sm">
           <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-red-500" />
-          {issue.message}
+          {readable(issue.message)}
         </li>
       ))}
     </ul>
@@ -689,7 +693,7 @@ function StepInspector({
       {issues.length > 0 && (
         <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-red-700">
           {issues.map((issue, i) => (
-            <li key={i}>{issue.message}</li>
+            <li key={i}>{readable(issue.message)}</li>
           ))}
         </ul>
       )}

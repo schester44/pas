@@ -18,6 +18,7 @@ export {
   contractFields,
   DECISION_KIND_KEYS,
   DECISION_KINDS,
+  kindContextPaths,
   overallOutcome,
   rowsOf,
   UNDERWRITING_OUTCOMES,

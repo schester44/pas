@@ -2,11 +2,13 @@ import {
   AggregateRoot,
   type Clock,
   conflict,
+  DomainError,
   type DomainEvent,
   type Id,
   type Instant,
   type Jurisdiction,
-  type Money,
+  invalid,
+  Money,
   newId,
   type PlainDate,
   type TenantId,
@@ -18,22 +20,52 @@ import {
   type PolicyEventType,
   type TimelineActor,
 } from "./policy-event";
+import {
+  assertTransition,
+  chargesOf,
+  OPEN_STATUSES,
+  type PolicyTransactionProps,
+  premiumOf,
+  type TransactionDetails,
+  type TransactionType,
+} from "./transaction";
+import { annualOf } from "./term-state";
 
 export type PolicyId = Id<"Policy">;
 
-const TRANSACTION_EVENT: Record<PolicyTransactionProps["type"], PolicyEventType> = {
+const TRANSACTION_EVENT: Record<TransactionType, PolicyEventType> = {
   NEW_BUSINESS: "new_business",
+  ENDORSEMENT: "endorsement",
+  CANCELLATION: "cancellation",
+  CANCELLATION_RESCISSION: "cancellation_rescission",
+  REINSTATEMENT: "reinstatement",
 };
 
 export type PolicyTermId = Id<"PolicyTerm">;
-export type TermStatus = "pending_effective" | "in_force" | "expired" | "cancelled";
+export type TermStatus =
+  | "pending_effective"
+  | "in_force"
+  | "pending_cancellation"
+  | "expired"
+  | "cancelled";
 
 const TERM_TRANSITIONS: Record<TermStatus, readonly TermStatus[]> = {
-  pending_effective: ["in_force", "cancelled"],
-  in_force: ["expired", "cancelled"],
+  pending_effective: ["in_force", "pending_cancellation", "cancelled"],
+  in_force: ["expired", "pending_cancellation", "cancelled"],
+  pending_cancellation: ["in_force", "pending_effective", "cancelled"],
   expired: [],
-  cancelled: [],
+  cancelled: ["in_force", "pending_effective"],
 };
+
+export interface TermCancellation {
+  transactionId: string;
+  effectiveDate: PlainDate;
+  reason: string;
+  reasonLabel: string;
+  status: "pending" | "effective";
+}
+
+export type { PolicyTransactionProps } from "./transaction";
 
 export interface PolicyTermProps {
   id: PolicyTermId;
@@ -48,17 +80,8 @@ export interface PolicyTermProps {
   taxesAndFees: Money;
   boundAt: Instant;
   activatedAt: Instant | null;
+  cancellation: TermCancellation | null;
   updatedAt: Instant;
-}
-
-export interface PolicyTransactionProps {
-  id: string;
-  termId: PolicyTermId;
-  type: "NEW_BUSINESS";
-  status: "issued";
-  effectiveDate: PlainDate;
-  premiumDelta: Money;
-  issuedAt: Instant;
 }
 
 export interface TermVersionProps {
@@ -159,6 +182,77 @@ export interface TransactionInvoice {
   total: Money;
 }
 
+const compare = Temporal.PlainDate.compare;
+
+const formatDate = (date: PlainDate) =>
+  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+const LABELS: Record<TransactionType, string> = {
+  NEW_BUSINESS: "new business",
+  ENDORSEMENT: "endorsement",
+  CANCELLATION: "cancellation",
+  CANCELLATION_RESCISSION: "cancellation rescission",
+  REINSTATEMENT: "reinstatement",
+};
+
+const label = (type: TransactionType) => LABELS[type];
+const article = (noun: string) => `${/^[aeiou]/.test(noun) ? "an" : "a"} ${noun}`;
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const annualTotal = (snapshot: Record<string, unknown>, currency: string) =>
+  annualOf(snapshot, currency);
+
+const isPrimitive = (value: unknown) =>
+  value === null || ["string", "number"].includes(typeof value);
+
+const capitalizeFirst = (text: string, after: boolean) => (after ? text : capitalize(text));
+
+function transactionSummary(t: PolicyTransactionProps): string {
+  const premium = t.premiumDelta;
+  const amount = formatMoney(premium.isNegative() ? premium.negated() : premium);
+
+  const money = premium.isZero()
+    ? "no premium change"
+    : premium.isNegative()
+      ? `${amount} return premium`
+      : `${amount} additional premium`;
+
+  switch (t.type) {
+    case "NEW_BUSINESS":
+      return `New business issued: ${formatMoney(premium)} written premium`;
+    case "ENDORSEMENT": {
+      const changes = (t.details?.changes ?? []).map((c) =>
+        isPrimitive(c.before) && isPrimitive(c.after) && c.before !== null && c.after !== null
+          ? `${c.label} ${c.before} → ${c.after}`
+          : c.label,
+      );
+
+      const listed =
+        changes.length > 2 ? [...changes.slice(0, 2), `${changes.length - 2} more`] : changes;
+
+      return [...listed, capitalizeFirst(money, listed.length > 0)].join(" · ");
+    }
+    case "CANCELLATION": {
+      const c = t.details?.cancellation;
+
+      const why =
+        c?.initiator === "insured"
+          ? "at the insured's request"
+          : `for ${c?.reasonLabel.toLowerCase() ?? "a stated reason"}`;
+
+      const kept = c?.minimumEarned
+        ? ` · minimum earned premium ${formatMoney(c.minimumEarned.retained)} retained`
+        : "";
+
+      return `Cancelled ${why}, effective ${formatDate(t.effectiveDate)}: ${money}${kept}`;
+    }
+    case "CANCELLATION_RESCISSION":
+      return `Pending cancellation rescinded; coverage continues${t.details?.note ? `. ${t.details.note}` : ""}`;
+    case "REINSTATEMENT":
+      return `Reinstated ${t.details?.reinstatement?.lapse ? "with a lapse in coverage" : "without a lapse"}: ${money}`;
+  }
+}
+
 const formatMoney = (money: Money) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: money.currency }).format(
     Number(money.toString()),
@@ -166,6 +260,7 @@ const formatMoney = (money: Money) =>
 
 /** A policy across its terms, with its issued transactions and their money (PLAN §7.3–7.4, §13). */
 export class Policy extends AggregateRoot {
+  private readonly touched = new Set<string>();
   private readonly added = {
     transactions: [] as PolicyTransactionProps[],
     versions: [] as TermVersionProps[],
@@ -216,6 +311,7 @@ export class Policy extends AggregateRoot {
           taxesAndFees: input.taxesAndFees,
           boundAt: now,
           activatedAt: started ? now : null,
+          cancellation: null,
           updatedAt: now,
         },
       ],
@@ -237,6 +333,11 @@ export class Policy extends AggregateRoot {
       status: "issued",
       effectiveDate: input.effectiveDate,
       premiumDelta: input.writtenPremium,
+      baseVersion: 0,
+      details: null,
+      createdBy: input.actor,
+      createdAt: now,
+      updatedAt: now,
       issuedAt: now,
     };
 
@@ -306,20 +407,20 @@ export class Policy extends AggregateRoot {
     return this.state.transactions[0]!;
   }
 
-  /** Links the transaction to its invoice: the transactional event and the invoice it raised. */
+  /**
+   * The transactional event, linked to the invoice or credit note that bills it (PLAN §7.4.1).
+   * Premium-neutral transactions have no bill.
+   */
   billTransaction(
     transactionId: string,
-    invoice: TransactionInvoice,
+    invoice: TransactionInvoice | null,
     actor: TimelineActor,
     clock: Clock,
   ): void {
-    const transaction = this.state.transactions.find((t) => t.id === transactionId);
-
-    if (!transaction) throw conflict(`Transaction ${transactionId} isn't on ${this.number}`);
-
+    const transaction = this.transaction(transactionId);
     const now = clock.now();
-    const link = { termId: transaction.termId, transactionId, invoiceId: invoice.id };
-    const noun = invoice.kind === "credit_note" ? "Credit note" : "Invoice";
+    const link = { termId: transaction.termId, transactionId, invoiceId: invoice?.id ?? null };
+    const details = transaction.details;
 
     this.addToTimeline({
       ...link,
@@ -327,9 +428,46 @@ export class Policy extends AggregateRoot {
       occurredAt: now,
       effectiveDate: transaction.effectiveDate,
       actor,
-      summary: `New business issued: ${formatMoney(transaction.premiumDelta)} written premium`,
-      data: { premium: transaction.premiumDelta.toJSON(), invoiceNumber: invoice.number },
+      summary: transactionSummary(transaction),
+      data: {
+        premium: transaction.premiumDelta.toJSON(),
+        ...(invoice ? { invoiceNumber: invoice.number } : { premiumNeutral: true }),
+        ...(details?.changes.length && {
+          changes: details.changes.map((c) => ({
+            label: c.label,
+            before: c.before,
+            after: c.after,
+          })),
+        }),
+        ...(details?.cancellation && {
+          reason: details.cancellation.reason,
+          method: details.cancellation.method,
+          minimumEarned: details.cancellation.minimumEarned && {
+            type: details.cancellation.minimumEarned.rule.type,
+            value: details.cancellation.minimumEarned.rule.value,
+            level: details.cancellation.minimumEarned.rule.level,
+            minimum: details.cancellation.minimumEarned.minimum.toJSON(),
+            retained: details.cancellation.minimumEarned.retained.toJSON(),
+          },
+          fullyEarnedFees: details.cancellation.fullyEarnedFees,
+        }),
+        ...(details?.reinstatement && { lapse: details.reinstatement.lapse }),
+        ...(details?.note && { note: details.note }),
+      },
     });
+
+    if (!invoice) return;
+
+    if (invoice.kind === "credit_note") {
+      this.recordEvent("policy.credit_note_issued", now, {
+        policyId: this.id,
+        transactionId,
+        invoiceId: invoice.id,
+        number: this.number,
+      });
+    }
+
+    const noun = invoice.kind === "credit_note" ? "Credit note" : "Invoice";
 
     this.addToTimeline({
       ...link,
@@ -342,6 +480,411 @@ export class Policy extends AggregateRoot {
     });
   }
 
+  term(termId: string): PolicyTermProps {
+    const term = this.state.terms.find((t) => t.id === termId);
+
+    if (!term) throw conflict(`Term ${termId} isn't on ${this.number}`);
+
+    return term;
+  }
+
+  get currentTerm(): PolicyTermProps {
+    return this.state.terms.at(-1)!;
+  }
+
+  transaction(id: string): PolicyTransactionProps {
+    const transaction = this.state.transactions.find((t) => t.id === id);
+
+    if (!transaction) throw conflict(`Transaction ${id} isn't on ${this.number}`);
+
+    return transaction;
+  }
+
+  latestVersion(termId: string): TermVersionProps {
+    return this.state.versions
+      .filter((v) => v.termId === termId)
+      .reduce((latest, v) => (v.version > latest.version ? v : latest));
+  }
+
+  /** The issued transaction with the latest effective date: changes can't go before it yet. */
+  lastIssued(termId: string): PolicyTransactionProps | null {
+    return this.state.transactions
+      .filter((t) => t.termId === termId && t.status === "issued")
+      .reduce<PolicyTransactionProps | null>(
+        (last, t) => (!last || compare(t.effectiveDate, last.effectiveDate) >= 0 ? t : last),
+        null,
+      );
+  }
+
+  openTransaction(termId: string): PolicyTransactionProps | null {
+    return (
+      this.state.transactions.find(
+        (t) => t.termId === termId && OPEN_STATUSES.includes(t.status),
+      ) ?? null
+    );
+  }
+
+  /** Guards every mid-term change: the term's state, the date, and sequence (PLAN §7.4). */
+  assertChangeable(
+    termId: string,
+    type: TransactionType,
+    effectiveDate: PlainDate,
+    except?: string,
+  ) {
+    const term = this.term(termId);
+
+    const allowed: Record<TransactionType, readonly TermStatus[]> = {
+      NEW_BUSINESS: [],
+      ENDORSEMENT: ["pending_effective", "in_force"],
+      CANCELLATION: ["pending_effective", "in_force"],
+      CANCELLATION_RESCISSION: ["pending_cancellation"],
+      REINSTATEMENT: ["cancelled"],
+    };
+
+    if (!allowed[type].includes(term.status)) {
+      const hint =
+        term.status === "pending_cancellation" ? " Rescind the pending cancellation first." : "";
+
+      throw new DomainError(
+        "precondition_failed",
+        `A ${term.status.replace("_", " ")} policy can't take a ${label(type)}.${hint}`,
+        { reason: "term_status", status: term.status },
+      );
+    }
+
+    if (
+      compare(effectiveDate, term.effectiveDate) < 0 ||
+      compare(effectiveDate, term.expirationDate) >= 0
+    ) {
+      throw invalid("Pick an effective date within the term", {
+        field: "effectiveDate",
+        termStart: term.effectiveDate.toString(),
+        termEnd: term.expirationDate.toString(),
+      });
+    }
+
+    const latest = this.lastIssued(termId);
+
+    if (latest && compare(effectiveDate, latest.effectiveDate) < 0) {
+      throw new DomainError(
+        "precondition_failed",
+        `Out-of-sequence changes aren't supported yet: this policy already has ${article(label(latest.type))} effective ${formatDate(latest.effectiveDate)}. Pick that date or later.`,
+        { reason: "out_of_sequence", latest: latest.effectiveDate.toString() },
+      );
+    }
+
+    const open = this.openTransaction(termId);
+
+    if (open && open.id !== except) {
+      throw new DomainError(
+        "precondition_failed",
+        `Finish or discard the open ${label(open.type)} first`,
+        { reason: "open_transaction", transactionId: open.id },
+      );
+    }
+  }
+
+  /** Creates or re-rates a quoted transaction (`draft → quoted`). */
+  quoteTransaction(
+    input: {
+      termId: string;
+      type: TransactionType;
+      transactionId?: string;
+      effectiveDate: PlainDate;
+      details: TransactionDetails;
+      actor: TimelineActor;
+    },
+    clock: Clock,
+  ): PolicyTransactionProps {
+    this.assertChangeable(input.termId, input.type, input.effectiveDate, input.transactionId);
+
+    const now = clock.now();
+    const currency = this.term(input.termId).writtenPremium.currency;
+    const baseVersion = this.latestVersion(input.termId).version;
+
+    if (input.transactionId) {
+      const existing = this.transaction(input.transactionId);
+
+      if (existing.type !== input.type) throw conflict("That transaction is a different type");
+
+      assertTransition(existing.status, "quoted");
+
+      Object.assign(existing, {
+        status: "quoted",
+        effectiveDate: input.effectiveDate,
+        details: input.details,
+        premiumDelta: premiumOf(input.details, currency),
+        baseVersion,
+        updatedAt: now,
+      });
+
+      this.touched.add(existing.id);
+
+      return existing;
+    }
+
+    const transaction: PolicyTransactionProps = {
+      id: newId(),
+      termId: input.termId,
+      type: input.type,
+      status: "quoted",
+      effectiveDate: input.effectiveDate,
+      premiumDelta: premiumOf(input.details, currency),
+      baseVersion,
+      details: input.details,
+      createdBy: input.actor,
+      createdAt: now,
+      updatedAt: now,
+      issuedAt: null,
+    };
+
+    this.append("transactions", transaction);
+
+    return transaction;
+  }
+
+  /** Referred by rules, or the actor lacks the authority to issue (PLAN §7.4). */
+  requestApproval(id: string, reasons: string[], actor: TimelineActor, clock: Clock): void {
+    const transaction = this.transaction(id);
+
+    if (transaction.status === "pending_approval") return;
+
+    this.move(transaction, "pending_approval", clock);
+
+    this.addToTimeline({
+      type: "referred",
+      termId: transaction.termId,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: clock.now(),
+      effectiveDate: transaction.effectiveDate,
+      actor,
+      summary: `${capitalize(label(transaction.type))} sent for approval${reasons.length ? `: ${reasons.join("; ")}` : ""}`,
+      data: { transactionId: id, type: transaction.type, reasons },
+    });
+
+    this.recordEvent("policy.transaction_referred", clock.now(), {
+      transactionId: id,
+      type: transaction.type,
+      number: this.number,
+    });
+  }
+
+  discardTransaction(id: string, actor: TimelineActor, clock: Clock, note?: string): void {
+    const transaction = this.transaction(id);
+
+    if (transaction.status === "discarded") return;
+
+    if (transaction.status === "scheduled") {
+      throw conflict("Rescind a scheduled cancellation instead of discarding it");
+    }
+
+    this.move(transaction, "discarded", clock);
+
+    if (note) transaction.details = { ...transaction.details!, note };
+  }
+
+  /** Notice issued: the term waits for the cancellation date (PLAN §7.3). */
+  scheduleCancellation(id: string, actor: TimelineActor, clock: Clock): void {
+    const transaction = this.transaction(id);
+    const cancellation = transaction.details?.cancellation;
+
+    if (transaction.type !== "CANCELLATION" || !cancellation) throw conflict("Not a cancellation");
+
+    this.assertBase(transaction);
+    this.move(transaction, "scheduled", clock);
+
+    const term = this.term(transaction.termId);
+
+    this.transitionTerm(term, "pending_cancellation", clock);
+
+    term.cancellation = {
+      transactionId: id,
+      effectiveDate: transaction.effectiveDate,
+      reason: cancellation.reason,
+      reasonLabel: cancellation.reasonLabel,
+      status: "pending",
+    };
+
+    this.addToTimeline({
+      type: "pending_cancellation",
+      termId: term.id,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: clock.now(),
+      effectiveDate: transaction.effectiveDate,
+      actor,
+      summary: `Cancellation scheduled for ${formatDate(transaction.effectiveDate)}: ${cancellation.reasonLabel.toLowerCase()}`,
+      data: {
+        transactionId: id,
+        reason: cancellation.reason,
+        noticeDate: cancellation.noticeDate,
+        earliestDate: cancellation.earliestDate,
+        minDaysNotice: cancellation.minDaysNotice,
+        mailingDaysAdded: cancellation.mailingDaysAdded,
+      },
+    });
+
+    this.recordEvent("policy.cancellation_scheduled", clock.now(), {
+      termId: term.id,
+      transactionId: id,
+      effectiveDate: transaction.effectiveDate.toString(),
+      number: this.number,
+    });
+  }
+
+  recordNoticeSent(
+    input: { transactionId: string; title: string; delivery: string; recipients: string[] },
+    actor: TimelineActor,
+    clock: Clock,
+  ): void {
+    const transaction = this.transaction(input.transactionId);
+
+    this.addToTimeline({
+      type: "notice_sent",
+      termId: transaction.termId,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: clock.now(),
+      effectiveDate: transaction.effectiveDate,
+      actor,
+      summary: `${input.title} sent electronically to the ${new Intl.ListFormat("en-US").format(input.recipients.map((r) => r.replaceAll("_", " ")))}`,
+      data: {
+        transactionId: input.transactionId,
+        requiredDelivery: input.delivery,
+        sentBy: "electronic",
+        proofOfMailing: null,
+        recipients: input.recipients,
+      },
+    });
+  }
+
+  /**
+   * Issues the transaction: appends its TermVersion and financial transactions and moves the
+   * term (PLAN §7.1, §7.4). Returns the lines to bill; empty when premium-neutral.
+   */
+  issueTransaction(id: string, today: PlainDate, clock: Clock, approvedBy?: TimelineActor) {
+    const transaction = this.transaction(id);
+    const details = transaction.details;
+
+    if (!details) throw conflict("This transaction has nothing to issue");
+
+    if (transaction.status === "issued") return chargesOf(details);
+
+    this.assertBase(transaction);
+
+    if (transaction.type === "CANCELLATION" && compare(today, transaction.effectiveDate) < 0) {
+      throw conflict(`This cancellation takes effect on ${formatDate(transaction.effectiveDate)}`);
+    }
+
+    const now = clock.now();
+    const term = this.term(transaction.termId);
+    const latest = this.latestVersion(term.id);
+
+    this.move(transaction, "issued", clock);
+    transaction.issuedAt = now;
+
+    if (approvedBy) transaction.details = { ...details, approvedBy };
+
+    this.append("versions", {
+      id: newId(),
+      termId: term.id,
+      transactionId: id,
+      version: latest.version + 1,
+      effectiveDate: transaction.effectiveDate,
+      snapshot: details.after ?? latest.snapshot,
+      recordedAt: now,
+    });
+
+    const charges = chargesOf(details);
+
+    for (const line of charges) {
+      this.append("financials", {
+        id: newId(),
+        termId: term.id,
+        transactionId: id,
+        ...line,
+        effectiveDate: transaction.effectiveDate,
+        recordedAt: now,
+      });
+    }
+
+    this.refreshPremium(term);
+
+    if (transaction.type === "CANCELLATION") {
+      this.transitionTerm(term, "cancelled", clock);
+
+      term.cancellation = {
+        transactionId: id,
+        effectiveDate: transaction.effectiveDate,
+        reason: details.cancellation!.reason,
+        reasonLabel: details.cancellation!.reasonLabel,
+        status: "effective",
+      };
+    }
+
+    if (transaction.type === "CANCELLATION_RESCISSION" || transaction.type === "REINSTATEMENT") {
+      this.restoreTerm(term, today, clock);
+    }
+
+    this.recordEvent("policy.transaction_issued", now, {
+      policyId: this.id,
+      termId: term.id,
+      transactionId: id,
+      type: transaction.type,
+      number: this.number,
+      effectiveDate: transaction.effectiveDate.toString(),
+      status: term.status,
+    });
+
+    return charges;
+  }
+
+  /** Withdraws the pending cancellation as if it never happened (cure, PLAN §7.4, §17.3). */
+  rescindCancellation(
+    termId: string,
+    input: { actor: TimelineActor; note?: string; today: PlainDate },
+    clock: Clock,
+  ): PolicyTransactionProps {
+    const term = this.term(termId);
+
+    if (term.status !== "pending_cancellation" || !term.cancellation) {
+      throw new DomainError("precondition_failed", "There's no pending cancellation to rescind");
+    }
+
+    const pending = this.transaction(term.cancellation.transactionId);
+
+    this.move(pending, "discarded", clock);
+
+    const currency = term.writtenPremium.currency;
+    const annual = this.latestVersion(termId).snapshot;
+
+    const rescission = this.quoteTransaction(
+      {
+        termId,
+        type: "CANCELLATION_RESCISSION",
+        effectiveDate: pending.effectiveDate,
+        details: {
+          after: null,
+          premium: [],
+          retained: [],
+          fees: [],
+          annualBefore: annualTotal(annual, currency),
+          annualAfter: annualTotal(annual, currency),
+          changes: [],
+          referrals: [],
+          cancellation: pending.details!.cancellation!,
+          ...(input.note && { note: input.note }),
+        },
+        actor: input.actor,
+      },
+      clock,
+    );
+
+    this.issueTransaction(rescission.id, input.today, clock);
+
+    return rescission;
+  }
   recordDocumentsGenerated(
     transactionId: string,
     titles: string[],
@@ -386,11 +929,14 @@ export class Policy extends AggregateRoot {
 
     if (!term) throw conflict(`Term ${termId} isn't on ${this.number}`);
 
-    if (term.status !== "pending_effective") return false;
+    const pending = term.status === "pending_cancellation" && !term.activatedAt;
+
+    if (term.status !== "pending_effective" && !pending) return false;
 
     if (Temporal.PlainDate.compare(today, term.effectiveDate) < 0) return false;
 
-    this.transitionTerm(term, "in_force", clock);
+    if (!pending) this.transitionTerm(term, "in_force", clock);
+
     term.activatedAt = clock.now();
     this.recordEvent("policy.term_activated", clock.now(), { termId, number: this.number });
 
@@ -449,9 +995,59 @@ export class Policy extends AggregateRoot {
       events: [...this.added.events],
     };
 
+    const touched = this.state.transactions.filter(
+      (t) => this.touched.has(t.id) && !added.transactions.some((a) => a.id === t.id),
+    );
+
     for (const list of Object.values(this.added)) list.length = 0;
 
-    return added;
+    this.touched.clear();
+
+    return { ...added, touched };
+  }
+
+  private move(
+    transaction: PolicyTransactionProps,
+    to: PolicyTransactionProps["status"],
+    clock: Clock,
+  ) {
+    assertTransition(transaction.status, to);
+    transaction.status = to;
+    transaction.updatedAt = clock.now();
+    this.touched.add(transaction.id);
+  }
+
+  private assertBase(transaction: PolicyTransactionProps) {
+    if (transaction.baseVersion !== this.latestVersion(transaction.termId).version) {
+      throw new DomainError(
+        "precondition_failed",
+        "The policy changed since this was priced. Preview the change again.",
+        { reason: "stale_quote" },
+      );
+    }
+  }
+
+  private refreshPremium(term: PolicyTermProps) {
+    const lines = this.state.financials.filter((f) => f.termId === term.id);
+    const currency = term.writtenPremium.currency;
+
+    const sum = (kind: FinancialTransactionProps["kind"]) =>
+      lines
+        .filter((f) => f.kind === kind)
+        .reduce((total, f) => total.plus(f.amount), Money.zero(currency));
+
+    term.writtenPremium = sum("written_premium");
+    term.taxesAndFees = sum("tax_fee");
+  }
+
+  /** Status is derived from the clock once nothing stands in the way (PLAN §7.3). */
+  private restoreTerm(term: PolicyTermProps, today: PlainDate, clock: Clock) {
+    const started = compare(today, term.effectiveDate) >= 0;
+
+    this.transitionTerm(term, started ? "in_force" : "pending_effective", clock);
+    term.cancellation = null;
+
+    if (started && !term.activatedAt) term.activatedAt = clock.now();
   }
 
   private transitionTerm(term: PolicyTermProps, to: TermStatus, clock: Clock): void {

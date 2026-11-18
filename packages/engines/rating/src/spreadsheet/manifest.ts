@@ -37,10 +37,10 @@ export interface BindingManifest {
   outputs: OutputBinding[];
 }
 
-const target: z.ZodType<CellTarget> = z.union([
-  z.object({ cell: z.string().min(1) }).strict(),
-  z.object({ name: z.string().min(1) }).strict(),
-]);
+const target: z.ZodType<CellTarget> = z.union(
+  [z.object({ cell: z.string().min(1) }).strict(), z.object({ name: z.string().min(1) }).strict()],
+  { message: "Choose a cell for every binding" },
+);
 
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
@@ -70,7 +70,7 @@ export const bindingManifestSchema: z.ZodType<BindingManifest> = z.object({
   }),
   inputs: z.array(
     z.object({
-      path: z.string().min(1),
+      path: z.string().min(1, "Choose the risk data for every input"),
       target,
       transform: transform.optional(),
       default: scalar.optional(),
@@ -80,16 +80,20 @@ export const bindingManifestSchema: z.ZodType<BindingManifest> = z.object({
   outputs: z
     .array(
       z.discriminatedUnion("kind", [
-        z.object({ source: target, kind: z.literal("premium"), coverage: z.string().min(1) }),
+        z.object({
+          source: target,
+          kind: z.literal("premium"),
+          coverage: z.string().min(1, "Choose a coverage for every premium output"),
+        }),
         z.object({
           source: target,
           kind: z.literal("factor"),
-          name: z.string().min(1),
+          name: z.string().min(1, "Name every factor output"),
           coverage: z.string().optional(),
         }),
       ]),
     )
-    .min(1),
+    .min(1, "Bind at least one output cell"),
 });
 
 export const targetLabel = (t: CellTarget) => ("cell" in t ? t.cell : t.name);
@@ -163,6 +167,17 @@ export function checkBindingManifest(
 
     if (binding.coverage && !codes.has(binding.coverage)) {
       issues.push({ property, message: `Unknown coverage ${binding.coverage}` });
+    }
+
+    const earlier = parsed.data.outputs
+      .slice(0, i)
+      .some((other) => other.kind === "premium" && other.coverage === binding.coverage);
+
+    if (binding.kind === "premium" && earlier) {
+      issues.push({
+        property,
+        message: `Another output already holds the premium for ${binding.coverage}`,
+      });
     }
   });
 

@@ -42,7 +42,7 @@ export function makeResolveTenantByHost(deps: { directory: TenantDirectory; host
     return {
       status: "tenant",
       tenantId: record.organization.id,
-      tenant: toTenantBrandingDto(profile),
+      tenant: toTenantBrandingDto(profile, record.sandbox),
     };
   };
 }

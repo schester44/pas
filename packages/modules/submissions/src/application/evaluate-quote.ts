@@ -1,14 +1,14 @@
 import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
 import { currencyDecimals } from "@pas/forms-core";
 import {
-  type Clock,
   DomainError,
   type Jurisdiction,
   Money,
   type PlainDate,
   type TenantContext,
+  type ClockProvider,
 } from "@pas/kernel";
-import type { CoverageSelection, RatingResult } from "@pas/rating-engine";
+import type { CoverageSelection, RatingInput, RatingResult } from "@pas/rating-engine";
 import type { Attestation, DiligentSearch } from "../domain/bind-requirements";
 import {
   type CoverageChoice,
@@ -26,7 +26,7 @@ import type { RiskEnricher } from "../ports/risk-enricher";
 export interface EvaluationDeps {
   rater: QuoteRater;
   enricher: RiskEnricher;
-  clock: Clock;
+  clocks: ClockProvider;
 }
 
 export interface EvaluationInput {
@@ -36,6 +36,7 @@ export interface EvaluationInput {
   termStart: PlainDate;
   termEnd: PlainDate;
   selection: readonly CoverageChoice[] | null;
+  transaction?: { type: RatingInput["transaction"]["type"]; effective: PlainDate };
 }
 
 export interface EvaluationOutput {
@@ -131,7 +132,7 @@ export async function evaluateQuote(
       decisions: records,
       diligentSearch,
       attestations,
-      evaluatedAt: deps.clock.now(),
+      evaluatedAt: deps.clocks.forTenant(ctx.tenantId).now(),
       durationMs: performance.now() - started,
     },
   };
@@ -163,7 +164,10 @@ async function price(
       risk,
       coverages: selection.map(toRatingSelection),
       term: { effective: input.termStart.toString(), expiration: input.termEnd.toString() },
-      transaction: { type: "NEW_BUSINESS", effective: input.termStart.toString() },
+      transaction: {
+        type: input.transaction?.type ?? "NEW_BUSINESS",
+        effective: (input.transaction?.effective ?? input.termStart).toString(),
+      },
       jurisdiction: input.jurisdiction,
       currency,
     },

@@ -5,6 +5,7 @@ import type {
   RaterSource,
   RatingInput,
 } from "@pas/rating-engine/plan";
+import { IntakeForm } from "@pas/forms-react";
 import { Button } from "@pas/ui/components/button";
 import {
   DropdownMenu,
@@ -26,7 +27,7 @@ import {
 import { Spinner } from "@pas/ui/components/spinner";
 import { StatusChip } from "@pas/ui/components/status-chip";
 import { Textarea } from "@pas/ui/components/textarea";
-import { subdivisionsOf } from "@pas/ui/lib/jurisdictions";
+import { jurisdictionName, subdivisionsOf } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
 import { Ellipsis, Plus, Target } from "lucide-react";
 import { useId, useState } from "react";
@@ -143,7 +144,11 @@ export function GoldenCases({
         <EmptyState
           icon={<Target />}
           title="No golden cases yet"
-          description="Capture the sample risk with its premiums. Every case must still rate the same before publishing."
+          description={
+            sample.data && sample.data.status !== "ok"
+              ? "The sample risk doesn't rate yet. Fix the rater, then capture it as a case."
+              : "Capture the sample risk with its premiums. Every case must still rate the same before publishing."
+          }
           action={addAction}
         />
       </Panel>
@@ -200,7 +205,7 @@ export function GoldenCases({
                 >
                   <td className="pl-(--card-p) font-medium">{golden.name}</td>
                   <td className="px-3 text-muted-foreground">
-                    {golden.input.jurisdiction.subdivision ?? golden.input.jurisdiction.country}
+                    {jurisdictionName(golden.input.jurisdiction)}
                   </td>
                   <td className="px-3 text-right tabular-nums">
                     {golden.expected.total ? formatMoney(golden.expected.total, currency) : "–"}
@@ -247,6 +252,12 @@ export function GoldenCases({
   );
 }
 
+function quoteForm(forms: Contents["forms"]) {
+  const quote = forms.filter((entry) => entry.stage === "quote");
+
+  return quote.find((entry) => entry.channel === "internal") ?? quote[0] ?? forms[0];
+}
+
 function CaseInspector({
   golden,
   result,
@@ -270,9 +281,18 @@ function CaseInspector({
   const currency = golden.input.currency;
   const [riskText, setRiskText] = useState(() => JSON.stringify(golden.input.risk, null, 2));
   const [riskError, setRiskError] = useState<string>();
+  const intake = quoteForm(contents.forms);
+  const [json, setJson] = useState(false);
   const country = golden.input.jurisdiction.country;
 
   const setInput = (input: RatingInput) => onChange({ ...golden, input });
+
+  const applyRisk = (risk: Record<string, unknown>) => {
+    const selections = coverageSelections(contents.coverages, risk);
+    const same = selections.length === golden.input.coverages.length;
+
+    setInput({ ...golden.input, risk, coverages: same ? golden.input.coverages : selections });
+  };
 
   const setRisk = (text: string) => {
     setRiskText(text);
@@ -287,15 +307,7 @@ function CaseInspector({
       }
 
       setRiskError(undefined);
-
-      const selections = coverageSelections(contents.coverages, risk as Record<string, unknown>);
-      const same = selections.length === golden.input.coverages.length;
-
-      setInput({
-        ...golden.input,
-        risk: risk as Record<string, unknown>,
-        coverages: same ? golden.input.coverages : selections,
-      });
+      applyRisk(risk as Record<string, unknown>);
     } catch {
       setRiskError("This isn't valid JSON yet.");
     }
@@ -366,7 +378,7 @@ function CaseInspector({
         )
       }
     >
-      <div className="grid lg:grid-cols-[22rem_minmax(0,1fr)] lg:divide-x">
+      <div className="grid lg:grid-cols-[26rem_minmax(0,1fr)] lg:divide-x">
         <div className="grid content-start gap-4 p-(--card-p)">
           <div className="grid gap-2">
             <Label htmlFor={`${id}-name`}>Name</Label>
@@ -440,18 +452,50 @@ function CaseInspector({
               }}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`${id}-risk`}>Risk data</Label>
-            <Textarea
-              id={`${id}-risk`}
-              value={riskText}
-              spellCheck={false}
-              readOnly={readOnly}
-              aria-invalid={!!riskError}
-              onChange={(event) => setRisk(event.target.value)}
-              className="max-h-[28rem] min-h-72 font-mono text-[0.8125rem] leading-5 [field-sizing:fixed]"
-            />
-            {riskError && <p className="m-0 text-sm text-destructive">{riskError}</p>}
+          <div className="grid gap-3 border-t pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor={json ? `${id}-risk` : undefined}>Risk data</Label>
+              {intake && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="-my-1 -mr-2 text-muted-foreground"
+                  aria-pressed={json}
+                  onClick={() => {
+                    setRiskText(JSON.stringify(golden.input.risk, null, 2));
+                    setRiskError(undefined);
+                    setJson(!json);
+                  }}
+                >
+                  {json ? "Form" : "JSON"}
+                </Button>
+              )}
+            </div>
+            {json || !intake ? (
+              <>
+                <Textarea
+                  id={`${id}-risk`}
+                  value={riskText}
+                  spellCheck={false}
+                  readOnly={readOnly}
+                  aria-invalid={!!riskError}
+                  onChange={(event) => setRisk(event.target.value)}
+                  className="max-h-[28rem] min-h-72 font-mono text-[0.8125rem] leading-5 [field-sizing:fixed]"
+                />
+                {riskError && <p className="m-0 text-sm text-destructive">{riskError}</p>}
+              </>
+            ) : (
+              <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
+                <IntakeForm
+                  compact
+                  schema={contents.riskSchema}
+                  form={intake.form}
+                  value={golden.input.risk}
+                  onChange={applyRisk}
+                />
+              </fieldset>
+            )}
           </div>
         </div>
         <div className="min-w-0 border-t lg:border-t-0">

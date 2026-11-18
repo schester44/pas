@@ -1,10 +1,10 @@
 import {
-  type Clock,
   invalid,
   newId,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { loadWorkbook } from "@pas/rating-engine";
 import type { ObjectStorage } from "@pas/storage";
@@ -30,7 +30,7 @@ export function makeUploadRaterWorkbook(deps: {
   outbox: Outbox;
   workbooks: RaterWorkbookRepository;
   storage: ObjectStorage;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function uploadRaterWorkbook(
     ctx: TenantContext,
@@ -64,7 +64,7 @@ export function makeUploadRaterWorkbook(deps: {
         report: loaded.report,
         createdBy: ctx.actor.type === "user" ? ctx.actor.userId : ctx.actor.type,
       },
-      deps.clock,
+      deps.clocks.forTenant(ctx.tenantId),
     );
 
     return deps.uow.run(ctx, async (tx) => {

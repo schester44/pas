@@ -1,5 +1,5 @@
 import type { AdminOutputs } from "@pas/api-client";
-import type { DecisionTrace, NodeTrace } from "@pas/decisions-engine";
+import type { DecisionTrace, MatchedRule, NodeTrace } from "@pas/decisions-engine";
 import type { RiskSchema } from "@pas/forms-core";
 import { Button } from "@pas/ui/components/button";
 import {
@@ -24,12 +24,14 @@ import {
 import { Spinner } from "@pas/ui/components/spinner";
 import { StatusChip } from "@pas/ui/components/status-chip";
 import { Textarea } from "@pas/ui/components/textarea";
+import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Circle } from "lucide-react";
 import type * as React from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { OUTCOMES } from "@/components/decisions/results";
+import { inputLabeler } from "@/components/decisions/input-label";
 import { humanize } from "@/components/decisions/jdm-edit";
 import type { Coverage } from "@/components/catalog/version-editor";
 import { Worksheet } from "@/components/rating/worksheet";
@@ -141,10 +143,12 @@ function Line({ label, meta, value }: { label: string; meta?: string; value: str
 /** The referral, why it happened, and the underwriter's call. */
 export function ReferralPanel({
   quote,
+  schema,
   submissionId,
   canDecide,
 }: {
   quote: StaffQuote;
+  schema: RiskSchema;
   submissionId: string;
   canDecide: boolean;
 }) {
@@ -196,7 +200,7 @@ export function ReferralPanel({
           </div>
         )}
       </div>
-      <WhySheet quote={quote} open={why} onOpenChange={setWhy} />
+      <WhySheet quote={quote} schema={schema} open={why} onOpenChange={setWhy} />
       <DecideDialog
         submissionId={submissionId}
         outcome={deciding}
@@ -240,23 +244,48 @@ function matchedRules(node: NodeTrace) {
   return (Array.isArray(data) ? data : [data]).flatMap((hit) => ("index" in hit ? [hit] : []));
 }
 
-const traceValue = (value: unknown) =>
-  value === null || value === undefined
-    ? "–"
-    : typeof value === "object"
-      ? JSON.stringify(value)
-      : String(value);
+const JURISDICTION = /^([A-Z]{2})-[A-Z0-9]{1,3}$/;
+
+const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
+
+function traceValue(value: unknown): string {
+  if (value === null || value === undefined) return "–";
+
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+
+  if (typeof value === "number") return number.format(value);
+
+  if (typeof value === "string") {
+    const code = JURISDICTION.exec(value);
+
+    return code ? jurisdictionName({ country: code[1]!, subdivision: value }) : value;
+  }
+
+  return Array.isArray(value) ? value.map(traceValue).join(", ") : JSON.stringify(value);
+}
+
+function ruleInputs(rule: MatchedRule) {
+  return (
+    rule.inputs ??
+    Object.entries(rule.reference_map).map(([field, value]) => ({ field, name: "", value }))
+  );
+}
 
 /** The decision trace behind the outcome: which rules fired and on what values. */
 function WhySheet({
   quote,
+  schema,
   open,
   onOpenChange,
 }: {
   quote: StaffQuote;
+  schema: RiskSchema;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [expressions, setExpressions] = useState(false);
+  const label = useMemo(() => inputLabeler(schema), [schema]);
+
   const decisions = quote.evaluation.decisions.filter(
     (d) => d.kind === "underwriting" || d.kind === "eligibility",
   );
@@ -279,14 +308,11 @@ function WhySheet({
 
             return (
               <section key={decision.ref} className="grid gap-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="m-0 text-sm font-medium">{decision.name}</h3>
-                  <code className="font-mono text-xs text-muted-foreground">{decision.ref}</code>
-                </div>
+                <h3 className="m-0 text-sm font-medium">{decision.name}</h3>
                 {fired.length === 0 ? (
                   <p className="m-0 text-sm text-muted-foreground">No rule fired.</p>
                 ) : (
-                  <ol className="m-0 grid list-none gap-px overflow-hidden rounded-lg border p-0">
+                  <ol className="m-0 grid list-none gap-px overflow-hidden rounded-lg border bg-border p-0">
                     {fired.map((rule, index) => (
                       <li key={`${rule.ruleId}-${index}`} className="grid gap-2 bg-card px-3 py-3">
                         <div className="flex items-baseline justify-between gap-3">
@@ -299,9 +325,21 @@ function WhySheet({
                             Row {rule.index + 1}
                           </span>
                         </div>
-                        <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
-                          {Object.entries(rule.reference_map).map(([input, value]) => (
-                            <TraceRow key={input} label={input} value={traceValue(value)} />
+                        <dl className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 text-sm">
+                          {ruleInputs(rule).map((input) => (
+                            <div key={input.field} className="contents">
+                              <dt className="min-w-0 text-muted-foreground" title={input.field}>
+                                {label(input.field, input.name)}
+                                {expressions && (
+                                  <code className="block truncate font-mono text-xs">
+                                    {input.field}
+                                  </code>
+                                )}
+                              </dt>
+                              <dd className="m-0 text-right font-medium tabular-nums">
+                                {traceValue(input.value)}
+                              </dd>
+                            </div>
                           ))}
                         </dl>
                       </li>
@@ -311,18 +349,19 @@ function WhySheet({
               </section>
             );
           })}
+          <div>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto px-0 text-muted-foreground"
+              onClick={() => setExpressions((v) => !v)}
+            >
+              {expressions ? "Hide expressions" : "Show expressions"}
+            </Button>
+          </div>
         </SheetBody>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function TraceRow({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <dt className="truncate font-mono text-muted-foreground">{label}</dt>
-      <dd className="m-0 truncate font-mono tabular-nums">{value}</dd>
-    </>
   );
 }
 

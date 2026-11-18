@@ -60,6 +60,11 @@ const BLANKS: { label: string; icon: typeof Type; make: () => SchemaNode }[] = [
   },
 ];
 
+// Collapse follows the node through reorders, so it's keyed by schema keys rather than position.
+function keyId(nodes: SchemaNode[], path: NodePath): string {
+  return path.map((_, depth) => nodeAt(nodes, path.slice(0, depth + 1))?.key ?? "").join("/");
+}
+
 export function RiskSchemaBuilder({ value, onChange, readOnly }: RiskSchemaBuilderProps) {
   const nodes = value.fields;
   const [selected, setSelected] = useState<NodePath | undefined>(nodes.length ? [0] : undefined);
@@ -72,8 +77,9 @@ export function RiskSchemaBuilder({ value, onChange, readOnly }: RiskSchemaBuild
   const toggle = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
+      const key = keyId(nodes, parsePathId(id));
 
-      if (!next.delete(id)) next.add(id);
+      if (!next.delete(key)) next.add(key);
 
       return next;
     });
@@ -87,7 +93,7 @@ export function RiskSchemaBuilder({ value, onChange, readOnly }: RiskSchemaBuild
 
     setCollapsed((prev) => {
       const next = new Set(prev);
-      next.delete(pathId(parent));
+      next.delete(keyId(nodes, parent));
 
       return next;
     });
@@ -131,11 +137,12 @@ export function RiskSchemaBuilder({ value, onChange, readOnly }: RiskSchemaBuild
   const rows = useMemo(() => {
     const out: TreeRow[] = [];
 
-    const walk = (list: SchemaNode[], prefix: number[]) =>
+    const walk = (list: SchemaNode[], prefix: number[], keys: string) =>
       list.forEach((child, i) => {
         const path = [...prefix, i];
         const id = pathId(path);
-        const open = !collapsed.has(id);
+        const key = keys ? `${keys}/${child.key}` : child.key;
+        const open = !collapsed.has(key);
 
         out.push({
           id,
@@ -145,10 +152,10 @@ export function RiskSchemaBuilder({ value, onChange, readOnly }: RiskSchemaBuild
           content: <SchemaRow node={child} flagged={flagged.has(id)} />,
         });
 
-        if (isContainer(child) && open) walk(child.children, path);
+        if (isContainer(child) && open) walk(child.children, path, key);
       });
 
-    walk(nodes, []);
+    walk(nodes, [], "");
 
     return out;
   }, [nodes, collapsed, flagged]);

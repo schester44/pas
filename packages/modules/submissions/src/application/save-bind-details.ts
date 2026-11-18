@@ -1,4 +1,4 @@
-import type { Clock, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import type { BindDetails } from "../domain/bind-details";
 import type { SubmissionScope } from "../domain/scope";
 import type { QuoteRepository } from "../ports/quote-repository";
@@ -15,7 +15,7 @@ export function makeSaveBindDetails(deps: {
   uow: UnitOfWork;
   submissions: SubmissionRepository;
   quotes: QuoteRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function saveBindDetails(
     ctx: TenantContext,
@@ -25,7 +25,7 @@ export function makeSaveBindDetails(deps: {
     return deps.uow.run(ctx, async (tx) => {
       const { submission, quote } = await loadQuote(deps, tx, ctx, scope, input.submissionId);
       const previous = quote.toSnapshot().details?.acknowledgements ?? [];
-      const now = deps.clock.now().toString();
+      const now = deps.clocks.forTenant(ctx.tenantId).now().toString();
       const offered = new Set(quote.toSnapshot().evaluation.attestations.map((a) => a.code));
 
       const details: BindDetails = {
@@ -36,7 +36,7 @@ export function makeSaveBindDetails(deps: {
           .map((code) => previous.find((ack) => ack.code === code) ?? { code, acceptedAt: now }),
       };
 
-      quote.saveDetails(details, deps.clock);
+      quote.saveDetails(details, deps.clocks.forTenant(ctx.tenantId));
       await deps.quotes.save(tx, quote);
 
       return toQuoteDto(quote, submission, "producer");

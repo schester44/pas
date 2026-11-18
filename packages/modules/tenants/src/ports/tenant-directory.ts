@@ -3,6 +3,7 @@ import type { OrganizationRef, TenantProfile } from "../domain/tenant-profile";
 export interface TenantRecord {
   organization: OrganizationRef;
   profile: TenantProfile | null;
+  sandbox: boolean;
 }
 
 export interface TenantListRecord extends TenantRecord {

@@ -5,7 +5,9 @@ import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Button } from "@pas/ui/components/button";
+import { daysUntil, money } from "@pas/ui/lib/policy-change";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PolicyDocumentList } from "@/components/policy-documents";
 import { BackLink } from "@/components/submission-heading";
 import { formatDate, formatMoney, formatPlainDate, formatPlainDateRange } from "@/lib/format";
@@ -20,6 +22,7 @@ type Policy = AppOutputs["policies"]["get"];
 const TERM_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   pending_effective: { label: "Pending effective", tone: "accent" },
   in_force: { label: "In force", tone: "success" },
+  pending_cancellation: { label: "Pending cancellation", tone: "warning" },
   expired: { label: "Expired", tone: "neutral" },
   cancelled: { label: "Cancelled", tone: "danger" },
 };
@@ -74,9 +77,13 @@ function PolicyPage() {
               {formatPlainDateRange(p.effectiveDate, p.expirationDate)}
             </p>
           </div>
-          <StatusChip tone={status.tone}>{status.label}</StatusChip>
+          <div className="flex items-center gap-2">
+            <StatusChip tone={status.tone}>{status.label}</StatusChip>
+            <Requests policy={p} />
+          </div>
         </div>
       </div>
+      <Callout policy={p} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline policy={p} />
         <div className="grid gap-6">
@@ -96,10 +103,26 @@ function PolicyPage() {
                     <span className="grid min-w-0 flex-1 gap-0.5">
                       <span className="text-sm font-medium tabular-nums">{invoice.number}</span>
                       <span className="text-xs text-muted-foreground tabular-nums">
-                        Due {formatPlainDate(invoice.dueOn)}
+                        {invoice.kind === "credit_note"
+                          ? `Credit note · ${formatPlainDate(invoice.issuedOn)}`
+                          : `Due ${formatPlainDate(invoice.dueOn)}`}
                       </span>
                     </span>
-                    <StatusChip tone={s.tone}>{s.label}</StatusChip>
+                    <StatusChip
+                      tone={
+                        invoice.kind === "credit_note"
+                          ? invoice.status === "paid"
+                            ? "success"
+                            : "neutral"
+                          : s.tone
+                      }
+                    >
+                      {invoice.kind === "credit_note"
+                        ? invoice.status === "paid"
+                          ? "Refunded"
+                          : "Credit"
+                        : s.label}
+                    </StatusChip>
                     <span className="text-sm tabular-nums">
                       {formatMoney(invoice.total, { cents: true })}
                     </span>
@@ -111,6 +134,72 @@ function PolicyPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+const OPEN_LABELS: Record<string, string> = {
+  ENDORSEMENT: "Change",
+  CANCELLATION: "Cancellation",
+  REINSTATEMENT: "Reinstatement",
+};
+
+function Requests({ policy }: { policy: Policy }) {
+  const trpc = useTRPC();
+  const authority = useQuery(trpc.policies.changes.authority.queryOptions({ policyId: policy.id }));
+  const changeable = policy.status === "pending_effective" || policy.status === "in_force";
+
+  if (!authority.data?.create || !changeable || policy.openTransaction) return null;
+
+  return (
+    <>
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/policies/$policyId/endorse" params={{ policyId: policy.id }}>
+          Request a change
+        </Link>
+      </Button>
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/policies/$policyId/cancel" params={{ policyId: policy.id }}>
+          Request cancellation
+        </Link>
+      </Button>
+    </>
+  );
+}
+
+function Callout({ policy }: { policy: Policy }) {
+  const open = policy.openTransaction;
+  const pending = policy.status === "pending_cancellation" ? policy.cancellation : null;
+
+  if (!open && !pending) return null;
+
+  const days = pending ? daysUntil(pending.effectiveDate) : 0;
+
+  return (
+    <p className="m-0 flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm">
+      <span
+        aria-hidden
+        className={cn("size-2 shrink-0 rounded-full", pending ? "bg-amber-500" : "bg-primary")}
+      />
+      {pending ? (
+        <span>
+          Cancels{" "}
+          <span className="font-medium tabular-nums">{formatPlainDate(pending.effectiveDate)}</span>{" "}
+          <span className="text-muted-foreground tabular-nums">
+            (in {days} {days === 1 ? "day" : "days"}) · {pending.reasonLabel}
+          </span>
+        </span>
+      ) : (
+        open && (
+          <span>
+            {OPEN_LABELS[open.type] ?? "Change"}{" "}
+            {open.status === "pending_approval" ? "waiting for approval" : "in progress"}{" "}
+            <span className="text-muted-foreground tabular-nums">
+              · effective {formatPlainDate(open.effectiveDate)} · {money(open.total)}
+            </span>
+          </span>
+        )
+      )}
+    </p>
   );
 }
 

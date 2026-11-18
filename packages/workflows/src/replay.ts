@@ -8,6 +8,7 @@ export class Suspended extends Error {}
 /** Thrown when the run was cancelled while executing. */
 export class Halted extends Error {}
 
+/** `wakeAt` is in tenant time. */
 export type ScheduleTimer = (db: Queryable, wakeAt: Date) => Promise<void>;
 
 export function replayStep(
@@ -15,6 +16,7 @@ export function replayStep(
   key: RunKey,
   memo: Map<string, unknown>,
   scheduleTimer: ScheduleTimer,
+  offsetMs: number,
 ): WorkflowStep {
   const enter = async (stepId: string) => {
     if (!(await store.enterStep(key, stepId))) throw new Halted();
@@ -33,7 +35,7 @@ export function replayStep(
 
       if (data) return { value: await store.memoize(client, key, stepId, parse(data)) };
 
-      const pending = await store.wait(client, key, stepId, event, timeoutMs);
+      const pending = await store.wait(client, key, stepId, event, timeoutMs, offsetMs);
 
       if (pending.due) return { value: await store.memoize(client, key, stepId, undefined) };
 

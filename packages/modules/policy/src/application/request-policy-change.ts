@@ -1,11 +1,11 @@
 import {
   asId,
-  type Clock,
   newId,
   notFound,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { ChangeRequestProps } from "../domain/change-request";
 import type { PolicyScope } from "../domain/scope";
@@ -25,7 +25,7 @@ export function makeRequestPolicyChange(deps: {
   outbox: Outbox;
   policies: PolicyRepository;
   changeRequests: ChangeRequestRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function requestPolicyChange(
     ctx: TenantContext,
@@ -50,7 +50,7 @@ export function makeRequestPolicyChange(deps: {
         status: "open",
         requestedBy: input.requester,
         producerId: policy.toSnapshot().policy.producer.id,
-        createdAt: deps.clock.now(),
+        createdAt: deps.clocks.forTenant(ctx.tenantId).now(),
       };
 
       await deps.changeRequests.add(tx, ctx, request);
@@ -63,7 +63,7 @@ export function makeRequestPolicyChange(deps: {
           details: request.details,
           actor: { type: "user", id: input.requester.userId, name: input.requester.name },
         },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.policies.save(tx, policy);

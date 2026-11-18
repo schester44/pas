@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@pas/billing": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",

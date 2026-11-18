@@ -32,6 +32,7 @@ import { ArrowDown, ArrowUp, Copy, MoreHorizontal, Plus, Trash2 } from "lucide-r
 import { useId, useMemo, useState } from "react";
 import { friendly } from "../builders/expression-input";
 import { PathPicker } from "../builders/path-picker";
+import { inputLabeler } from "./input-label";
 import {
   blankRule,
   humanize,
@@ -137,7 +138,7 @@ export function DecisionTable({
                   siblings={content[side].filter((c) => c.id !== column.id)}
                   issue={cellIssues.get(`:${column.id}`)}
                   readOnly={readOnly}
-                  removable={content[side].length > 1}
+                  removable={side === "inputs" || content[side].length > 1}
                   onChange={(next) => updateColumn(side, next)}
                   onRemove={() => onChange(removeColumn(content, side, column.id))}
                 />
@@ -345,7 +346,7 @@ function ColumnHeader({
   const summary = (
     <span className="grid min-w-0 gap-0.5 text-left">
       <span className="flex items-center gap-1.5 text-xs font-medium whitespace-nowrap text-foreground">
-        {column.name || humanize(column.field ?? "") || "Untitled"}
+        {column.name || (column.field ? inputLabeler(schema)(column.field) : "Untitled")}
         {issue && (
           <span
             aria-hidden

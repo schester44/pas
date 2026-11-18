@@ -65,11 +65,11 @@ function SubmissionsPage() {
                     <TableHead>Number</TableHead>
                     <TableHead>Insured</TableHead>
                     <TableHead>Product</TableHead>
-                    <TableHead>State</TableHead>
+                    <TableHead className="hidden xl:table-cell">State</TableHead>
                     <TableHead>Effective</TableHead>
-                    <TableHead>Producer</TableHead>
+                    <TableHead className="hidden xl:table-cell">Producer</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Updated</TableHead>
+                    <TableHead className="hidden text-right xl:table-cell">Updated</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -100,23 +100,23 @@ function SubmissionsPage() {
                       <TableCell className="max-w-48 truncate">
                         {submission.insuredName ?? <span className="text-muted-foreground">—</span>}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="max-w-48 truncate text-muted-foreground">
                         {submission.productName}{" "}
                         <span className="tabular-nums">{submission.productVersion}</span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="hidden text-muted-foreground xl:table-cell">
                         {jurisdictionShort(submission.jurisdiction)}
                       </TableCell>
                       <TableCell className="text-muted-foreground tabular-nums">
                         {formatPlainDate(submission.effectiveDate)}
                       </TableCell>
-                      <TableCell className="max-w-40 truncate text-muted-foreground">
+                      <TableCell className="hidden max-w-40 truncate text-muted-foreground xl:table-cell">
                         {submission.producer.name}
                       </TableCell>
                       <TableCell>
                         <SubmissionStatus status={submission.status} quote={submission.quote} />
                       </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                      <TableCell className="hidden text-right text-muted-foreground tabular-nums xl:table-cell">
                         {formatRelative(submission.updatedAt)}
                       </TableCell>
                     </TableRow>
@@ -138,8 +138,10 @@ function SubmissionsPage() {
                         <SubmissionStatus status={submission.status} quote={submission.quote} />
                       </span>
                       <span className="truncate text-xs text-muted-foreground tabular-nums">
-                        {submission.number} · {submission.productName} ·{" "}
-                        {jurisdictionShort(submission.jurisdiction)} ·{" "}
+                        {submission.number} · {submission.productName}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground tabular-nums">
+                        {jurisdictionShort(submission.jurisdiction)} · Effective{" "}
                         {formatPlainDate(submission.effectiveDate)} · {submission.producer.name}
                       </span>
                     </Link>

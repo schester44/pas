@@ -1,11 +1,17 @@
-import { asId, type Clock, notFound, type TenantContext, type UnitOfWork } from "@pas/kernel";
+import {
+  asId,
+  notFound,
+  type TenantContext,
+  type UnitOfWork,
+  type ClockProvider,
+} from "@pas/kernel";
 import type { TimelineActor } from "../domain/policy-event";
 import type { PolicyRepository } from "../ports/policy-repository";
 
 export function makeAttachPolicyDocuments(deps: {
   uow: UnitOfWork;
   policies: PolicyRepository;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function attachPolicyDocuments(
     ctx: TenantContext,
@@ -29,7 +35,10 @@ export function makeAttachPolicyDocuments(deps: {
       const before = policy.toSnapshot().documents.length;
 
       for (const document of input.documents) {
-        policy.attachDocument({ ...document, transactionId: input.transactionId }, deps.clock);
+        policy.attachDocument(
+          { ...document, transactionId: input.transactionId },
+          deps.clocks.forTenant(ctx.tenantId),
+        );
       }
 
       if (policy.toSnapshot().documents.length > before) {
@@ -37,7 +46,7 @@ export function makeAttachPolicyDocuments(deps: {
           input.transactionId,
           input.documents.map((d) => d.title),
           input.actor,
-          deps.clock,
+          deps.clocks.forTenant(ctx.tenantId),
         );
       }
 

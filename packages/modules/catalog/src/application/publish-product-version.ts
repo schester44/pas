@@ -1,9 +1,9 @@
 import {
   canonicalJson,
-  type Clock,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { checkVersion } from "../domain/checks";
 import { ProductRelease } from "../domain/product-release";
@@ -21,7 +21,7 @@ export function makePublishProductVersion(
     products: ProductRepository;
     versions: ProductVersionRepository;
     releases: ProductReleaseRepository;
-    clock: Clock;
+    clocks: ClockProvider;
   } & ReferenceDeps,
 ) {
   return async function publishProductVersion(
@@ -39,7 +39,7 @@ export function makePublishProductVersion(
         await resolveReferences(deps, ctx, version),
       );
 
-      const publishedAt = deps.clock.now();
+      const publishedAt = deps.clocks.forTenant(ctx.tenantId).now();
 
       const releases = await Promise.all(
         version.contents.availability.map(async (window) => {
@@ -53,10 +53,10 @@ export function makePublishProductVersion(
       version.publish(
         issues,
         releases.map((release) => release.id),
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
-      product.activate(deps.clock);
+      product.activate(deps.clocks.forTenant(ctx.tenantId));
 
       await deps.versions.save(tx, version);
       await deps.releases.insert(tx, releases);

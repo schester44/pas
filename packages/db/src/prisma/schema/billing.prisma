@@ -47,12 +47,13 @@ model InvoiceLine {
   @@map("invoice_lines")
 }
 
-/// Money received and applied to one invoice.
+/// Money received and applied to one invoice, or refunded against a credit note (negative).
 model Payment {
   id          String   @id @db.Uuid
   tenantId    String   @map("tenant_id")
   policyId    String   @map("policy_id") @db.Uuid
   invoiceId   String   @map("invoice_id") @db.Uuid
+  kind        String   @default("payment")
   provider    String
   providerRef String   @map("provider_ref")
   method      Json

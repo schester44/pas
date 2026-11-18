@@ -55,7 +55,18 @@ function AddDecisionForm({
 }) {
   const id = useId();
   const [kind, setKind] = useState<DecisionKind>("underwriting");
-  const [key, setKey] = useState("main");
+
+  const freeKey = (forKind: DecisionKind) => {
+    const taken = new Set(existing.filter((d) => d.kind === forKind).map((d) => d.key));
+    let n = 1;
+
+    while (taken.has(n === 1 ? "main" : `main_${n}`)) n++;
+
+    return n === 1 ? "main" : `main_${n}`;
+  };
+
+  const [key, setKey] = useState(() => freeKey("underwriting"));
+  const [keyEdited, setKeyEdited] = useState(false);
   const [name, setName] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
@@ -86,7 +97,11 @@ function AddDecisionForm({
       </DialogHeader>
       <RadioGroup
         value={kind}
-        onValueChange={(next) => setKind(next as DecisionKind)}
+        onValueChange={(next) => {
+          setKind(next as DecisionKind);
+
+          if (!keyEdited) setKey(freeKey(next as DecisionKind));
+        }}
         aria-label="Kind"
         className="grid gap-0 overflow-hidden rounded-lg border sm:grid-cols-2"
       >
@@ -123,7 +138,10 @@ function AddDecisionForm({
             value={key}
             className="font-mono"
             aria-invalid={submitted && !!keyError}
-            onChange={(event) => setKey(event.target.value.trim())}
+            onChange={(event) => {
+              setKeyEdited(true);
+              setKey(event.target.value.trim());
+            }}
           />
           {submitted && keyError && <p className="m-0 text-sm text-destructive">{keyError}</p>}
         </div>

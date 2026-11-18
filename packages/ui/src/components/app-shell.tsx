@@ -6,21 +6,30 @@ import { cn } from "../lib/utils";
 function AppShell({
   sidebar,
   mobileTitle,
+  banner,
   children,
 }: {
   sidebar: React.ReactNode;
   mobileTitle?: React.ReactNode;
+  /** A one-line strip pinned above everything, e.g. the sandbox banner. */
+  banner?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   return (
-    <div className="flex min-h-svh flex-col bg-canvas md:flex-row">
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col gap-6 px-3 py-4 md:flex">
+    <div
+      className={cn(
+        "flex min-h-svh flex-col bg-canvas md:flex-row",
+        banner ? "[--shell-top:2rem]" : "[--shell-top:0px]",
+      )}
+    >
+      {banner && <div className="fixed inset-x-0 top-0 z-30 h-8">{banner}</div>}
+      <aside className="sticky top-(--shell-top) mt-(--shell-top) hidden h-[calc(100svh-var(--shell-top))] w-60 shrink-0 flex-col gap-6 px-3 py-4 md:flex">
         {sidebar}
       </aside>
       <DialogPrimitive.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b bg-canvas/95 px-2 backdrop-blur md:hidden">
+        <header className="sticky top-(--shell-top) z-20 mt-(--shell-top) flex h-12 items-center gap-2 border-b bg-canvas/95 px-2 backdrop-blur md:hidden">
           <DialogPrimitive.Trigger className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.03] hover:text-foreground">
             <Menu className="size-5" />
             <span className="sr-only">Open navigation</span>
@@ -40,7 +49,7 @@ function AppShell({
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
-      <div className="flex min-w-0 flex-1 flex-col md:py-2 md:pr-2">
+      <div className="flex min-w-0 flex-1 flex-col md:mt-(--shell-top) md:py-2 md:pr-2">
         <main className="flex min-h-full flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:border md:shadow-(--card-shadow)">
           {children}
         </main>

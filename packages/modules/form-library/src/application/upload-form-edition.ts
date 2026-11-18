@@ -1,11 +1,11 @@
 import {
-  type Clock,
   conflict,
   invalid,
   newId,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { editionLabel, parseEdition } from "../domain/edition";
@@ -39,7 +39,7 @@ export function makeUploadFormEdition(deps: {
   editions: FormEditionRepository;
   storage: ObjectStorage;
   pdf: PdfInspector;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function uploadFormEdition(
     ctx: TenantContext,
@@ -72,7 +72,7 @@ export function makeUploadFormEdition(deps: {
         file: { storageKey, sha256: await sha256(file), pageCount, sizeBytes: file.byteLength },
         createdBy,
       },
-      deps.clock,
+      deps.clocks.forTenant(ctx.tenantId),
     );
 
     const { formNumber, edition: parsed } = edition.toSnapshot();

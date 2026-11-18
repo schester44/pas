@@ -1,10 +1,13 @@
 import type { PolicyScope } from "@pas/policy";
 import type { SubmissionScope } from "@pas/submissions";
 import { asId } from "@pas/kernel";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { requireAppPermission } from "./app-tenant";
 import { clientRouter } from "./client";
+import { policyChangesRouter, type ScopeResolver } from "./policy-changes";
 import { authedProcedure, publicProcedure, router } from "./init";
+import { appSearch } from "./search";
 import {
   availableProductsInput,
   listSubmissionsInput,
@@ -28,6 +31,37 @@ const ownBook = (userId: string): SubmissionScope & PolicyScope => ({
   kind: "producer",
   producerId: asId(userId),
 });
+
+const agentScope: ScopeResolver = async (ctx) => {
+  const host =
+    ctx.headers.get("x-pas-host") ?? ctx.headers.get("x-forwarded-host") ?? ctx.headers.get("host");
+
+  const resolved = await ctx.container.useCases.tenants.resolveTenantByHost({
+    host: host ?? "",
+    slug: ctx.headers.get("x-pas-tenant"),
+  });
+
+  if (resolved.status !== "tenant")
+    throw new TRPCError({ code: "NOT_FOUND", message: "No tenant for this address" });
+
+  const allowed = await ctx.container.auth.api
+    .hasPermission({
+      headers: ctx.headers,
+      body: { permissions: { policy: ["read"] }, organizationId: resolved.tenantId },
+    })
+    .then((result) => result.success)
+    .catch(() => false);
+
+  if (!allowed) throw new TRPCError({ code: "FORBIDDEN" });
+
+  return {
+    tenant: {
+      tenantId: asId(resolved.tenantId),
+      actor: { type: "user", userId: asId(ctx.session.user.id) },
+    },
+    scope: ownBook(ctx.session.user.id),
+  };
+};
 
 const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
@@ -145,6 +179,8 @@ export const appRouter = router({
       ),
   }),
 
+  search: router({ query: appSearch }),
+
   policies: router({
     list: requireAppPermission({ policy: ["read"] })
       .input(listPoliciesInput)
@@ -172,6 +208,7 @@ export const appRouter = router({
 
         return { fileName: file.fileName, title: file.title, pdf: base64(file.body) };
       }),
+    changes: policyChangesRouter(agentScope),
   }),
 });
 

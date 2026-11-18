@@ -1,4 +1,4 @@
-import type { Clock, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import type { SubmissionScope } from "../domain/scope";
 import type { ProductCatalog } from "../ports/product-catalog";
 import type { QuoteDocuments, RenderedPacket } from "../ports/quote-documents";
@@ -17,7 +17,7 @@ export function makeRenderQuotePacket(deps: {
   quotes: QuoteRepository;
   catalog: ProductCatalog;
   documents: QuoteDocuments;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function renderQuotePacket(
     ctx: TenantContext,
@@ -45,7 +45,7 @@ export function makeRenderQuotePacket(deps: {
         release,
         productName,
         policyNumber: PENDING_POLICY_NUMBER,
-        issuedDate: deps.clock.today("UTC"),
+        issuedDate: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
       }),
     });
 

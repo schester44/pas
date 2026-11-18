@@ -9,12 +9,12 @@ const decimal = z
   .regex(/^\d+(\.\d+)?$/)
   .max(32);
 
-const amount = z.discriminatedUnion("kind", [
+export const amount = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("money"), amount: decimal, currency: z.string().length(3) }),
   z.object({ kind: z.literal("percent"), value: decimal }),
 ]);
 
-const address = z.object({
+export const address = z.object({
   line1: text(200),
   line2: text(200).optional(),
   city: text(100),

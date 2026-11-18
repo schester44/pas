@@ -27,4 +27,9 @@ export interface PaymentGateway {
   >;
   capture(ctx: TenantContext, input: { authorizationId: string; amount: Money }): Promise<void>;
   void(ctx: TenantContext, input: { authorizationId: string }): Promise<void>;
+  /** Refunds part or all of a captured payment; idempotent on the key. */
+  refund(
+    ctx: TenantContext,
+    input: { paymentRef: string; amount: Money; idempotencyKey: string },
+  ): Promise<{ refundId: string }>;
 }

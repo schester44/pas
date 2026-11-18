@@ -1,11 +1,11 @@
 import {
   asId,
-  type Clock,
   Money,
   newId,
   notFound,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { InvoiceRepository } from "../ports/invoice-repository";
 import type { BillingTimelineEntry, PolicyTimeline } from "../ports/policy-timeline";
@@ -16,7 +16,7 @@ export function makeApplyPayment(deps: {
   uow: UnitOfWork;
   invoices: InvoiceRepository;
   timeline: PolicyTimeline;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function applyPayment(
     ctx: TenantContext,
@@ -40,20 +40,21 @@ export function makeApplyPayment(deps: {
       }
 
       const amount = Money.of(input.amount.amount, input.amount.currency);
-      invoice.applyPayment(amount, deps.clock);
+      invoice.applyPayment(amount, deps.clocks.forTenant(ctx.tenantId));
       const i = invoice.toSnapshot();
 
       await deps.invoices.save(tx, invoice);
 
       await deps.invoices.addPayment(tx, ctx, {
         id: newId(),
+        kind: "payment",
         policyId: i.policyId,
         invoiceId: invoice.id,
         provider: input.provider,
         providerRef: input.providerRef,
         method: input.method,
         amount,
-        receivedAt: deps.clock.now(),
+        receivedAt: deps.clocks.forTenant(ctx.tenantId).now(),
       });
 
       const formatted = new Intl.NumberFormat("en-US", {

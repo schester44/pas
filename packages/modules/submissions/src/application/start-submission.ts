@@ -1,5 +1,4 @@
 import {
-  type Clock,
   DomainError,
   invalid,
   jurisdiction,
@@ -8,6 +7,7 @@ import {
   parsePlainDate,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import { IntakeFormMissingError, ProductUnavailableError } from "../domain/errors";
 import { Submission, type SubmissionChannel, type SubmissionStage } from "../domain/submission";
@@ -32,7 +32,7 @@ export function makeStartSubmission(deps: {
   outbox: Outbox;
   submissions: SubmissionRepository;
   catalog: ProductCatalog;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function startSubmission(
     ctx: TenantContext,
@@ -87,7 +87,7 @@ export function makeStartSubmission(deps: {
           stage: STAGE,
           producer,
         },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.submissions.save(tx, submission);

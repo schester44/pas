@@ -1,10 +1,10 @@
 import {
-  type Clock,
   conflict,
   newId,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
+  type ClockProvider,
 } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { outstandingFor } from "../domain/bind-requirements";
@@ -40,7 +40,7 @@ type Deps = EvaluationDeps & {
   documents: QuoteDocuments;
   storage: ObjectStorage;
   journey: QuoteJourney;
-  clock: Clock;
+  clocks: ClockProvider;
 };
 
 /**
@@ -101,7 +101,7 @@ export function makeBindQuote(deps: Deps) {
         current.quote.notePaymentFailed(
           { ...authorization, last4: authorization.method.last4 },
           actor,
-          deps.clock,
+          deps.clocks.forTenant(ctx.tenantId),
         );
 
         await deps.quotes.save(tx, current.quote);
@@ -115,7 +115,7 @@ export function makeBindQuote(deps: Deps) {
           amount,
           method: authorization.method,
           failure: authorization.code,
-          recordedAt: deps.clock.now(),
+          recordedAt: deps.clocks.forTenant(ctx.tenantId).now(),
         });
       });
 
@@ -169,7 +169,7 @@ export function makeBindQuote(deps: Deps) {
         release,
         productName,
         policyNumber: issued.policyNumber,
-        issuedDate: deps.clock.today("UTC"),
+        issuedDate: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
       }),
     });
 
@@ -202,7 +202,7 @@ export function makeBindQuote(deps: Deps) {
 
     const bound = await deps.uow.run(ctx, async (tx) => {
       const current = await loadQuote(deps, tx, ctx, scope, input.submissionId);
-      const now = deps.clock.now();
+      const now = deps.clocks.forTenant(ctx.tenantId).now();
 
       current.quote.markBound(
         {
@@ -216,7 +216,7 @@ export function makeBindQuote(deps: Deps) {
             capturedAt: now,
           },
         },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.quotes.save(tx, current.quote);
@@ -273,7 +273,8 @@ async function recheck(
   return deps.uow.run(ctx, async (tx) => {
     const current = await loadQuote(deps, tx, ctx, scope, submissionId);
 
-    if (current.quote.recheck(evaluation, reviewWithin, deps.clock)) return null;
+    if (current.quote.recheck(evaluation, reviewWithin, deps.clocks.forTenant(ctx.tenantId)))
+      return null;
 
     await deps.quotes.save(tx, current.quote);
     await deps.outbox.add(tx, current.quote.pullEvents());

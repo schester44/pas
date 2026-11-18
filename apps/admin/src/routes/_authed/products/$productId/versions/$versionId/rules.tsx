@@ -24,7 +24,6 @@ import {
   decisionRef,
   decisionSample,
   decisionSchema,
-  KIND_COPY,
   KIND_ORDER,
   runTest,
 } from "@/components/rules/rules";
@@ -174,13 +173,12 @@ function DecisionList({
     <Panel flush title="Decisions" action={action} className="lg:sticky lg:top-20">
       <div className="grid divide-y">
         {groups.map(({ kind, items }) => (
-          <section key={kind} className="grid gap-1 py-3">
-            <header className="grid gap-0.5 px-(--card-p) pb-1">
-              <h3 className="m-0 text-xs font-medium text-foreground">
+          <section key={kind} className="grid gap-1 py-2">
+            {(items.length > 1 || items[0]!.name !== DECISION_KINDS[kind].label) && (
+              <h3 className="m-0 px-(--card-p) pb-1 text-xs font-medium text-muted-foreground">
                 {DECISION_KINDS[kind].label}
               </h3>
-              <p className="m-0 text-xs text-muted-foreground">{KIND_COPY[kind]}</p>
-            </header>
+            )}
             <ul className="m-0 grid list-none gap-0.5 px-2 p-0">
               {items.map((decision) => (
                 <DecisionItem

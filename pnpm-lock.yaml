@@ -323,6 +323,9 @@ importers:
       '@pas/rating-engine':
         specifier: workspace:*
         version: link:../../packages/engines/rating
+      '@pas/search':
+        specifier: workspace:*
+        version: link:../../packages/modules/search
       '@pas/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -418,6 +421,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@pas/billing':
+        specifier: workspace:*
+        version: link:../../packages/modules/billing
       '@pas/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -712,6 +718,15 @@ importers:
       '@pas/db':
         specifier: workspace:*
         version: link:../../db
+      '@pas/decisions-engine':
+        specifier: workspace:*
+        version: link:../../engines/decisions
+      '@pas/documents':
+        specifier: workspace:*
+        version: link:../../engines/documents
+      '@pas/forms-core':
+        specifier: workspace:*
+        version: link:../../engines/forms-core
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
@@ -736,6 +751,15 @@ importers:
       '@pas/storage':
         specifier: workspace:*
         version: link:../../storage
+
+  packages/modules/search:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
 
   packages/modules/submissions:
     dependencies:

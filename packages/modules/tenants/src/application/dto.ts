@@ -21,6 +21,7 @@ export interface TenantBrandingDto {
   logoUrl: string | null;
   supportEmail: string | null;
   supportPhone: string | null;
+  sandbox: boolean;
 }
 
 export interface TenantSummaryDto {
@@ -51,7 +52,7 @@ export function toTenantProfileDto(profile: TenantProfile, hosts: AppHosts): Ten
   };
 }
 
-export function toTenantBrandingDto(profile: TenantProfile): TenantBrandingDto {
+export function toTenantBrandingDto(profile: TenantProfile, sandbox: boolean): TenantBrandingDto {
   const p = profile.toSnapshot();
 
   return {
@@ -61,5 +62,6 @@ export function toTenantBrandingDto(profile: TenantProfile): TenantBrandingDto {
     logoUrl: p.logoUrl,
     supportEmail: p.supportEmail,
     supportPhone: p.supportPhone,
+    sandbox,
   };
 }

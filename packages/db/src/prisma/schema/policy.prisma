@@ -1,6 +1,7 @@
 enum PolicyTermStatus {
   PENDING_EFFECTIVE
   IN_FORCE
+  PENDING_CANCELLATION
   EXPIRED
   CANCELLED
 
@@ -45,6 +46,7 @@ model PolicyTerm {
   taxesAndFees     Decimal          @map("taxes_and_fees") @db.Decimal(18, 2)
   boundAt          DateTime         @map("bound_at") @db.Timestamptz(6)
   activatedAt      DateTime?        @map("activated_at") @db.Timestamptz(6)
+  cancellation     Json?
   updatedAt        DateTime         @map("updated_at") @db.Timestamptz(6)
 
   @@unique([tenantId, policyId, termNumber])
@@ -53,20 +55,27 @@ model PolicyTerm {
 }
 
 /// Issued transactions are append-only (CLAUDE.md rule 6); corrections are new transactions.
+/// Quoted, pending and scheduled ones carry what issuing them will write in `details`.
 model PolicyTransaction {
-  id            String   @id @db.Uuid
-  tenantId      String   @map("tenant_id")
-  policyId      String   @map("policy_id") @db.Uuid
-  termId        String   @map("term_id") @db.Uuid
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id")
+  policyId      String    @map("policy_id") @db.Uuid
+  termId        String    @map("term_id") @db.Uuid
   type          String
   status        String
-  effectiveDate DateTime @map("effective_date") @db.Date
-  currency      String   @db.Char(3)
-  premiumDelta  Decimal  @map("premium_delta") @db.Decimal(18, 2)
-  issuedAt      DateTime @map("issued_at") @db.Timestamptz(6)
-  recordedAt    DateTime @map("recorded_at") @db.Timestamptz(6)
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  currency      String    @db.Char(3)
+  premiumDelta  Decimal   @map("premium_delta") @db.Decimal(18, 2)
+  baseVersion   Int       @default(0) @map("base_version")
+  details       Json?
+  createdBy     Json?     @map("created_by")
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @map("updated_at") @db.Timestamptz(6)
+  issuedAt      DateTime? @map("issued_at") @db.Timestamptz(6)
+  recordedAt    DateTime  @map("recorded_at") @db.Timestamptz(6)
 
   @@index([tenantId, policyId, recordedAt])
+  @@index([tenantId, status, effectiveDate])
   @@map("policy_transactions")
 }
 

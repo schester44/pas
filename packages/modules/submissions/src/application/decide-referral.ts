@@ -1,4 +1,4 @@
-import type { Clock, Outbox, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import type { Underwriter } from "../domain/quote";
 import type { SubmissionScope } from "../domain/scope";
 import type { QuoteRepository } from "../ports/quote-repository";
@@ -22,7 +22,7 @@ export function makeDecideReferral(deps: {
   submissions: SubmissionRepository;
   quotes: QuoteRepository;
   journey: QuoteJourney;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function decideReferral(
     ctx: TenantContext,
@@ -41,9 +41,13 @@ export function makeDecideReferral(deps: {
 
       if (input.outcome === "approve") {
         const conditions = (input.conditions ?? []).map((c) => c.trim()).filter(Boolean);
-        loaded.quote.approve({ by, ...(note && { note }), conditions }, deps.clock);
+
+        loaded.quote.approve(
+          { by, ...(note && { note }), conditions },
+          deps.clocks.forTenant(ctx.tenantId),
+        );
       } else {
-        loaded.quote.decline({ by, ...(note && { note }) }, deps.clock);
+        loaded.quote.decline({ by, ...(note && { note }) }, deps.clocks.forTenant(ctx.tenantId));
       }
 
       await deps.quotes.save(tx, loaded.quote);

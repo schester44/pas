@@ -34,6 +34,7 @@ export interface InvoiceProps {
 
 export interface PaymentProps {
   id: string;
+  kind: "payment" | "refund";
   policyId: string;
   invoiceId: InvoiceId;
   provider: string;
@@ -96,6 +97,27 @@ export class Invoice {
     }
 
     const amountPaid = this.props.amountPaid.plus(amount);
+
+    this.props = {
+      ...this.props,
+      amountPaid,
+      status: amountPaid.equals(this.props.total) ? "paid" : "partially_paid",
+      updatedAt: clock.now(),
+    };
+  }
+
+  /** Money paid back against a credit note; `amount` is the positive refund. */
+  applyRefund(amount: Money, clock: Clock): void {
+    if (this.props.kind !== "credit_note")
+      throw conflict(`${this.props.number} isn't a credit note`);
+
+    if (!amount.amount.isPositive()) throw invalid("Refunds must be positive");
+
+    if (amount.amount.greaterThan(this.balance.amount.negated())) {
+      throw conflict(`The refund is more than the ${this.props.number} credit`);
+    }
+
+    const amountPaid = this.props.amountPaid.minus(amount);
 
     this.props = {
       ...this.props,

@@ -1,9 +1,9 @@
 import {
-  type Clock,
   Money,
   parsePlainDate,
   type TenantContext,
   type Transaction,
+  type ClockProvider,
 } from "@pas/kernel";
 import { Invoice } from "../domain/invoice";
 import { type ChargeKind, invoiceFrom } from "../domain/invoice-lines";
@@ -34,7 +34,7 @@ export interface IssueInvoiceInput {
  * Bills one financial policy transaction. Runs inside the issuing context's transaction, so a
  * transaction is never issued without its invoice; idempotent per transaction.
  */
-export function makeIssueInvoice(deps: { invoices: InvoiceRepository; clock: Clock }) {
+export function makeIssueInvoice(deps: { invoices: InvoiceRepository; clocks: ClockProvider }) {
   return async function issueInvoice(
     tx: Transaction,
     ctx: TenantContext,
@@ -61,7 +61,7 @@ export function makeIssueInvoice(deps: { invoices: InvoiceRepository; clock: Clo
         dueOn: parsePlainDate(input.dueOn),
         draft,
       },
-      deps.clock,
+      deps.clocks.forTenant(ctx.tenantId),
     );
 
     await deps.invoices.save(tx, invoice);

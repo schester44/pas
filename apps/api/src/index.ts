@@ -3,12 +3,14 @@ import { env } from "./env";
 import { buildServer } from "./server";
 
 const container = compose();
+await container.clocks.start();
 const server = await buildServer(container);
 
 const shutdown = async () => {
   await server.close();
   await container.queues.stop();
   await container.workflows.close();
+  container.clocks.stop();
   await container.prisma.$disconnect();
   process.exit(0);
 };

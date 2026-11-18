@@ -59,6 +59,8 @@ function KindResult({ kind, result }: { kind: DecisionKind; result: unknown }) {
       return <Dea result={result as DecisionResult<"dea">} />;
     case "notice_rules":
       return <NoticeRules result={result as DecisionResult<"notice_rules">} />;
+    case "cancellation_terms":
+      return <CancellationTerms result={result as DecisionResult<"cancellation_terms">} />;
     case "form_schedule":
       return (
         <Rows
@@ -208,6 +210,25 @@ function NoticeRules({ result }: { result: DecisionResult<"notice_rules"> }) {
         ["Allowed reasons", words(result.allowedReasons)],
         ["Delivery", words(result.deliveryMethods)],
         ["Recipients", words(result.recipients)],
+      ]}
+    />
+  );
+}
+
+function CancellationTerms({ result }: { result: DecisionResult<"cancellation_terms"> }) {
+  if (!result) return <p className="m-0 text-sm text-muted-foreground">No rule matched.</p>;
+
+  const minimum = result.minimumEarnedType
+    ? `${result.minimumEarnedType === "percent" ? `${result.minimumEarnedValue}%` : result.minimumEarnedValue} of the ${result.minimumEarnedLevel ?? "policy"} premium`
+    : "None";
+
+  return (
+    <Facts
+      facts={[
+        ["Method", humanize(result.method ?? "pro_rata")],
+        ["Minimum earned", minimum],
+        ["Applies to", words(result.minimumEarnedAppliesTo ?? [])],
+        ["Fully earned fees", words(result.fullyEarnedFees ?? [])],
       ]}
     />
   );

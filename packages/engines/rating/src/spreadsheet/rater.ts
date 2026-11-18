@@ -94,7 +94,18 @@ function bind(engine: WorkbookEngine, label: string): CellLocation {
 }
 
 export function createSpreadsheetRater(workbook: WorkbookModel, source: BindingManifest): Rater {
-  const manifest = bindingManifestSchema.parse(source);
+  const parsed = bindingManifestSchema.safeParse(source);
+
+  if (!parsed.success) {
+    throw new RatingError(parsed.error.issues[0]?.message ?? "The bindings aren't complete", {
+      issues: parsed.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  const manifest = parsed.data;
   const engine = warmEngine(workbook);
 
   if (engine.problems.length) {

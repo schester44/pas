@@ -7,6 +7,8 @@ interface KindDefinition<R extends Row | undefined, Result> {
   label: string;
   cardinality: "many" | "one";
   row: R;
+  /** Lifecycle inputs the caller adds to the risk data for this kind (e.g. `notice.reason`). */
+  contextPaths?: readonly string[];
   aggregate: (rows: R extends Row ? z.output<R>[] : unknown, raw: unknown) => Result;
 }
 
@@ -27,6 +29,19 @@ function toDecimal(value: number | string): string {
 const decimal = z
   .union([z.number().finite(), z.string().regex(/^-?\d+(\.\d+)?$/, "Use a decimal number")])
   .transform(toDecimal);
+
+function contractMessage(issue: z.core.$ZodIssue): string {
+  if (issue.code === "invalid_value") {
+    return `use one of ${issue.values.map((value) => String(value)).join(", ")}`;
+  }
+
+  if (issue.code === "invalid_type" && issue.message.endsWith("received undefined"))
+    return "is required";
+
+  if (issue.code === "too_small" && issue.origin === "string") return "is required";
+
+  return issue.message;
+}
 
 export const UNDERWRITING_OUTCOMES = ["pass", "info_needed", "refer", "decline"] as const;
 
@@ -141,6 +156,13 @@ export const DECISION_KINDS = {
   notice_rules: defineKind({
     label: "Notice rules",
     cardinality: "one",
+    contextPaths: [
+      "notice",
+      "notice.type",
+      "notice.reason",
+      "notice.initiator",
+      "notice.policyAgeDays",
+    ],
     row: z.object({
       minDaysNotice: z.number().int().min(0),
       mailingDaysAdded: z.number().int().min(0),
@@ -149,6 +171,28 @@ export const DECISION_KINDS = {
       recipients: codes.min(1),
       mustStateReason: z.boolean().optional(),
     }),
+    aggregate: (rows) => rows[0] ?? null,
+  }),
+  cancellation_terms: defineKind({
+    label: "Cancellation terms",
+    cardinality: "one",
+    contextPaths: ["cancellation", "cancellation.reason", "cancellation.initiator"],
+    row: z
+      .object({
+        method: z.enum(["pro_rata"]).optional(),
+        minimumEarnedType: z.enum(["percent", "flat"]).optional(),
+        minimumEarnedValue: decimal.optional(),
+        minimumEarnedLevel: z.enum(["policy", "coverage"]).optional(),
+        minimumEarnedAppliesTo: codes.optional(),
+        fullyEarnedFees: codes.optional(),
+      })
+      .refine(
+        (row) => (row.minimumEarnedType === undefined) === (row.minimumEarnedValue === undefined),
+        {
+          message: "Give both the minimum earned type and value",
+          path: ["minimumEarnedValue"],
+        },
+      ),
     aggregate: (rows) => rows[0] ?? null,
   }),
   dea: defineKind({
@@ -200,6 +244,9 @@ export const DECISION_KIND_KEYS = Object.keys(DECISION_KINDS) as DecisionKind[];
 export type DecisionResult<K extends DecisionKind> = ReturnType<
   (typeof DECISION_KINDS)[K]["aggregate"]
 >;
+
+export const kindContextPaths = (kind: DecisionKind): readonly string[] =>
+  (DECISION_KINDS[kind] as { contextPaths?: readonly string[] }).contextPaths ?? [];
 
 export interface ContractField {
   key: string;
@@ -282,7 +329,7 @@ export function aggregate<K extends DecisionKind>(kind: K, raw: unknown): Decisi
     if (result.success) parsed.push(result.data);
     else {
       for (const issue of result.error.issues) {
-        issues.push({ row: index, path: issue.path.join("."), message: issue.message });
+        issues.push({ row: index, path: issue.path.join("."), message: contractMessage(issue) });
       }
     }
   }

@@ -1,3 +1,4 @@
+import type { AdminOutputs } from "@pas/api-client";
 import { Button } from "@pas/ui/components/button";
 import {
   Dialog,
@@ -93,75 +94,127 @@ function ProductsPage() {
               }
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Line of business</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.isPending &&
-                  Array.from({ length: 3 }, (_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={4}>
-                        <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
-                      </TableCell>
+            <>
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Line of business</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Created</TableHead>
                     </TableRow>
-                  ))}
-                {products.data?.map((product) => {
-                  const status = STATUS[product.status] ?? {
-                    label: product.status,
-                    tone: "neutral" as const,
-                  };
+                  </TableHeader>
+                  <TableBody>
+                    {products.isPending &&
+                      Array.from({ length: 3 }, (_, i) => (
+                        <TableRow key={i}>
+                          <TableCell colSpan={4}>
+                            <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    {products.data?.map((product) => {
+                      const status = STATUS[product.status] ?? {
+                        label: product.status,
+                        tone: "neutral" as const,
+                      };
 
-                  return (
-                    <TableRow
-                      key={product.id}
-                      className="cursor-pointer hover:bg-muted/40"
-                      onClick={() =>
-                        navigate({
-                          to: "/products/$productId",
-                          params: { productId: product.id },
-                        })
-                      }
-                    >
-                      <TableCell>
-                        <div className="grid gap-0.5">
-                          <Link
-                            to="/products/$productId"
-                            params={{ productId: product.id }}
-                            className="font-medium outline-none hover:underline focus-visible:underline"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {product.name}
-                          </Link>
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {product.key}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground capitalize">
-                        {product.lineOfBusiness}
-                      </TableCell>
-                      <TableCell>
-                        <StatusChip tone={status.tone}>{status.label}</StatusChip>
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {formatDate(product.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      return (
+                        <TableRow
+                          key={product.id}
+                          className="cursor-pointer hover:bg-muted/40"
+                          onClick={() =>
+                            navigate({
+                              to: "/products/$productId",
+                              params: { productId: product.id },
+                            })
+                          }
+                        >
+                          <TableCell>
+                            <div className="grid gap-0.5">
+                              <Link
+                                to="/products/$productId"
+                                params={{ productId: product.id }}
+                                className="font-medium outline-none hover:underline focus-visible:underline"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                {product.name}
+                              </Link>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {product.key}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground capitalize">
+                            {product.lineOfBusiness}
+                          </TableCell>
+                          <TableCell>
+                            <StatusChip tone={status.tone}>{status.label}</StatusChip>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground tabular-nums">
+                            {formatDate(product.createdAt)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <ProductList products={products.data} />
+            </>
           )}
         </Panel>
       </PageBody>
       <CreateProductDialog open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+type Product = AdminOutputs["catalog"]["products"]["list"][number];
+
+function ProductList({ products }: { products: Product[] | undefined }) {
+  if (!products) {
+    return (
+      <div className="grid divide-y lg:hidden">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className="grid gap-2 px-(--card-p) py-4">
+            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="m-0 grid list-none divide-y p-0 lg:hidden">
+      {products.map((product) => {
+        const status = STATUS[product.status] ?? {
+          label: product.status,
+          tone: "neutral" as const,
+        };
+
+        return (
+          <li key={product.id}>
+            <Link
+              to="/products/$productId"
+              params={{ productId: product.id }}
+              className="flex items-start gap-3 px-(--card-p) py-4 outline-none hover:bg-muted/40 focus-visible:bg-muted/40"
+            >
+              <span className="grid min-w-0 flex-1 gap-0.5">
+                <span className="truncate text-sm font-medium">{product.name}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  <span className="capitalize">{product.lineOfBusiness}</span> · Created{" "}
+                  <span className="tabular-nums">{formatDate(product.createdAt)}</span>
+                </span>
+              </span>
+              <StatusChip tone={status.tone}>{status.label}</StatusChip>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

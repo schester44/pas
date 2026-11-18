@@ -33,6 +33,14 @@ export interface RunKey {
   tenantId: TenantId;
 }
 
+export interface TimerRow {
+  run_id: string;
+  step_id: string;
+  wake_at: Date;
+  workflow_id: string;
+  input: unknown;
+}
+
 interface StepResult {
   value?: unknown;
 }
@@ -189,27 +197,54 @@ export class WorkflowStore {
     stepId: string,
     event: string | null,
     timeoutMs: number | null,
+    offsetMs: number,
   ): Promise<{ wakeAt: Date | null; due: boolean; created: boolean }> {
     const values = [key.runId, key.tenantId, stepId];
 
     const inserted = await db.query<{ wake_at: Date | null; due: boolean }>(
       `INSERT INTO ${this.s}.waits (run_id, tenant_id, step_id, event, wake_at)
-       VALUES ($1, $2, $3, $4, now() + $5 * interval '1 millisecond')
+       VALUES ($1, $2, $3, $4, now() + ($6::bigint + $5) * interval '1 millisecond')
        ON CONFLICT (run_id, step_id) DO NOTHING
-       RETURNING wake_at, coalesce(wake_at <= now(), false) AS due`,
-      [...values, event, timeoutMs],
+       RETURNING wake_at, coalesce(wake_at <= now() + $6::bigint * interval '1 millisecond', false) AS due`,
+      [...values, event, timeoutMs, offsetMs],
     );
 
     if (inserted.rows[0])
       return { wakeAt: inserted.rows[0].wake_at, due: inserted.rows[0].due, created: true };
 
     const { rows } = await db.query<{ wake_at: Date | null; due: boolean }>(
-      `SELECT wake_at, coalesce(wake_at <= now(), false) AS due FROM ${this.s}.waits
+      `SELECT wake_at, coalesce(wake_at <= now() + $4::bigint * interval '1 millisecond', false) AS due
+       FROM ${this.s}.waits
        WHERE run_id = $1 AND tenant_id = $2 AND step_id = $3`,
-      values,
+      [...values, offsetMs],
     );
 
     return { wakeAt: rows[0]!.wake_at, due: rows[0]!.due, created: false };
+  }
+
+  /** Timed waits of live runs, earliest first, in tenant time. */
+  async timers(tenantId: TenantId, until: Date | null, limit: number): Promise<TimerRow[]> {
+    const { rows } = await this.pool.query<TimerRow>(
+      `SELECT w.run_id, w.step_id, w.wake_at, r.workflow_id, r.input
+       FROM ${this.s}.waits w JOIN ${this.s}.runs r ON r.id = w.run_id
+       WHERE w.tenant_id = $1 AND w.wake_at IS NOT NULL AND r.status IN ${LIVE}
+         AND ($2::timestamptz IS NULL OR w.wake_at <= $2)
+       ORDER BY w.wake_at, w.run_id
+       LIMIT $3`,
+      [tenantId, until, limit],
+    );
+
+    return rows;
+  }
+
+  async activeRuns(tenantId: TenantId): Promise<number> {
+    const { rows } = await this.pool.query<{ active: number }>(
+      `SELECT count(*)::int AS active FROM ${this.s}.runs
+       WHERE tenant_id = $1 AND status IN ('pending', 'running')`,
+      [tenantId],
+    );
+
+    return rows[0]?.active ?? 0;
   }
 
   async suspend({ runId, tenantId }: RunKey): Promise<void> {

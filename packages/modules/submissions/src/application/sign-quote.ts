@@ -1,4 +1,10 @@
-import { conflict, invalid, type Clock, type TenantContext, type UnitOfWork } from "@pas/kernel";
+import {
+  conflict,
+  invalid,
+  type TenantContext,
+  type UnitOfWork,
+  type ClockProvider,
+} from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { outstandingFor } from "../domain/bind-requirements";
 import type { SubmissionScope } from "../domain/scope";
@@ -21,7 +27,7 @@ export function makeSignQuote(deps: {
   renderPacket: RenderQuotePacket;
   esign: ESignGateway;
   storage: ObjectStorage;
-  clock: Clock;
+  clocks: ClockProvider;
 }) {
   return async function signQuote(
     ctx: TenantContext,
@@ -58,7 +64,7 @@ export function makeSignQuote(deps: {
     }
 
     const packet = await deps.renderPacket(ctx, scope, input);
-    const signedAt = deps.clock.now();
+    const signedAt = deps.clocks.forTenant(ctx.tenantId).now();
     const q = quote.toSnapshot();
 
     const signed = await deps.esign.sign(
@@ -107,7 +113,7 @@ export function makeSignQuote(deps: {
           documentKey,
           documentSha256: signed.sha256,
         },
-        deps.clock,
+        deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.quotes.save(tx, current.quote);

@@ -1,5 +1,5 @@
 import { prismaTx } from "@pas/db";
-import type { PolicyTermStatus as DbTermStatus, Prisma } from "@pas/db/client";
+import { type PolicyTermStatus as DbTermStatus, Prisma } from "@pas/db/client";
 import { asId, type Jurisdiction, Money, type TenantContext, type Transaction } from "@pas/kernel";
 import {
   type FinancialTransactionProps,
@@ -7,10 +7,12 @@ import {
   type PolicyId,
   type PolicyTermId,
   type PolicyTransactionProps,
+  type TermCancellation,
   type TermStatus,
 } from "../domain/policy";
 import type { PolicyEventProps } from "../domain/policy-event";
 import type { PolicyScope } from "../domain/scope";
+import { detailsFromJson, detailsToJson } from "./transaction-details";
 import type { PolicyRepository } from "../ports/policy-repository";
 
 const toDbStatus = (s: TermStatus) => s.toUpperCase() as DbTermStatus;
@@ -60,6 +62,14 @@ export class PrismaPolicyRepository implements PolicyRepository {
       const data = {
         status: toDbStatus(term.status),
         activatedAt: term.activatedAt ? toDate(term.activatedAt) : null,
+        cancellation: term.cancellation
+          ? ({
+              ...term.cancellation,
+              effectiveDate: term.cancellation.effectiveDate.toString(),
+            } as Prisma.InputJsonValue)
+          : Prisma.DbNull,
+        writtenPremium: term.writtenPremium.toString(),
+        taxesAndFees: term.taxesAndFees.toString(),
         updatedAt: toDate(term.updatedAt),
       };
 
@@ -79,8 +89,6 @@ export class PrismaPolicyRepository implements PolicyRepository {
           effectiveDate: dateToDb(term.effectiveDate),
           expirationDate: dateToDb(term.expirationDate),
           currency: term.writtenPremium.currency,
-          writtenPremium: term.writtenPremium.toString(),
-          taxesAndFees: term.taxesAndFees.toString(),
           boundAt: toDate(term.boundAt),
         },
       });
@@ -92,17 +100,25 @@ export class PrismaPolicyRepository implements PolicyRepository {
       await db.policyTransaction.createMany({
         data: added.transactions.map((t) => ({
           ...base,
+          ...transactionRow(t),
           id: t.id,
           termId: t.termId,
           type: t.type,
-          status: t.status,
-          effectiveDate: dateToDb(t.effectiveDate),
           currency: t.premiumDelta.currency,
-          premiumDelta: t.premiumDelta.toString(),
-          issuedAt: toDate(t.issuedAt),
-          recordedAt: toDate(t.issuedAt),
+          createdBy: (t.createdBy ?? undefined) as Prisma.InputJsonValue | undefined,
+          createdAt: toDate(t.createdAt),
+          recordedAt: toDate(t.createdAt),
         })),
       });
+    }
+
+    for (const t of added.touched) {
+      const { count } = await db.policyTransaction.updateMany({
+        where: { id: t.id, tenantId: p.tenantId, status: { not: "issued" } },
+        data: transactionRow(t),
+      });
+
+      if (count !== 1) throw new Error(`Transaction ${t.id} is issued and can't change`);
     }
 
     if (added.versions.length > 0) {
@@ -301,6 +317,7 @@ export class PrismaPolicyRepository implements PolicyRepository {
           taxesAndFees: money(t.taxesAndFees, t.currency),
           boundAt: toInstant(t.boundAt),
           activatedAt: t.activatedAt ? toInstant(t.activatedAt) : null,
+          cancellation: cancellationFromJson(t.cancellation),
           updatedAt: toInstant(t.updatedAt),
         })),
         transactions: transactions
@@ -312,7 +329,12 @@ export class PrismaPolicyRepository implements PolicyRepository {
             status: t.status as PolicyTransactionProps["status"],
             effectiveDate: dateFromDb(t.effectiveDate),
             premiumDelta: money(t.premiumDelta, t.currency),
-            issuedAt: toInstant(t.issuedAt),
+            baseVersion: t.baseVersion,
+            details: detailsFromJson(t.details),
+            createdBy: (t.createdBy as unknown as PolicyTransactionProps["createdBy"]) ?? null,
+            createdAt: toInstant(t.createdAt),
+            updatedAt: toInstant(t.updatedAt),
+            issuedAt: t.issuedAt ? toInstant(t.issuedAt) : null,
           })),
         versions: versions
           .filter((v) => termIds.has(v.termId))
@@ -370,6 +392,26 @@ export class PrismaPolicyRepository implements PolicyRepository {
       });
     });
   }
+}
+
+function transactionRow(t: PolicyTransactionProps) {
+  return {
+    status: t.status,
+    effectiveDate: dateToDb(t.effectiveDate),
+    premiumDelta: t.premiumDelta.toString(),
+    baseVersion: t.baseVersion,
+    details: detailsToJson(t.details) ?? Prisma.DbNull,
+    updatedAt: toDate(t.updatedAt),
+    issuedAt: t.issuedAt ? toDate(t.issuedAt) : null,
+  };
+}
+
+function cancellationFromJson(value: unknown): TermCancellation | null {
+  if (!value || typeof value !== "object") return null;
+
+  const json = value as Omit<TermCancellation, "effectiveDate"> & { effectiveDate: string };
+
+  return { ...json, effectiveDate: Temporal.PlainDate.from(json.effectiveDate) };
 }
 
 function eventRow(tenantId: string, policyId: string, e: PolicyEventProps) {

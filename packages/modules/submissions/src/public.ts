@@ -48,3 +48,4 @@ export type { ProductCatalog } from "./ports/product-catalog";
 export type { QuoteDocuments } from "./ports/quote-documents";
 export type { QuoteRepository } from "./ports/quote-repository";
 export type { SubmissionRepository } from "./ports/submission-repository";
+export { makeRateTerm, type RateTerm } from "./application/rate-term";
