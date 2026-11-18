@@ -7,8 +7,8 @@ export function useSwitchOrganization() {
 
   return async (organizationId: string) => {
     await authClient.organization.setActive({ organizationId });
-    queryClient.clear();
     await router.invalidate();
+    await queryClient.resetQueries();
   };
 }
 
