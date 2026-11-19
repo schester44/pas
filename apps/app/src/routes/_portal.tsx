@@ -1,3 +1,4 @@
+import { loadSession } from "@pas/auth/client";
 import { Brand } from "@pas/ui/components/brand";
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import { queryClient, useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_portal")({
   beforeLoad: async () => {
-    const { data } = await authClient.getSession();
+    const data = await loadSession(authClient);
 
     if (!data) throw redirect({ to: "/login", search: { as: "client" } });
 

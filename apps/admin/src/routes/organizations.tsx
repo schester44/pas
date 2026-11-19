@@ -1,3 +1,4 @@
+import { loadSession } from "@pas/auth/client";
 import { Brand } from "@pas/ui/components/brand";
 import { Button } from "@pas/ui/components/button";
 import { Card, CardContent } from "@pas/ui/components/card";
@@ -13,7 +14,7 @@ import { slugify } from "@/lib/format";
 
 export const Route = createFileRoute("/organizations")({
   beforeLoad: async () => {
-    const { data } = await authClient.getSession();
+    const data = await loadSession(authClient);
 
     if (!data) throw redirect({ to: "/login" });
   },

@@ -1,3 +1,4 @@
+import { loadSession } from "@pas/auth/client";
 import { Brand } from "@pas/ui/components/brand";
 import { AppShell, NavSection, navItemClassName } from "@pas/ui/components/app-shell";
 import { Kbd } from "@pas/ui/components/command";
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/_authed")({
 });
 
 async function resolveSession() {
-  const { data } = await authClient.getSession();
+  const data = await loadSession(authClient);
 
   if (!data) throw redirect({ to: "/login" });
 
@@ -66,11 +67,11 @@ async function resolveSession() {
   if (!only) throw redirect({ to: "/organizations" });
 
   await authClient.organization.setActive({ organizationId: only.id });
-  const refreshed = await authClient.getSession({ query: { disableCookieCache: true } });
+  const refreshed = await loadSession(authClient, { disableCookieCache: true });
 
-  if (!refreshed.data) throw redirect({ to: "/login" });
+  if (!refreshed) throw redirect({ to: "/login" });
 
-  return refreshed.data;
+  return refreshed;
 }
 
 function AuthedLayout() {
