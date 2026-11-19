@@ -3,6 +3,7 @@ import { newId } from "@pas/kernel";
 import { z } from "zod";
 import type { CardPayments, EmailSender, ESignProvider, PrintMail } from "../../ports/adapters";
 import type { AnyProviderPackage, ProviderManifest } from "../../ports/provider-catalog";
+import { builtinAddressProvider } from "./addresses";
 
 const builtin = {
   vendor: "Built in",
@@ -18,12 +19,13 @@ const builtin = {
 
 const ok = async () => ({ ok: true, detail: "Built in; always available" });
 
-/** Test print and mail: accepts every letter, mails nothing. */
+/** Test print and mail: accepts every letter, mails nothing, and certifies mailing at once. */
 const testPrintMail: PrintMail = {
   async sendLetter(letter) {
     return {
       providerRef: `ltr_test_${newId()}`,
-      status: "created",
+      status: "mailed",
+      mailed: true,
       trackingNumber:
         letter.mailType === "first_class"
           ? null
@@ -50,6 +52,8 @@ export function builtinProviders(adapters: {
     capture: (ctx, input) => adapters.payments.capture(ctx, input),
     void: (ctx, input) => adapters.payments.void(ctx, input),
     refund: (ctx, input) => adapters.payments.refund(ctx, input),
+    saveMethod: (ctx, input) => adapters.payments.saveMethod(ctx, input),
+    chargeSaved: (ctx, input) => adapters.payments.chargeSaved(ctx, input),
   };
 
   const data = adapters.data ?? createFakeDataProvider({ id: "sandbox_data" });
@@ -63,7 +67,7 @@ export function builtinProviders(adapters: {
         category: "payments",
         summary: "Test card numbers; no money moves.",
         description:
-          "Accepts 4242 4242 4242 4242 and declines 4000 0000 0000 0002, with authorize, capture, void and refunds behaving like a real gateway.",
+          "Accepts 4242 4242 4242 4242 and declines 4000 0000 0000 0002, with authorize, capture, void, refunds and saved cards behaving like a real gateway. 4000 0000 0000 0341 pays at bind but its autopay charges decline.",
         capabilities: ["Authorize and capture", "Declines on demand", "Refunds"],
         logo: { icon: "card" },
       },
@@ -109,7 +113,7 @@ export function builtinProviders(adapters: {
         category: "print_mail",
         summary: "Accepts letters and mails nothing.",
         description:
-          "Returns a test letter id and, for certified mail, a test tracking number. No tracking events or proof of mailing follow.",
+          "Returns a test letter id and, for certified mail, a test tracking number, and records a test proof of mailing at once. Nothing is printed or mailed.",
         capabilities: ["First-class and certified requests"],
         logo: { icon: "printer" },
       },
@@ -138,6 +142,7 @@ export function builtinProviders(adapters: {
       create: () => data,
       check: ok,
     },
+    builtinAddressProvider(),
   ];
 }
 

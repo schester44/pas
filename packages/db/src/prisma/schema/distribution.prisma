@@ -1,0 +1,156 @@
+/// An agency or one of its branches/sub-agencies (PLAN §4 Distribution). Agency-bill terms are data
+/// the billing context reads later (PLAN §13).
+model Agency {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id")
+  parentId           String?  @map("parent_id") @db.Uuid
+  name               String
+  legalName          String?  @map("legal_name")
+  fein               String?
+  address            Json?
+  phone              String?
+  email              String?
+  status             String
+  tier               String
+  agencyBillEligible Boolean  @default(false) @map("agency_bill_eligible")
+  remittanceDays     Int?     @map("remittance_days")
+  creditLimit        Decimal? @map("credit_limit") @db.Decimal(18, 2)
+  currency           String   @default("USD") @db.Char(3)
+  createdAt          DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, parentId])
+  @@index([tenantId, name])
+  @@map("agencies")
+}
+
+/// A licensed person who sells for one or more agencies, linked to a Better Auth user once they join.
+model Producer {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id")
+  userId         String?  @map("user_id")
+  name           String
+  email          String
+  producerNumber String?  @map("producer_number")
+  npn            String?
+  status         String
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, userId])
+  @@unique([tenantId, email])
+  @@index([tenantId, npn])
+  @@map("producers")
+}
+
+model AgencyMembership {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id")
+  agencyId   String   @map("agency_id") @db.Uuid
+  producerId String   @map("producer_id") @db.Uuid
+  role       String
+  primary    Boolean  @default(false)
+  createdAt  DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, agencyId, producerId])
+  @@index([tenantId, producerId])
+  @@map("agency_memberships")
+}
+
+model ProducerLicense {
+  id               String    @id @db.Uuid
+  tenantId         String    @map("tenant_id")
+  producerId       String    @map("producer_id") @db.Uuid
+  npn              String
+  country          String    @db.Char(2)
+  subdivision      String    @db.VarChar(6)
+  licenseNumber    String    @map("license_number")
+  linesOfAuthority String[]  @map("lines_of_authority")
+  effectiveDate    DateTime  @map("effective_date") @db.Date
+  expirationDate   DateTime? @map("expiration_date") @db.Date
+  status           String
+  source           String
+  verifiedAt       DateTime? @map("verified_at") @db.Timestamptz(6)
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, producerId])
+  @@index([tenantId, expirationDate])
+  @@map("producer_licenses")
+}
+
+model Appointment {
+  id             String    @id @db.Uuid
+  tenantId       String    @map("tenant_id")
+  agencyId       String?   @map("agency_id") @db.Uuid
+  producerId     String?   @map("producer_id") @db.Uuid
+  carrier        String
+  country        String    @db.Char(2)
+  subdivision    String    @db.VarChar(6)
+  status         String
+  effectiveDate  DateTime  @map("effective_date") @db.Date
+  terminatedDate DateTime? @map("terminated_date") @db.Date
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, agencyId])
+  @@index([tenantId, producerId])
+  @@map("appointments")
+}
+
+/// Per product: which lines of authority a producer needs and what bind does without them (PLAN §11).
+model LicensingRequirement {
+  id               String   @id @db.Uuid
+  tenantId         String   @map("tenant_id")
+  productId        String   @map("product_id") @db.Uuid
+  mode             String
+  linesOfAuthority String[] @map("lines_of_authority")
+  updatedAt        DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, productId])
+  @@map("licensing_requirements")
+}
+
+/// Commission rate per product × jurisdiction × new|renewal × agency tier; null matches any (PLAN §13).
+model CommissionSchedule {
+  id             String    @id @db.Uuid
+  tenantId       String    @map("tenant_id")
+  productId      String?   @map("product_id") @db.Uuid
+  country        String    @db.Char(2)
+  subdivision    String?   @db.VarChar(6)
+  business       String?
+  tier           String?
+  rate           Decimal   @db.Decimal(7, 4)
+  effectiveDate  DateTime  @map("effective_date") @db.Date
+  expirationDate DateTime? @map("expiration_date") @db.Date
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, productId])
+  @@map("commission_schedules")
+}
+
+/// Commission earned on one premium financial transaction. Immutable; corrections are new rows.
+model Commission {
+  id                     String   @id @db.Uuid
+  tenantId               String   @map("tenant_id")
+  financialTransactionId String   @map("financial_transaction_id") @db.Uuid
+  transactionId          String   @map("transaction_id") @db.Uuid
+  transactionType        String   @map("transaction_type")
+  policyId               String   @map("policy_id") @db.Uuid
+  policyNumber           String   @map("policy_number")
+  insuredName            String   @map("insured_name")
+  agencyId               String?  @map("agency_id") @db.Uuid
+  producerId             String   @map("producer_id")
+  scheduleId             String?  @map("schedule_id") @db.Uuid
+  business               String
+  premium                Decimal  @db.Decimal(18, 2)
+  rate                   Decimal  @db.Decimal(7, 4)
+  amount                 Decimal  @db.Decimal(18, 2)
+  currency               String   @db.Char(3)
+  effectiveDate          DateTime @map("effective_date") @db.Date
+  recordedAt             DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, financialTransactionId])
+  @@index([tenantId, agencyId, recordedAt])
+  @@index([tenantId, policyId])
+  @@map("commissions")
+}

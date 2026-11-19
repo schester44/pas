@@ -1,3 +1,5 @@
+import { installmentWorkflow, type InstallmentTimers } from "@pas/billing";
+import { filingWorkflow, obligationWorkflow, type ObligationTimers } from "@pas/compliance";
 import type { TenantContext } from "@pas/kernel";
 import { policyCancellationWorkflow, policyTermWorkflow, type TermTimers } from "@pas/policy";
 import { type QuoteTimers, quoteJourneyWorkflow } from "@pas/submissions";
@@ -20,6 +22,8 @@ export function makeSandboxTimers(deps: {
   workflows: PostgresWorkflows;
   terms: TermTimers;
   quotes: QuoteTimers;
+  installments: InstallmentTimers;
+  obligations: ObligationTimers;
 }): SandboxTimers {
   const describers: Record<string, Describe> = {
     [policyTermWorkflow.id]: async (ctx, timer) => {
@@ -31,6 +35,45 @@ export function makeSandboxTimers(deps: {
       const policy = await deps.terms.describe(ctx, timer.input as { termId: string });
 
       return { label: "Cancellation takes effect", reference: policy?.number ?? null };
+    },
+    [installmentWorkflow.id]: async (ctx, timer) => {
+      const invoice = await deps.installments.describe(ctx, timer.input as { invoiceId: string });
+      const step = timer.stepId.replace(/^wait-/, "");
+
+      const label =
+        {
+          open: "Installment invoice opens",
+          charge: "Installment due (autopay)",
+          "past-due": "Installment past due",
+          remind: "Payment reminder",
+          delinquent: "Grace period ends",
+        }[step] ?? (step.startsWith("retry") ? "Autopay retry" : "Installment step");
+
+      return { label, reference: invoice ? `${invoice.policyNumber} · ${invoice.number}` : null };
+    },
+    [obligationWorkflow.id]: async (ctx, timer) => {
+      const obligation = await deps.obligations.describe(
+        ctx,
+        timer.input as { obligationId: string },
+      );
+
+      const step = timer.stepId.replace(/^wait-/, "");
+
+      const what =
+        { remind: "reminder", overdue: "deadline", escalate: "escalation" }[step] ?? "timer";
+
+      return {
+        label: `${obligation?.title ?? "Obligation"} ${what}`,
+        reference: obligation?.reference ?? null,
+      };
+    },
+    [filingWorkflow.id]: async (ctx, timer) => {
+      const obligation = await deps.obligations.describe(
+        ctx,
+        timer.input as { obligationId: string },
+      );
+
+      return { label: "Filing answer check", reference: obligation?.reference ?? null };
     },
     [quoteJourneyWorkflow.id]: async (ctx, timer) => {
       const quote = await deps.quotes.describe(ctx, timer.input as { quoteId: string });

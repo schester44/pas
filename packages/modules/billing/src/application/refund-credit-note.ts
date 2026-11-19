@@ -1,7 +1,6 @@
 import {
   asId,
   Money,
-  newId,
   type TenantContext,
   type UnitOfWork,
   type ClockProvider,
@@ -9,12 +8,7 @@ import {
 } from "@pas/kernel";
 import type { InvoiceRepository } from "../ports/invoice-repository";
 import type { PaymentGateway } from "../ports/payment-gateway";
-import type { PolicyTimeline } from "../ports/policy-timeline";
-
-const format = (money: Money) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: money.currency }).format(
-    Number(money.toString()),
-  );
+import type { ApplyBillingEvent } from "./apply-billing-event";
 
 /**
  * Pays a credit note back to the card that paid the policy, up to what was paid and not yet
@@ -24,7 +18,7 @@ export function makeRefundCreditNote(deps: {
   uow: UnitOfWork;
   invoices: InvoiceRepository;
   gateway: ProviderFor<PaymentGateway>;
-  timeline: PolicyTimeline;
+  applyEvent: ApplyBillingEvent;
   clocks: ClockProvider;
 }) {
   return async function refundCreditNote(
@@ -47,12 +41,17 @@ export function makeRefundCreditNote(deps: {
         .filter((p) => p.provider === gateway.provider)
         .reduce((sum, p) => sum.plus(p.amount), Money.zero(c.total.currency));
 
-      const owed = credit.balance.negated();
-      const amount = owed.amount.greaterThan(refundable.amount) ? refundable : owed;
-
       const source = payments.find((p) => p.kind === "payment" && p.provider === gateway.provider);
 
-      if (!amount.amount.isPositive() || !source) return null;
+      if (!source) return null;
+
+      const owed = credit.balance.negated();
+
+      const amount = [owed, refundable, source.amount].reduce((a, b) =>
+        a.amount.lessThan(b.amount) ? a : b,
+      );
+
+      if (!amount.amount.greaterThan(0)) return null;
 
       return { amount, source, number: c.number, policyId: c.policyId };
     });
@@ -65,36 +64,19 @@ export function makeRefundCreditNote(deps: {
       idempotencyKey: `refund:${input.invoiceId}`,
     });
 
-    await deps.uow.run(ctx, async (tx) => {
-      const credit = (await deps.invoices.findById(tx, ctx, asId(input.invoiceId)))!;
+    const method = plan.source.method as { brand?: string; last4?: string };
 
-      if (await deps.invoices.findPayment(tx, ctx, gateway.provider, refundId)) return;
-
-      credit.applyRefund(plan.amount, deps.clocks.forTenant(ctx.tenantId));
-      await deps.invoices.save(tx, credit);
-
-      await deps.invoices.addPayment(tx, ctx, {
-        id: newId(),
-        kind: "refund",
-        policyId: plan.policyId,
-        invoiceId: credit.id,
-        provider: gateway.provider,
-        providerRef: refundId,
-        method: { ...plan.source.method },
-        amount: plan.amount.negated(),
-        receivedAt: deps.clocks.forTenant(ctx.tenantId).now(),
-      });
-
-      const method = plan.source.method as { brand?: string; last4?: string };
-
-      await deps.timeline.record(tx, ctx, {
-        policyId: plan.policyId,
-        type: "refund_issued",
-        invoiceId: credit.id,
-        actor: { type: "system", name: "Billing" },
-        summary: `Refund of ${format(plan.amount)} issued${method.last4 ? ` to ${method.brand ?? "card"} ending ${method.last4}` : ""} for ${plan.number}`,
-        data: { invoiceNumber: plan.number, amount: plan.amount.toJSON(), reference: refundId },
-      });
+    await deps.applyEvent(ctx, {
+      eventId: `refund:${refundId}`,
+      source: "pas",
+      type: "refund.issued",
+      occurredAt: deps.clocks.forTenant(ctx.tenantId).now(),
+      invoiceId: input.invoiceId,
+      amount: plan.amount,
+      provider: gateway.provider,
+      reference: refundId,
+      method,
+      actor: { type: "system", name: "Billing" },
     });
   };
 }

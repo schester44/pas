@@ -11,6 +11,8 @@ export type VersionForm = ProductVersion["forms"][number];
 export type VersionDecision = ProductVersion["rules"][number];
 export type DecisionTest = VersionDecision["tests"][number];
 export type RatingConfig = NonNullable<ProductVersion["rating"]>;
+export type BillingConfig = ProductVersion["billing"];
+export type PayPlan = BillingConfig["payPlans"][number];
 
 export type Contents = Pick<
   ProductVersion,
@@ -22,6 +24,7 @@ export type Contents = Pick<
   | "documents"
   | "rules"
   | "rating"
+  | "billing"
 >;
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
@@ -49,6 +52,7 @@ const pick = (version: ProductVersion): Contents => ({
   documents: version.documents,
   rules: version.rules,
   rating: version.rating,
+  billing: version.billing,
 });
 
 export function VersionEditorProvider({

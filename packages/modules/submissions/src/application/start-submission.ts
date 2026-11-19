@@ -22,6 +22,7 @@ export interface StartSubmissionInput {
   jurisdiction: Jurisdiction;
   effectiveDate: string;
   producerName: string;
+  producerAgencyId?: string | null;
 }
 
 const CHANNEL: SubmissionChannel = "agent";
@@ -42,7 +43,12 @@ export function makeStartSubmission(deps: {
       throw new DomainError("forbidden", "Only a signed-in producer can start a submission");
     }
 
-    const producer = { userId: ctx.actor.userId, name: input.producerName };
+    const producer = {
+      userId: ctx.actor.userId,
+      name: input.producerName,
+      agencyId: input.producerAgencyId ?? null,
+    };
+
     const where = jurisdiction(input.jurisdiction.country, input.jurisdiction.subdivision);
     const effectiveDate = parseEffectiveDate(input.effectiveDate);
 

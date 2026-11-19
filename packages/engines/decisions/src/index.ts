@@ -15,7 +15,15 @@ export {
 export * from "./jdm";
 export {
   aggregate,
+  CHANNEL_KINDS,
   contractFields,
+  DUE_FROM,
+  OBLIGATION_KINDS,
+  REPORT_FREQUENCIES,
+  type ChannelKind,
+  type DueFrom,
+  type ObligationKind,
+  type ReportFrequency,
   DECISION_KIND_KEYS,
   DECISION_KINDS,
   kindContextPaths,

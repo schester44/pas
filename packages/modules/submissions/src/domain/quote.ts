@@ -21,6 +21,7 @@ import {
 } from "./quote-activity";
 import { type BindRequirement, deriveBindRequirements } from "./bind-requirements";
 import type { CoverageChoice } from "./coverages";
+import type { PayPlanOffer } from "./pay-plan-offers";
 import type { QuoteEvaluation } from "./quote-evaluation";
 import type { SubmissionId } from "./submission";
 import { outcomeOf, type UnderwritingReason } from "./underwriting";
@@ -88,6 +89,7 @@ export interface QuoteProps {
   details: BindDetails | null;
   signature: SignatureRecord | null;
   payment: PaymentRecord | null;
+  payPlan: string | null;
   policy: { id: string; number: string } | null;
   expiresAt: Instant;
   createdAt: Instant;
@@ -162,6 +164,7 @@ export class Quote extends AggregateRoot {
       details: null,
       signature: null,
       payment: null,
+      payPlan: null,
       policy: null,
       expiresAt: input.timing.expiresAt,
       createdAt: now,
@@ -189,6 +192,30 @@ export class Quote extends AggregateRoot {
 
   isExpiredAt(now: Instant): boolean {
     return Temporal.Instant.compare(now, this.props.expiresAt) >= 0;
+  }
+
+  /** The chosen pay plan, else the default; null when the release offers no plans. */
+  selectedPayPlan(): PayPlanOffer | null {
+    const offers = this.props.evaluation.payPlans;
+
+    return (
+      offers.find((o) => o.key === this.props.payPlan) ??
+      offers.find((o) => o.isDefault) ??
+      offers[0] ??
+      null
+    );
+  }
+
+  choosePayPlan(key: string, clock: Clock): void {
+    this.guard("prepare", clock);
+
+    if (!this.props.evaluation.payPlans.some((o) => o.key === key)) {
+      throw conflict("That pay plan isn't offered on this quote", {
+        reason: "pay_plan_unavailable",
+      });
+    }
+
+    this.props = { ...this.props, payPlan: key, updatedAt: clock.now() };
   }
 
   requirements(): BindRequirement[] {

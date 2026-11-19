@@ -1,8 +1,9 @@
 import type { PrismaClient } from "@pas/db";
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin, emailOTP, organization } from "better-auth/plugins";
-import { ac, roles } from "./permissions";
+import { ac, bookReach, DISTRIBUTION_ROLES, roles } from "./permissions";
 
 export interface AuthConfig {
   prisma: PrismaClient;
@@ -12,6 +13,13 @@ export interface AuthConfig {
   isTrustedTenantOrigin?: (origin: string) => Promise<boolean>;
   /** Delivers a client's one-time sign-in code (PLAN §7.7). */
   sendSignInCode: (input: { email: string; code: string; headers?: Headers }) => Promise<void>;
+  /** Links whatever was waiting for this person (an invited producer) once they join a tenant. */
+  onInvitationAccepted?: (input: {
+    organizationId: string;
+    userId: string;
+    email: string;
+    name: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -39,6 +47,34 @@ export function createAuth(config: AuthConfig) {
         roles,
         creatorRole: "owner",
         dynamicAccessControl: { enabled: true },
+        organizationHooks: {
+          // Agency admins may invite, but only into distribution roles.
+          beforeCreateInvitation: async ({ invitation }) => {
+            const inviter = await config.prisma.member.findFirst({
+              where: { organizationId: invitation.organizationId, userId: invitation.inviterId },
+              select: { role: true },
+            });
+
+            const invited = invitation.role.split(",").map((name) => name.trim());
+
+            if (
+              bookReach(inviter?.role ?? "") !== "tenant" &&
+              invited.some((name) => !DISTRIBUTION_ROLES.includes(name))
+            ) {
+              throw new APIError("FORBIDDEN", {
+                message: "You can only invite agents and agency admins",
+              });
+            }
+          },
+          afterAcceptInvitation: async ({ member, user }) => {
+            await config.onInvitationAccepted?.({
+              organizationId: member.organizationId,
+              userId: user.id,
+              email: user.email,
+              name: user.name,
+            });
+          },
+        },
       }),
       admin(),
       emailOTP({

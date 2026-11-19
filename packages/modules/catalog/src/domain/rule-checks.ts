@@ -17,11 +17,12 @@ import {
 
 const DECISION_KEY = /^[a-z][a-z0-9_]*$/;
 
-/** Decisions see the risk data plus the jurisdiction being quoted. */
+/** Decisions see the risk data plus the jurisdiction being quoted and its market. */
 export const DECISION_CONTEXT_PATHS = [
   "jurisdiction",
   "jurisdiction.country",
   "jurisdiction.subdivision",
+  "market",
 ] as const;
 
 export function decisionInputPaths(schema: RiskSchema, kind?: DecisionKind): string[] {

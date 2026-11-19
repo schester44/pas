@@ -17,8 +17,15 @@ import { PrismaInstallRepository } from "./prisma-install-repository";
 import { PrismaIntegrationEvents } from "./prisma-integration-events";
 import { PrismaMailPieces } from "./prisma-mail-pieces";
 import { StaticProviderCatalog } from "./provider-catalog";
+import { externalBillingProvider } from "./providers/billing-events";
+import { geoapifyProvider, smartyProvider } from "./providers/addresses";
 import { censusGeocoderProvider } from "./providers/builtin";
 import { e2valueProvider, hazardhubProvider } from "./providers/data-vendors";
+import {
+  fileExportFilingProvider,
+  slaiFilingProvider,
+  testFilingProvider,
+} from "./providers/filing";
 import { lobProvider } from "./providers/lob";
 import { postmarkProvider } from "./providers/postmark";
 import { resendProvider } from "./providers/resend";
@@ -48,9 +55,15 @@ export function composeIntegrations(deps: {
     lobProvider(),
     webhookEmailProvider(),
     webhookPrintMailProvider(),
+    externalBillingProvider(),
     censusGeocoderProvider,
     e2valueProvider(),
     hazardhubProvider(),
+    smartyProvider(),
+    geoapifyProvider(),
+    testFilingProvider,
+    fileExportFilingProvider,
+    slaiFilingProvider,
   ]);
 
   const installs = new PrismaInstallRepository(deps.prisma);
@@ -96,7 +109,7 @@ export function composeIntegrations(deps: {
     setStatus: makeSetIntegrationStatus(shared),
     test: makeTestIntegration(shared),
     handleWebhook: makeHandleWebhook({ ...shared, mail, notices: deps.notices }),
-    sendLetter: makeSendLetter({ ...shared, mail }),
+    sendLetter: makeSendLetter({ ...shared, mail, notices: deps.notices }),
   };
 }
 

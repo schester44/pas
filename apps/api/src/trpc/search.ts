@@ -1,8 +1,9 @@
-import { type Permission, seesTenantBook } from "@pas/auth";
-import { asId, type TenantContext } from "@pas/kernel";
-import { SEARCH_TYPES, type SearchScope, type SearchType } from "@pas/search";
+import type { Permission } from "@pas/auth";
+import type { TenantContext } from "@pas/kernel";
+import { SEARCH_TYPES, type SearchType } from "@pas/search";
 import { z } from "zod";
 import { appTenantProcedure } from "./app-tenant";
+import { bookScopeOf } from "./book-scope";
 import type { Context } from "./context";
 import { tenantProcedure } from "./init";
 
@@ -48,25 +49,21 @@ async function allowedTypes(
   return wanted.filter((_, i) => checks[i]);
 }
 
-const scopeFor = (staff: boolean, userId: string): SearchScope =>
-  staff ? { kind: "tenant" } : { kind: "producer", producerId: asId(userId) };
-
 export const adminSearch = tenantProcedure.input(searchInput).query(async ({ ctx, input }) => {
-  const { role } = await ctx.container.auth.api.getActiveMemberRole({ headers: ctx.headers });
-  const staff = seesTenantBook(role);
-  const types = await allowedTypes(ctx, ctx.tenant, staff, input.types);
+  const scope = await bookScopeOf(ctx, ctx.tenant);
+  const types = await allowedTypes(ctx, ctx.tenant, scope.kind === "tenant", input.types);
 
-  return ctx.container.useCases.search(ctx.tenant, scopeFor(staff, ctx.session.user.id), {
+  return ctx.container.useCases.search(ctx.tenant, scope, {
     q: input.q,
     types,
   });
 });
 
-/** Agents search their own book only; clients have no global search in the portal. */
+/** Agents search their book (own or agency); staff-only types stay out of the agent app. */
 export const appSearch = appTenantProcedure.input(searchInput).query(async ({ ctx, input }) => {
   const types = await allowedTypes(ctx, ctx.tenant, false, input.types);
 
-  return ctx.container.useCases.search(ctx.tenant, scopeFor(false, ctx.session.user.id), {
+  return ctx.container.useCases.search(ctx.tenant, await bookScopeOf(ctx, ctx.tenant), {
     q: input.q,
     types,
   });

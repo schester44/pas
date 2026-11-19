@@ -183,7 +183,7 @@ export function cancellationReturn(
     const short = minimum.minus(earned);
     const amount = short.amount.greaterThan(returned.negated().amount) ? returned.negated() : short;
 
-    if (!amount.amount.isPositive()) return [];
+    if (!amount.amount.greaterThan(0)) return [];
 
     return [{ ...at, name, minimum, amount }];
   };

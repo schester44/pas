@@ -7,6 +7,9 @@ export interface PostalAddress {
   region: string;
   postalCode: string;
   country: string;
+  /** The tenant's address registry record (PLAN §15.9). */
+  addressId?: string;
+  verified?: boolean;
 }
 
 /** What a producer captured about an insured: the input to matching and account creation. */

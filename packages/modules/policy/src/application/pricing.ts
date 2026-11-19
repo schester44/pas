@@ -22,7 +22,7 @@ import {
   type NoticeRule,
   policyAgeDays,
 } from "../domain/notice";
-import type { Policy, PolicyTermProps } from "../domain/policy";
+import type { Policy, PolicyTermProps, TransactionInvoice } from "../domain/policy";
 import {
   cancellationReturn,
   feesOnCancellation,
@@ -40,7 +40,7 @@ import {
   type RatedCoverage,
 } from "../domain/term-state";
 import type { FieldChange, TransactionDetails } from "../domain/transaction";
-import type { InvoiceIssuer } from "../ports/invoice-issuer";
+import type { InvoiceIssuer, IssuedInvoice } from "../ports/invoice-issuer";
 import type { PolicyProductConfig, PolicyRelease } from "../ports/product-config";
 import type { PolicyRepository } from "../ports/policy-repository";
 import type { CoverageAmount, CoverageChoice, TermRater } from "../ports/term-rater";
@@ -667,10 +667,15 @@ export async function billIssued(
 
   const issuedOn = today(deps.clocks.forTenant(ctx.tenantId)).toString();
 
+  const transaction = policy.transaction(transactionId);
+
   const invoice = await deps.invoices.issue(tx, ctx, {
     policyId: policy.id,
     policyNumber: policy.number,
+    termId: transaction.termId,
     transactionId,
+    transactionType: transaction.type,
+    effectiveDate: transaction.effectiveDate.toString(),
     currency: term.writtenPremium.currency,
     charges: billable.map((line) => ({ ...line, amount: line.amount.toJSON() })),
     issuedOn,
@@ -679,10 +684,26 @@ export async function billIssued(
 
   policy.billTransaction(
     transactionId,
-    { ...invoice, total: Money.of(invoice.total.amount, invoice.total.currency) },
+    transactionInvoice(invoice),
     actor,
     deps.clocks.forTenant(ctx.tenantId),
   );
+}
+
+const moneyOf = (value: { amount: string; currency: string }) =>
+  Money.of(value.amount, value.currency);
+
+export function transactionInvoice(invoice: IssuedInvoice): TransactionInvoice {
+  const money = moneyOf;
+  const { netted, ...rest } = invoice;
+
+  return {
+    ...rest,
+    total: money(invoice.total),
+    ...(netted && {
+      netted: { credited: money(netted.credited), installments: netted.installments },
+    }),
+  };
 }
 
 export type { PolicyTermProps };

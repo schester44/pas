@@ -8,5 +8,5 @@ export interface MailMessage {
 
 /** Outbound email, resolved per tenant from its integrations (the console mailer by default). */
 export interface Mailer {
-  send(message: MailMessage): Promise<void>;
+  send(message: MailMessage): Promise<unknown>;
 }

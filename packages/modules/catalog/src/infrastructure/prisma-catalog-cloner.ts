@@ -45,6 +45,7 @@ export class PrismaCatalogCloner {
           documents: json(v.documents, ids),
           rules: json(v.rules, ids),
           rating: v.rating === null ? Prisma.DbNull : json(v.rating, ids),
+          billing: json(v.billing, ids),
         })),
       });
 

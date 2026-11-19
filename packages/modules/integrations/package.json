@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@pas/addressing": "workspace:*",
+    "@pas/compliance": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/enrichment": "workspace:*",
     "@pas/kernel": "workspace:*",

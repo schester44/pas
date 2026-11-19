@@ -107,6 +107,17 @@ export function makeTermTimers(deps: {
           return transaction.status;
         }
 
+        const delivery = transaction.details?.cancellation?.delivery ?? "electronic";
+
+        if (delivery !== "electronic" && !policy.hasProofOfMailing(transaction.id)) {
+          if (policy.holdCancellation(transaction.id, clock)) {
+            await deps.policies.save(tx, policy);
+            await deps.outbox.add(tx, policy.pullEvents());
+          }
+
+          return "held";
+        }
+
         const charges = policy.issueTransaction(transaction.id, today, clock);
         const actor = { type: "system" as const, name: "Cancellation timer" };
 

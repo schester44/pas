@@ -17,6 +17,8 @@
     "@pas/expressions": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/forms-react": "workspace:*",
+    "@pas/kernel": "workspace:*",
+    "@pas/pay-plans": "workspace:*",
     "@pas/rating-engine": "workspace:*",
     "@pas/ui": "workspace:*",
     "@tanstack/react-query": "^5.108.0",

@@ -25,6 +25,7 @@ import {
 } from "@/lib/quotes";
 import { useTRPC } from "@/lib/trpc";
 import type { StepProps } from "./journey";
+import { PayPlanPicker } from "./pay-plans";
 import { PremiumSummary } from "./premium";
 
 interface Choice {
@@ -148,6 +149,7 @@ export function CustomizeStep({ quote, submission, go }: StepProps) {
             ))}
           </ul>
         </Panel>
+        <PayPlanPicker quote={quote} submissionId={submission.id} />
         {customize.error && (
           <Notice tone="error" title="Couldn't update the price">
             {customize.error.message}

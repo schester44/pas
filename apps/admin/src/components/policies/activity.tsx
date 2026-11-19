@@ -1,5 +1,7 @@
 import type { AdminOutputs } from "@pas/api-client";
+import { Button } from "@pas/ui/components/button";
 import { Panel } from "@pas/ui/components/panel";
+import { SegmentedControl } from "@pas/ui/components/segmented-control";
 import { cn } from "@pas/ui/lib/utils";
 import {
   Banknote,
@@ -12,8 +14,10 @@ import {
   Mail,
   Receipt,
   ScrollText,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
+import { humanize } from "@/components/decisions/jdm-edit";
 import { formatDate, formatMoney, formatRelative } from "@/lib/format";
 
 type Policy = AdminOutputs["policies"]["get"];
@@ -27,14 +31,28 @@ const ICONS: Record<string, typeof Check> = {
   billing: Banknote,
   document: FileText,
   communication: Mail,
+  compliance: ShieldCheck,
 };
+
+const CATEGORY_LABELS: Record<string, string> = {
+  transactional: "Transactions",
+  lifecycle: "Lifecycle",
+  underwriting: "Underwriting",
+  billing: "Billing",
+  document: "Documents",
+  communication: "Notices",
+};
+
+const RECENT = 12;
 
 const iconFor = (event: PolicyEvent) =>
   event.type === "signed"
     ? FileSignature
     : event.type === "invoice_issued"
       ? Receipt
-      : event.type === "payment_failed"
+      : event.type === "payment_failed" ||
+          event.type === "filing_rejected" ||
+          event.type === "obligation_overdue"
         ? CircleAlert
         : event.type === "pending_cancellation"
           ? CalendarClock
@@ -56,19 +74,49 @@ export function ActivityTimeline({
   invoices: readonly Invoice[];
   onOpenInvoice: (invoiceId: string) => void;
 }) {
+  const [category, setCategory] = useState("all");
+  const categories = [...new Set(policy.events.map((e) => e.category))];
+  const [expanded, setExpanded] = useState(false);
+
+  const matching =
+    category === "all" ? policy.events : policy.events.filter((e) => e.category === category);
+
+  const events = expanded ? matching : matching.slice(0, RECENT);
+  const hidden = matching.length - events.length;
+
   return (
-    <Panel title="Activity" description="Everything that happened, from quote to today.">
-      <ol className="m-0 grid list-none p-0">
-        {policy.events.map((event, index) => (
+    <Panel flush>
+      {categories.length > 1 && (
+        <div className="overflow-x-auto border-b px-(--card-p) py-3 [scrollbar-width:none]">
+          <SegmentedControl
+            label="Filter by category"
+            value={category}
+            onValueChange={setCategory}
+            options={[
+              { value: "all", label: "All" },
+              ...categories.map((c) => ({ value: c, label: CATEGORY_LABELS[c] ?? humanize(c) })),
+            ]}
+          />
+        </div>
+      )}
+      <ol className="m-0 grid list-none p-(--card-p)">
+        {events.map((event, index) => (
           <TimelineItem
             key={event.id}
             event={event}
-            last={index === policy.events.length - 1}
+            last={index === events.length - 1}
             invoice={invoices.find((i) => i.id === event.invoiceId)}
             onOpenInvoice={onOpenInvoice}
           />
         ))}
       </ol>
+      {hidden > 0 && (
+        <div className="border-t px-(--card-p) py-3">
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(true)}>
+            Show {hidden} earlier {hidden === 1 ? "event" : "events"}
+          </Button>
+        </div>
+      )}
     </Panel>
   );
 }

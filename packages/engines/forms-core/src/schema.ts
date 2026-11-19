@@ -65,6 +65,9 @@ export interface AddressValue {
   region: string;
   postalCode: string;
   country: string;
+  /** The tenant's address registry record this value was resolved to (PLAN §15.9). */
+  addressId?: string;
+  verified?: boolean;
 }
 
 export interface FileValue {
@@ -75,7 +78,7 @@ export interface FileValue {
 }
 
 export const COMPOSITE_KEYS: Partial<Record<FieldKind, readonly string[]>> = {
-  address: ["line1", "line2", "city", "region", "postalCode", "country"],
+  address: ["line1", "line2", "city", "region", "postalCode", "country", "verified"],
   file: ["id", "name", "size", "contentType"],
 };
 

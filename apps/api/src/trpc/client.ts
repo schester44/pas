@@ -2,7 +2,12 @@ import { CHANGE_KINDS } from "@pas/parties";
 import { z } from "zod";
 import { appTenantProcedure } from "./app-tenant";
 import { router } from "./init";
-import { cardInput } from "./quotes-input";
+import { address, cardInput } from "./quotes-input";
+
+const partyOf = (scope: { policyIds: readonly string[] }) => ({
+  kind: "party" as const,
+  policyIds: scope.policyIds,
+});
 
 const id = z.uuid();
 const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
@@ -45,6 +50,22 @@ export const clientRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.parties.policy.detail(ctx.tenant, ctx.scope, input),
       ),
+    billing: clientProcedure
+      .input(z.object({ id }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.billing(ctx.tenant, partyOf(ctx.scope), input),
+      ),
+    setAutopay: clientProcedure
+      .input(z.object({ policyId: id, enabled: z.boolean(), card: cardInput.optional() }))
+      .mutation(async ({ ctx, input }) =>
+        ctx.container.useCases.policies.setAutopay(ctx.tenant, partyOf(ctx.scope), {
+          policyId: input.policyId,
+          enabled: input.enabled,
+          ...(input.card && { method: { kind: "card" as const, ...input.card } }),
+          payerName: input.card?.name ?? (await ctx.name()),
+          actor: { type: "user", id: ctx.session.user.id, name: await ctx.name() },
+        }),
+      ),
   }),
 
   documents: router({
@@ -84,7 +105,8 @@ export const clientRouter = router({
         z.object({
           policyId: id,
           kind: z.enum(CHANGE_KINDS),
-          details: z.string().trim().min(3).max(2000),
+          details: z.string().trim().max(2000),
+          address: address.optional(),
         }),
       )
       .mutation(async ({ ctx, input }) =>

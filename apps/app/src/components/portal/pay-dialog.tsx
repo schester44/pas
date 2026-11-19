@@ -24,11 +24,16 @@ import { formatMoney, formatPlainDate } from "@/lib/format";
 import type { ClientInvoice } from "@/lib/portal";
 import { useTRPC } from "@/lib/trpc";
 
+type PayableInvoice = Pick<ClientInvoice, "id" | "number" | "policyNumber" | "dueOn" | "balance">;
+
+/** Pays one invoice by card: as the client, or for the agent when `policyId` is given. */
 export function PayDialog({
   invoice,
+  policyId,
   onOpenChange,
 }: {
-  invoice: ClientInvoice | null;
+  invoice: PayableInvoice | null;
+  policyId?: string;
   onOpenChange: (open: boolean) => void;
 }) {
   const trpc = useTRPC();
@@ -36,7 +41,9 @@ export function PayDialog({
   const [card, setCard] = useState<CardDraft>(EMPTY_CARD);
   const [declined, setDeclined] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
-  const pay = useMutation(trpc.client.invoices.pay.mutationOptions());
+  const clientPay = useMutation(trpc.client.invoices.pay.mutationOptions());
+  const agentPay = useMutation(trpc.policies.payInvoice.mutationOptions());
+  const pay = policyId ? agentPay : clientPay;
 
   const close = (open: boolean) => {
     if (open) return;
@@ -56,21 +63,23 @@ export function PayDialog({
     event.preventDefault();
     setDeclined(null);
 
-    pay.mutate(
-      { id: invoice.id, card: cardInput(card) },
-      {
-        onSuccess: (result) => {
-          if (result.status === "declined") {
-            setDeclined(`${result.message} Try another card.`);
+    const onSuccess = (result: { status: string; message?: string }) => {
+      if (result.status === "declined") {
+        setDeclined(`${result.message} Try another card.`);
 
-            return;
-          }
+        return;
+      }
 
-          setPaid(true);
-          void queryClient.invalidateQueries({ queryKey: trpc.client.pathKey() });
-        },
-      },
-    );
+      setPaid(true);
+      void queryClient.invalidateQueries({ queryKey: trpc.client.pathKey() });
+      void queryClient.invalidateQueries({ queryKey: trpc.policies.pathKey() });
+    };
+
+    if (policyId) {
+      agentPay.mutate({ policyId, invoiceId: invoice.id, card: cardInput(card) }, { onSuccess });
+    } else {
+      clientPay.mutate({ id: invoice.id, card: cardInput(card) }, { onSuccess });
+    }
   };
 
   return (

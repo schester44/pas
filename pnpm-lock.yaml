@@ -220,6 +220,12 @@ importers:
       '@pas/forms-react':
         specifier: workspace:*
         version: link:../../packages/engines/forms-react
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@pas/pay-plans':
+        specifier: workspace:*
+        version: link:../../packages/engines/pay-plans
       '@pas/rating-engine':
         specifier: workspace:*
         version: link:../../packages/engines/rating
@@ -278,6 +284,9 @@ importers:
       '@fastify/multipart':
         specifier: ^10.1.9
         version: 10.1.9
+      '@pas/addresses':
+        specifier: workspace:*
+        version: link:../../packages/modules/addresses
       '@pas/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -287,12 +296,18 @@ importers:
       '@pas/catalog':
         specifier: workspace:*
         version: link:../../packages/modules/catalog
+      '@pas/compliance':
+        specifier: workspace:*
+        version: link:../../packages/modules/compliance
       '@pas/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@pas/decisions-engine':
         specifier: workspace:*
         version: link:../../packages/engines/decisions
+      '@pas/distribution':
+        specifier: workspace:*
+        version: link:../../packages/modules/distribution
       '@pas/documents':
         specifier: workspace:*
         version: link:../../packages/engines/documents
@@ -433,9 +448,18 @@ importers:
       '@pas/billing':
         specifier: workspace:*
         version: link:../../packages/modules/billing
+      '@pas/catalog':
+        specifier: workspace:*
+        version: link:../../packages/modules/catalog
+      '@pas/compliance':
+        specifier: workspace:*
+        version: link:../../packages/modules/compliance
       '@pas/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pas/distribution':
+        specifier: workspace:*
+        version: link:../../packages/modules/distribution
       '@pas/integrations':
         specifier: workspace:*
         version: link:../../packages/modules/integrations
@@ -454,12 +478,21 @@ importers:
       '@pas/queues':
         specifier: workspace:*
         version: link:../../packages/queues
+      '@pas/rating':
+        specifier: workspace:*
+        version: link:../../packages/modules/rating
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@pas/submissions':
         specifier: workspace:*
         version: link:../../packages/modules/submissions
       '@pas/tenants':
         specifier: workspace:*
         version: link:../../packages/modules/tenants
+      '@pas/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@pas/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -513,6 +546,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@pas/addressing':
+        specifier: workspace:*
+        version: link:../engines/addressing
       '@pas/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -532,6 +568,12 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+
+  packages/engines/addressing:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
   packages/engines/decisions:
     dependencies:
@@ -629,6 +671,12 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
 
+  packages/engines/pay-plans:
+    dependencies:
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+
   packages/engines/rating:
     dependencies:
       '@formulajs/formulajs':
@@ -665,6 +713,24 @@ importers:
         specifier: ^14.0.3
         version: 14.0.3
 
+  packages/modules/addresses:
+    dependencies:
+      '@pas/addressing':
+        specifier: workspace:*
+        version: link:../../engines/addressing
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/enrichment':
+        specifier: workspace:*
+        version: link:../../engines/enrichment
+      '@pas/forms-core':
+        specifier: workspace:*
+        version: link:../../engines/forms-core
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+
   packages/modules/billing:
     dependencies:
       '@pas/db':
@@ -673,6 +739,9 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@pas/pay-plans':
+        specifier: workspace:*
+        version: link:../../engines/pay-plans
 
   packages/modules/catalog:
     dependencies:
@@ -691,9 +760,36 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@pas/pay-plans':
+        specifier: workspace:*
+        version: link:../../engines/pay-plans
       '@pas/rating-engine':
         specifier: workspace:*
         version: link:../../engines/rating
+
+  packages/modules/compliance:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/decisions-engine':
+        specifier: workspace:*
+        version: link:../../engines/decisions
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
+
+  packages/modules/distribution:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
 
   packages/modules/form-library:
     dependencies:
@@ -712,6 +808,12 @@ importers:
 
   packages/modules/integrations:
     dependencies:
+      '@pas/addressing':
+        specifier: workspace:*
+        version: link:../../engines/addressing
+      '@pas/compliance':
+        specifier: workspace:*
+        version: link:../compliance
       '@pas/db':
         specifier: workspace:*
         version: link:../../db
@@ -766,6 +868,9 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@pas/pay-plans':
+        specifier: workspace:*
+        version: link:../../engines/pay-plans
       '@pas/storage':
         specifier: workspace:*
         version: link:../../storage
@@ -799,6 +904,9 @@ importers:
 
   packages/modules/submissions:
     dependencies:
+      '@pas/addresses':
+        specifier: workspace:*
+        version: link:../addresses
       '@pas/catalog':
         specifier: workspace:*
         version: link:../catalog
@@ -811,6 +919,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../engines/documents
+      '@pas/expressions':
+        specifier: workspace:*
+        version: link:../../engines/expressions
       '@pas/form-library':
         specifier: workspace:*
         version: link:../form-library
@@ -820,6 +931,9 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@pas/pay-plans':
+        specifier: workspace:*
+        version: link:../../engines/pay-plans
       '@pas/rating':
         specifier: workspace:*
         version: link:../rating

@@ -1,0 +1,163 @@
+import { Money } from "@pas/kernel";
+import { describe, expect, it } from "vitest";
+import { buildSchedule, netCredit, type PayPlan, spreadCharge } from "./index";
+
+const rounding = { places: 2, mode: "half_up" as const };
+const usd = (amount: string) => Money.of(amount, "USD");
+const date = (value: string) => Temporal.PlainDate.from(value);
+const amounts = (list: Money[]) => list.map((m) => m.toString());
+
+const plan = (overrides: Partial<PayPlan>): PayPlan => ({
+  key: "quarterly",
+  label: "Quarterly",
+  installments: 4,
+  intervalMonths: 3,
+  downPayment: { kind: "first_installment" },
+  installmentFee: null,
+  taxesFees: "up_front",
+  dueDaysBefore: 0,
+  billDaysBeforeDue: 14,
+  graceDays: 10,
+  eligibility: {},
+  ...overrides,
+});
+
+const input = (premium: string, taxes = "0") => ({
+  premium: usd(premium),
+  taxesFees: taxes === "0" ? [] : [{ code: "TAX", label: "Premium tax", amount: usd(taxes) }],
+  effectiveDate: date("2027-12-01"),
+  billedOn: date("2027-11-20"),
+  rounding,
+});
+
+describe("buildSchedule", () => {
+  it("splits equally and puts the rounding remainder on the last installment", () => {
+    const schedule = buildSchedule(plan({}), input("1000.01"));
+
+    expect(amounts(schedule.map((i) => i.premium))).toEqual(["250", "250", "250", "250.01"]);
+    expect(schedule[1]!.dueOn.toString()).toBe("2028-03-01");
+    expect(schedule[1]!.issueOn.toString()).toBe("2028-02-16");
+    expect(schedule[0]!.dueOn.toString()).toBe("2027-11-20");
+  });
+
+  it("takes a percent down payment, adds fees after the first and spreads taxes", () => {
+    const schedule = buildSchedule(
+      plan({
+        installments: 10,
+        intervalMonths: 1,
+        downPayment: { kind: "percent", percent: "20" },
+        installmentFee: "5",
+        taxesFees: "spread",
+      }),
+      input("1234.56", "50"),
+    );
+
+    expect(schedule).toHaveLength(10);
+
+    expect(amounts(schedule.map((i) => i.premium))).toEqual([
+      "246.91",
+      ...Array(8).fill("109.74"),
+      "109.73",
+    ]);
+
+    expect(schedule.map((i) => i.taxesFees[0]!.amount.toString())).toEqual([
+      "10",
+      ...Array(8).fill("4.44"),
+      "4.48",
+    ]);
+
+    expect(schedule[0]!.fee.isZero()).toBe(true);
+    expect(schedule[0]!.total.toString()).toBe("256.91");
+    expect(schedule[1]!.total.toString()).toBe("119.18");
+
+    const premium = schedule.reduce((sum, i) => sum.plus(i.premium), usd("0"));
+    const fees = schedule.reduce((sum, i) => sum.plus(i.fee), usd("0"));
+
+    expect(premium.toString()).toBe("1234.56");
+    expect(fees.toString()).toBe("45");
+  });
+
+  it("collects taxes up front on the first installment", () => {
+    const schedule = buildSchedule(plan({}), input("1000", "40"));
+
+    expect(schedule[0]!.total.toString()).toBe("290");
+    expect(schedule[1]!.taxesFees).toEqual([]);
+    expect(schedule[3]!.total.toString()).toBe("250");
+  });
+
+  it("is a single invoice for pay in full", () => {
+    const schedule = buildSchedule(plan({ installments: 1 }), input("999.99", "12.34"));
+
+    expect(schedule).toHaveLength(1);
+    expect(schedule[0]!.total.toString()).toBe("1012.33");
+  });
+});
+
+describe("spreadCharge", () => {
+  it("spreads an endorsement over the remaining installments, remainder last", () => {
+    expect(amounts(spreadCharge(usd("100"), 3, rounding))).toEqual(["33.33", "33.33", "33.34"]);
+    expect(amounts(spreadCharge(usd("100"), 1, rounding))).toEqual(["100"]);
+  });
+});
+
+describe("netCredit", () => {
+  const installments = [
+    {
+      id: "2",
+      status: "open" as const,
+      dueOn: date("2028-03-01"),
+      balance: usd("305"),
+      fee: usd("5"),
+    },
+    {
+      id: "3",
+      status: "scheduled" as const,
+      dueOn: date("2028-06-01"),
+      balance: usd("305"),
+      fee: usd("5"),
+    },
+    {
+      id: "4",
+      status: "scheduled" as const,
+      dueOn: date("2028-09-01"),
+      balance: usd("305"),
+      fee: usd("5"),
+    },
+  ];
+
+  it("waives unbilled fees and credits the latest installments first", () => {
+    const netting = netCredit(usd("600"), installments, { waiveScheduledFees: true });
+
+    expect(
+      netting.allocations.map((a) => [
+        a.id,
+        a.waivedFee.toString(),
+        a.credited.toString(),
+        a.settled,
+      ]),
+    ).toEqual([
+      ["4", "5", "300", true],
+      ["3", "5", "300", true],
+    ]);
+
+    expect(netting.refund.toString()).toBe("0");
+    expect(netting.owed.toString()).toBe("305");
+  });
+
+  it("refunds only what's left after every open installment is settled", () => {
+    const netting = netCredit(usd("1000"), installments, { waiveScheduledFees: true });
+
+    expect(netting.refund.toString()).toBe("95");
+    expect(netting.owed.toString()).toBe("0");
+    expect(netting.allocations.every((a) => a.settled)).toBe(true);
+  });
+
+  it("partly reduces an installment when the credit runs out", () => {
+    const netting = netCredit(usd("100"), installments, { waiveScheduledFees: false });
+
+    expect(netting.allocations).toHaveLength(1);
+    expect(netting.allocations[0]!.credited.toString()).toBe("100");
+    expect(netting.allocations[0]!.settled).toBe(false);
+    expect(netting.owed.toString()).toBe("815");
+  });
+});

@@ -1,9 +1,10 @@
-import { type Permission, seesTenantBook } from "@pas/auth";
+import type { Permission } from "@pas/auth";
 import { INTEREST_KINDS } from "@pas/submissions";
 import { asId, type TenantContext } from "@pas/kernel";
 import type { PolicyScope, TimelineActor } from "@pas/policy";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { bookScopeOf } from "./book-scope";
 import type { Context } from "./context";
 import { authedProcedure, router } from "./init";
 import { address, amount } from "./quotes-input";
@@ -63,14 +64,7 @@ export const staffScope: ScopeResolver = async (ctx) => {
   if (!(await granted(ctx, tenant, { policy: ["read"] })))
     throw new TRPCError({ code: "FORBIDDEN" });
 
-  const { role } = await ctx.container.auth.api.getActiveMemberRole({ headers: ctx.headers });
-
-  return {
-    tenant,
-    scope: seesTenantBook(role)
-      ? { kind: "tenant" }
-      : { kind: "producer", producerId: asId(ctx.session.user.id) },
-  };
+  return { tenant, scope: await bookScopeOf(ctx, tenant) };
 };
 
 /**

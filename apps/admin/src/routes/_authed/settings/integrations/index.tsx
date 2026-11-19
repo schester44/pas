@@ -11,6 +11,7 @@ import {
   ProviderLogo,
   providerByline,
 } from "@/components/integrations";
+import { RegulatoryCoverage } from "@/components/compliance/regulatory-coverage";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/settings/integrations/")({
@@ -62,6 +63,9 @@ function IntegrationsPage() {
                   </li>
                 ))}
               </ul>
+              {group.category === "filing" && (
+                <RegulatoryCoverage integrations={group.integrations} />
+              )}
             </section>
           ))
         )}

@@ -47,6 +47,50 @@ const FALLBACK: DocumentTemplate = {
   ],
 };
 
+const INTENT: DocumentTemplate = {
+  ...FALLBACK,
+  key: "builtin-nonpayment-intent",
+  title: "Notice of intent to cancel for nonpayment",
+  blocks: [
+    FALLBACK.blocks[0]!,
+    {
+      id: "facts",
+      type: "keyValue",
+      columns: 2,
+      rows: [
+        { label: "Named insured", value: "{{namedInsured.name}}" },
+        { label: "Mailing address", value: "{{namedInsured.mailingAddress}}" },
+        { label: "Policy period", value: "{{policy.effectiveDate}} – {{policy.expirationDate}}" },
+        { label: "Notice date", value: "{{notice.noticeDate}}" },
+        { label: "Amount past due", value: "{{notice.amountDue}}" },
+        { label: "Cancels on", value: "{{notice.effectiveDate}} at 12:01 a.m. unless paid" },
+        { label: "Reason", value: "{{notice.reason}}" },
+      ],
+    },
+    {
+      id: "body",
+      type: "text",
+      body: "We haven't received {{notice.amountDue}} due on policy {{policy.number}}. Unless we receive it before {{notice.effectiveDate}}, your policy will be cancelled effective {{notice.effectiveDate}} at 12:01 a.m. If you pay the past-due amount before then, the cancellation is withdrawn and your coverage continues without interruption.",
+    },
+    FALLBACK.blocks[3]!,
+  ],
+};
+
+const RESCISSION: DocumentTemplate = {
+  ...FALLBACK,
+  key: "builtin-cancellation-rescinded",
+  title: "Cancellation rescinded",
+  blocks: [
+    FALLBACK.blocks[0]!,
+    {
+      id: "body",
+      type: "text",
+      body: "We received your payment. The cancellation of policy {{policy.number}} scheduled for {{notice.effectiveDate}} has been withdrawn, and your coverage continues without interruption.",
+    },
+    FALLBACK.blocks[3]!,
+  ],
+};
+
 export class ReactPdfNoticeDocuments implements NoticeDocuments {
   constructor(
     private readonly deps: {
@@ -71,7 +115,11 @@ export class ReactPdfNoticeDocuments implements NoticeDocuments {
         .map((entry) => (entry.document as { key: string }).key),
     );
 
+    const builtin =
+      notice.kind === "intent" ? INTENT : notice.kind === "rescission" ? RESCISSION : null;
+
     const template =
+      builtin ??
       release.documents.templates.find((t) => t.kind === "notice" && scheduled.has(t.key)) ??
       release.documents.templates.find(
         (t) => t.kind === "notice" && /cancel/i.test(`${t.key} ${t.title}`),
@@ -95,6 +143,7 @@ export class ReactPdfNoticeDocuments implements NoticeDocuments {
           effectiveDate: notice.effectiveDate,
           minDaysNotice: notice.minDaysNotice,
           returnPremium: notice.returnPremium,
+          ...(notice.amountDue && { amountDue: notice.amountDue }),
         },
       },
       clauses: release.documents.clauses,

@@ -5,7 +5,9 @@ import { Spinner } from "@pas/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
 import type * as React from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Checkbox } from "@pas/ui/components/checkbox";
+import { Label } from "@pas/ui/components/label";
 import {
   type CardDraft,
   CardFields,
@@ -18,6 +20,7 @@ import { StripeProvider, useStripeCard } from "@/components/stripe-card";
 import { formatMoney } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 import type { StepProps } from "./journey";
+import { scheduleSummary, selectedOffer } from "./pay-plans";
 import { PremiumSummary } from "./premium";
 
 type Payment = { card: ReturnType<typeof cardInput> } | { paymentToken: string };
@@ -108,8 +111,13 @@ function PayLayout({
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
   const [collecting, setCollecting] = useState(false);
+  const id = useId();
   const bind = useMutation(trpc.quotes.bind.mutationOptions());
-  const total = formatMoney(quote.premium.total, { cents: true });
+  const licensing = useQuery(trpc.quoteLicensing.queryOptions({ submissionId: submission.id }));
+  const offer = selectedOffer(quote);
+  const installments = offer !== null && offer.installments > 1;
+  const [autopay, setAutopay] = useState(true);
+  const total = formatMoney(offer?.dueToday ?? quote.premium.total, { cents: true });
   const busy = collecting || bind.isPending;
 
   async function onSubmit(event: React.FormEvent) {
@@ -130,7 +138,7 @@ function PayLayout({
     }
 
     bind.mutate(
-      { submissionId: submission.id, ...method },
+      { submissionId: submission.id, ...method, autopay: installments && autopay },
       {
         onSuccess: (result) => {
           const key = trpc.quotes.get.queryKey({ submissionId: submission.id });
@@ -153,9 +161,45 @@ function PayLayout({
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <form onSubmit={onSubmit} className="grid gap-6">
-        <Panel title="Pay in full" description="Charged once the policy is bound.">
-          <div className="grid gap-4">{fields}</div>
+        <Panel
+          title={offer ? offer.label : "Pay in full"}
+          description={
+            offer ? (
+              <span className="tabular-nums">{scheduleSummary(offer)}</span>
+            ) : (
+              "Charged once the policy is bound."
+            )
+          }
+        >
+          <div className="grid gap-4">
+            {fields}
+            {installments && (
+              <div className="flex items-start gap-3 rounded-lg border px-3 py-3">
+                <Checkbox
+                  id={`${id}-autopay`}
+                  checked={autopay}
+                  onCheckedChange={(checked) => setAutopay(checked === true)}
+                  className="mt-0.5"
+                />
+                <Label htmlFor={`${id}-autopay`} className="grid gap-1 font-normal">
+                  <span className="font-medium">Pay installments automatically with this card</span>
+                  <span className="text-xs text-muted-foreground">{quote.autopayConsent}</span>
+                </Label>
+              </div>
+            )}
+          </div>
         </Panel>
+        {licensing.data?.message && !bind.error && (
+          <Notice
+            tone={licensing.data.blocks ? "error" : "warning"}
+            title="Producer isn't licensed for this risk"
+          >
+            {licensing.data.message}.{" "}
+            {licensing.data.blocks
+              ? "Binding is blocked until the license is on file."
+              : "You can still bind; compliance will follow up."}
+          </Notice>
+        )}
         {(notice || bind.error) && (
           <Notice tone="error" title={notice ? "Payment declined" : "Couldn't bind"}>
             {notice ?? bind.error?.message}

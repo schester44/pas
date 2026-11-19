@@ -4,5 +4,5 @@
     "lib": ["es2024", "esnext.temporal", "dom"],
     "jsx": "react-jsx"
   },
-  "include": ["src", "tsup.config.ts"]
+  "include": ["src", "tsup.config.ts", "../../packages/engines/documents/src/render/*.tsx"]
 }

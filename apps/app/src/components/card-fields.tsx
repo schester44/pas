@@ -137,7 +137,8 @@ export function CardFields({
 export function TestCardHint() {
   return (
     <p className="m-0 text-xs text-muted-foreground tabular-nums">
-      Test mode. 4242 4242 4242 4242 pays; 4000 0000 0000 0002 is declined.
+      Test mode. 4242 4242 4242 4242 pays; 4000 0000 0000 0002 is declined; 4000 0000 0000 0341 pays
+      now but its autopay charges decline.
     </p>
   );
 }

@@ -6,6 +6,8 @@ import type {
   CardPayments,
   PaymentMethodInput,
   PaymentMethodSummary,
+  SavedCharge,
+  SavedMethod,
 } from "../../ports/adapters";
 import type { ProviderPackage, ProviderSettings, WebhookEvent } from "../../ports/provider-catalog";
 
@@ -29,6 +31,7 @@ const TEST_CARDS: Record<string, string> = {
   "5555555555554444": "pm_card_mastercard",
   "4000000000000002": "pm_card_chargeDeclined",
   "4000000000009995": "pm_card_chargeDeclinedInsufficientFunds",
+  "4000000000000341": "pm_card_chargeCustomerFail",
 };
 
 const PAYMENT_EVENTS = [
@@ -164,6 +167,133 @@ export class StripePayments implements CardPayments {
     );
 
     return { refundId: refund.id };
+  }
+
+  /** A Customer plus an off-session SetupIntent, so installments can be charged later. */
+  async saveMethod(
+    ctx: { tenantId: string },
+    input: {
+      reference: string;
+      method: PaymentMethodInput;
+      customer: { name: string; email?: string };
+    },
+  ): Promise<SavedMethod> {
+    const paymentMethod = this.paymentMethodOf(input.method);
+
+    if (!paymentMethod) {
+      return {
+        status: "declined",
+        code: "test_card_required",
+        message: "Use a test card, such as 4242 4242 4242 4242.",
+        method: summaryOfInput(input.method),
+      };
+    }
+
+    try {
+      const customer = await this.stripe.customers.create(
+        {
+          name: input.customer.name,
+          ...(input.customer.email && { email: input.customer.email }),
+          metadata: { reference: input.reference, tenantId: ctx.tenantId },
+        },
+        { idempotencyKey: `customer:${input.reference}:${paymentMethod}` },
+      );
+
+      const setup = await this.stripe.setupIntents.create(
+        {
+          customer: customer.id,
+          payment_method: paymentMethod,
+          confirm: true,
+          usage: "off_session",
+          automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+          expand: ["payment_method"],
+          metadata: { reference: input.reference, tenantId: ctx.tenantId },
+        },
+        { idempotencyKey: `setup:${input.reference}:${paymentMethod}` },
+      );
+
+      const method = summaryOf(setup.payment_method, input.method);
+
+      const methodRef =
+        typeof setup.payment_method === "string" ? setup.payment_method : setup.payment_method?.id;
+
+      if (setup.status !== "succeeded" || !methodRef) {
+        return {
+          status: "declined",
+          code: setup.status,
+          message: "The card couldn't be saved for autopay.",
+          method,
+        };
+      }
+
+      return { status: "saved", methodRef, customerRef: customer.id, method };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeCardError) {
+        return {
+          status: "declined",
+          code: error.decline_code ?? error.code ?? "card_declined",
+          message: error.message,
+          method: summaryOfInput(input.method),
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  async chargeSaved(
+    ctx: { tenantId: string },
+    input: {
+      reference: string;
+      idempotencyKey: string;
+      amount: Money;
+      methodRef: string;
+      customerRef: string | null;
+    },
+  ): Promise<SavedCharge> {
+    const fallback = { brand: "Card", last4: "", expMonth: 0, expYear: 0 };
+
+    try {
+      const intent = await this.stripe.paymentIntents.create(
+        {
+          amount: minorUnits(input.amount),
+          currency: input.amount.currency.toLowerCase(),
+          payment_method: input.methodRef,
+          ...(input.customerRef && { customer: input.customerRef }),
+          off_session: true,
+          confirm: true,
+          description: input.reference,
+          metadata: { reference: input.reference, tenantId: ctx.tenantId },
+          expand: ["payment_method"],
+          ...(this.config.statementDescriptorSuffix && {
+            statement_descriptor_suffix: this.config.statementDescriptorSuffix,
+          }),
+        },
+        { idempotencyKey: `autopay:${input.idempotencyKey}` },
+      );
+
+      const method = summaryOf(intent.payment_method, { kind: "token", token: input.methodRef });
+
+      return intent.status === "succeeded"
+        ? { status: "paid", paymentRef: intent.id, method }
+        : {
+            status: "declined",
+            code: intent.status,
+            message: "The saved card wasn't charged.",
+            method,
+          };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeCardError) {
+        return {
+          status: "declined",
+          code: error.decline_code ?? error.code ?? "card_declined",
+          message: error.message,
+          method: fallback,
+        };
+      }
+
+      throw error;
+    }
   }
 
   private paymentMethodOf(method: PaymentMethodInput): string | null {

@@ -5,6 +5,7 @@ import { Panel } from "@pas/ui/components/panel";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { DuplicateRiskNotice } from "@/components/submissions/duplicate-risk";
 import type * as React from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { CapturedData } from "@/components/submissions/captured-data";
@@ -73,6 +74,7 @@ function SubmissionPage() {
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-6">
+              <DuplicateRiskNotice submissionId={submissionId} />
               {quote.data && (
                 <>
                   <ReferralPanel

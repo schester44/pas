@@ -81,8 +81,12 @@ export interface PolicyTermProps {
   boundAt: Instant;
   activatedAt: Instant | null;
   cancellation: TermCancellation | null;
+  billingMethod: BillingMethod;
+  payPlan: string | null;
   updatedAt: Instant;
 }
+
+export type BillingMethod = "direct" | "agency" | "mortgagee";
 
 export interface TermVersionProps {
   id: string;
@@ -119,6 +123,14 @@ export interface PolicyDocumentProps {
   createdAt: Instant;
 }
 
+/** Who wrote the policy and through which agency (PLAN §4 Distribution); moved by a BOR change. */
+export interface ProducerOfRecord {
+  id: string;
+  name: string;
+  agencyId: string | null;
+  agencyName: string | null;
+}
+
 export interface PolicyProps {
   id: PolicyId;
   tenantId: TenantId;
@@ -126,7 +138,7 @@ export interface PolicyProps {
   productId: string;
   productName: string;
   insuredName: string;
-  producer: { id: string; name: string };
+  producer: ProducerOfRecord;
   sourceSubmissionId: string;
   sourceQuoteId: string;
   createdAt: Instant;
@@ -163,13 +175,15 @@ export interface NewBusinessInput {
   effectiveDate: PlainDate;
   expirationDate: PlainDate;
   insuredName: string;
-  producer: { id: string; name: string };
+  producer: ProducerOfRecord;
   sourceSubmissionId: string;
   sourceQuoteId: string;
   writtenPremium: Money;
   taxesAndFees: Money;
   lines: NewBusinessLine[];
   snapshot: Record<string, unknown>;
+  billingMethod: BillingMethod;
+  payPlan: string | null;
   today: PlainDate;
   actor: TimelineActor;
   history: Omit<PolicyEventProps, "id" | "termId" | "transactionId" | "invoiceId">[];
@@ -180,9 +194,13 @@ export interface TransactionInvoice {
   number: string;
   kind: "invoice" | "credit_note";
   total: Money;
+  spread?: { installments: number; numbers: string[] };
+  netted?: { credited: Money; installments: number };
 }
 
 const compare = Temporal.PlainDate.compare;
+
+const listOf = (items: string[]) => new Intl.ListFormat("en-US").format(items);
 
 const formatDate = (date: PlainDate) =>
   date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -312,6 +330,8 @@ export class Policy extends AggregateRoot {
           boundAt: now,
           activatedAt: started ? now : null,
           cancellation: null,
+          billingMethod: input.billingMethod,
+          payPlan: input.payPlan,
           updatedAt: now,
         },
       ],
@@ -469,14 +489,33 @@ export class Policy extends AggregateRoot {
 
     const noun = invoice.kind === "credit_note" ? "Credit note" : "Invoice";
 
+    const summary = invoice.spread
+      ? `${formatMoney(invoice.total)} spread over the ${invoice.spread.installments === 1 ? "remaining installment" : `${invoice.spread.installments} remaining installments`} (${invoice.spread.numbers.join(", ")})`
+      : `${noun} ${invoice.number} issued for ${formatMoney(invoice.total)}${
+          invoice.netted && !invoice.netted.credited.isZero()
+            ? `; ${formatMoney(invoice.netted.credited)} netted against unpaid installments`
+            : ""
+        }`;
+
     this.addToTimeline({
       ...link,
       type: "invoice_issued",
       occurredAt: now,
       effectiveDate: null,
       actor,
-      summary: `${noun} ${invoice.number} issued for ${formatMoney(invoice.total)}`,
-      data: { invoiceNumber: invoice.number, total: invoice.total.toJSON(), kind: invoice.kind },
+      summary,
+      data: {
+        invoiceNumber: invoice.number,
+        total: invoice.total.toJSON(),
+        kind: invoice.kind,
+        ...(invoice.spread && { spread: invoice.spread }),
+        ...(invoice.netted && {
+          netted: {
+            credited: invoice.netted.credited.toJSON(),
+            installments: invoice.netted.installments,
+          },
+        }),
+      },
     });
   }
 
@@ -734,11 +773,23 @@ export class Policy extends AggregateRoot {
   }
 
   recordNoticeSent(
-    input: { transactionId: string; title: string; delivery: string; recipients: string[] },
+    input: {
+      transactionId: string;
+      title: string;
+      delivery: string;
+      recipients: string[];
+      emailed: string[];
+      mailed: string[];
+    },
     actor: TimelineActor,
     clock: Clock,
   ): void {
     const transaction = this.transaction(input.transactionId);
+
+    const channels = [
+      input.emailed.length > 0 && `emailed to ${listOf(input.emailed)}`,
+      input.mailed.length > 0 && `mailed to ${listOf(input.mailed)}`,
+    ].filter(Boolean);
 
     this.addToTimeline({
       type: "notice_sent",
@@ -748,15 +799,69 @@ export class Policy extends AggregateRoot {
       occurredAt: clock.now(),
       effectiveDate: transaction.effectiveDate,
       actor,
-      summary: `${input.title} sent electronically to the ${new Intl.ListFormat("en-US").format(input.recipients.map((r) => r.replaceAll("_", " ")))}`,
+      summary: channels.length
+        ? `${input.title} ${channels.join(" and ")}`
+        : `${input.title} generated; no email or mailing address on file`,
       data: {
         transactionId: input.transactionId,
         requiredDelivery: input.delivery,
-        sentBy: "electronic",
+        sentBy: input.mailed.length > 0 ? "mail" : "electronic",
+        emailed: input.emailed,
+        mailed: input.mailed,
         proofOfMailing: null,
         recipients: input.recipients,
       },
     });
+  }
+
+  /** Proof of mailing for a mailed notice, if the mail provider has recorded it. */
+  hasProofOfMailing(transactionId: string): boolean {
+    return this.state.events.some(
+      (e) =>
+        e.type === "notice_mailed" &&
+        e.data.transactionId === transactionId &&
+        e.data.proofOfMailing,
+    );
+  }
+
+  /**
+   * No proof, no cancellation (PLAN §17.3): the term stays pending and compliance is told once.
+   * Returns false when the hold was already recorded.
+   */
+  holdCancellation(transactionId: string, clock: Clock): boolean {
+    const transaction = this.transaction(transactionId);
+
+    if (
+      this.state.events.some(
+        (e) => e.type === "cancellation_held" && e.data.transactionId === transactionId,
+      )
+    ) {
+      return false;
+    }
+
+    const now = clock.now();
+
+    this.addToTimeline({
+      type: "cancellation_held",
+      termId: transaction.termId,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: now,
+      effectiveDate: transaction.effectiveDate,
+      actor: { type: "system", name: "Cancellation timer" },
+      summary: "Cancellation held: the notice has no proof of mailing yet",
+      data: { transactionId, reason: "no_proof_of_mailing" },
+    });
+
+    this.recordEvent("policy.cancellation_held", now, {
+      policyId: this.id,
+      termId: transaction.termId,
+      transactionId,
+      number: this.number,
+      reason: "no_proof_of_mailing",
+    });
+
+    return true;
   }
 
   /**
@@ -953,6 +1058,50 @@ export class Policy extends AggregateRoot {
     });
 
     return true;
+  }
+
+  /** Broker of record change: the policy moves to another producer and agency from a date. */
+  changeProducer(
+    input: {
+      producer: ProducerOfRecord;
+      effectiveDate: PlainDate;
+      reason: string;
+      actor: TimelineActor;
+    },
+    clock: Clock,
+  ): void {
+    const before = this.state.policy.producer;
+    const after = input.producer;
+
+    if (before.id === after.id && before.agencyId === after.agencyId) {
+      throw conflict(`${after.name} is already the producer of record`);
+    }
+
+    const now = clock.now();
+
+    const describe = (p: ProducerOfRecord) =>
+      p.agencyName ? `${p.name} (${p.agencyName})` : p.name;
+
+    this.state.policy.producer = after;
+
+    this.addToTimeline({
+      type: "producer_changed",
+      termId: this.currentTerm.id,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: now,
+      effectiveDate: input.effectiveDate,
+      actor: input.actor,
+      summary: `Producer of record changed from ${describe(before)} to ${describe(after)}, effective ${formatDate(input.effectiveDate)}`,
+      data: { before, after, reason: input.reason },
+    });
+
+    this.recordEvent("policy.producer_changed", now, {
+      number: this.number,
+      before,
+      after,
+      effectiveDate: input.effectiveDate.toString(),
+    });
   }
 
   /** A client asked for a change; the producer of record picks it up from the event. */

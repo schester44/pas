@@ -4,11 +4,12 @@ import type { BindDetails } from "../domain/bind-details";
 import type { BindRequirement } from "../domain/bind-requirements";
 import { exposuresOf } from "../domain/coverages";
 import { exposureLabel, insuredNameOf, mailingAddressOf } from "../domain/insured";
+import type { PayPlanOffer } from "../domain/pay-plan-offers";
 import type { Quote } from "../domain/quote";
 import type { DecisionRecord, RatingRecord } from "../domain/quote-evaluation";
 import type { Submission } from "../domain/submission";
 import type { UnderwritingReason } from "../domain/underwriting";
-import { ESIGN_CONSENT } from "./esign-consent";
+import { AUTOPAY_CONSENT, ESIGN_CONSENT } from "./esign-consent";
 
 export interface MoneyDto {
   amount: string;
@@ -87,6 +88,9 @@ export interface QuoteDto {
   signatureConsent: string;
   payment: { brand: string; last4: string; amount: MoneyDto; capturedAt: string } | null;
   policy: { id: string; number: string } | null;
+  payPlans: PayPlanOffer[];
+  payPlan: string | null;
+  autopayConsent: string;
   evaluatedInMs: number;
 }
 
@@ -244,6 +248,9 @@ export function toQuoteDto(
       capturedAt: q.payment.capturedAt.toString(),
     },
     policy: q.policy,
+    payPlans: e.payPlans,
+    payPlan: quote.selectedPayPlan()?.key ?? null,
+    autopayConsent: AUTOPAY_CONSENT,
     evaluatedInMs: Math.round(e.durationMs),
   };
 

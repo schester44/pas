@@ -7,6 +7,7 @@ export * from "./jurisdiction-time";
 export * from "./canonical-json";
 export * from "./errors";
 export * from "./tenant";
+export * from "./book-scope";
 export * from "./events";
 export * from "./aggregate";
 export * from "./ports/clock";

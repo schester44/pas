@@ -33,4 +33,21 @@ export interface PaymentGateway {
   ): Promise<Authorization>;
   capture(ctx: TenantContext, input: { authorizationId: string; amount: Money }): Promise<void>;
   void(ctx: TenantContext, input: { authorizationId: string }): Promise<void>;
+  /** Saves the card for autopay with the payer's consent. */
+  saveMethod(
+    ctx: TenantContext,
+    input: {
+      reference: string;
+      method: PaymentMethodInput;
+      customer: { name: string; email?: string };
+    },
+  ): Promise<
+    | {
+        status: "saved";
+        methodRef: string;
+        customerRef: string | null;
+        method: PaymentMethodSummary;
+      }
+    | { status: "declined"; code: string; message: string; method: PaymentMethodSummary }
+  >;
 }

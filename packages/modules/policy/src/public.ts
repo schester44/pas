@@ -9,6 +9,12 @@ export {
   type AttachPolicyDocuments,
 } from "./application/attach-documents";
 export { makeListPolicies, type ListPolicies } from "./application/list-policies";
+export { makeChangeProducer, type ChangeProducer } from "./application/change-producer";
+export {
+  makeGetTransactionFinancials,
+  type GetTransactionFinancials,
+  type TransactionFinancialsDto,
+} from "./application/get-transaction-financials";
 export { makeGetPolicy, type GetPolicy } from "./application/get-policy";
 export { makeTermTimers, type TermTimers } from "./application/term-timers";
 export { policyTermWorkflow, type PolicyTermWorkflowInput } from "./application/term-workflow";
@@ -87,3 +93,16 @@ export {
   type ChangeRequestDto,
   type ListChangeRequests,
 } from "./application/list-change-requests";
+export {
+  makeCureNonpayment,
+  makeStartNonpayment,
+  type CureNonpayment,
+  type StartNonpayment,
+} from "./application/nonpayment";
+export type { BillingStatus, NoticeAddress, NoticeDelivery } from "./ports/notice-delivery";
+export type { BillingMethod, ProducerOfRecord } from "./domain/policy";
+export {
+  makeGetTransactionFacts,
+  type GetTransactionFacts,
+  type TransactionFactsDto,
+} from "./application/get-transaction-facts";

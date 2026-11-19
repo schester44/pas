@@ -9,11 +9,13 @@ import {
   type UnitOfWork,
   type ClockProvider,
 } from "@pas/kernel";
-import { type NewBusinessLine, Policy } from "../domain/policy";
+import { type BillingMethod, type NewBusinessLine, Policy } from "../domain/policy";
 import { categoryOf } from "../domain/policy-event";
 import { formatPolicyNumber } from "../domain/policy-number";
 import type { PolicyEventType, TimelineActor } from "../domain/policy-event";
 import type { InvoiceIssuer } from "../ports/invoice-issuer";
+import type { Dunning, PayPlan } from "@pas/pay-plans";
+import { transactionInvoice } from "./pricing";
 import type { InsuredParty, PolicyParties } from "../ports/policy-parties";
 import type { PolicyRepository } from "../ports/policy-repository";
 
@@ -31,12 +33,13 @@ export interface IssueNewBusinessInput {
   expirationDate: string;
   insuredName: string;
   insureds: InsuredParty[];
-  producer: { id: string; name: string };
+  producer: { id: string; name: string; agencyId?: string | null; agencyName?: string | null };
   currency: string;
   coverages: { coverage: string; name: string; exposure?: string; premium: MoneyJson }[];
   taxesFees: { code: string; label: string; remitter: string; amount: MoneyJson }[];
   writtenPremium: MoneyJson;
   snapshot: Record<string, unknown>;
+  billing: { method: BillingMethod; payPlan: PayPlan | null; dunning: Dunning };
   actor: TimelineActor;
   history: {
     type: PolicyEventType;
@@ -125,13 +128,20 @@ export function makeIssueNewBusiness(deps: {
             effectiveDate: parsePlainDate(input.effectiveDate),
             expirationDate: parsePlainDate(input.expirationDate),
             insuredName: input.insuredName,
-            producer: input.producer,
+            producer: {
+              id: input.producer.id,
+              name: input.producer.name,
+              agencyId: input.producer.agencyId ?? null,
+              agencyName: input.producer.agencyName ?? null,
+            },
             sourceSubmissionId: input.submissionId,
             sourceQuoteId: input.quoteId,
             writtenPremium: written,
             taxesAndFees,
             lines,
             snapshot: input.snapshot,
+            billingMethod: input.billing.method ?? "direct",
+            payPlan: input.billing.payPlan?.key ?? null,
             today: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
             actor: input.actor,
             history: input.history.map((entry) => ({
@@ -150,7 +160,10 @@ export function makeIssueNewBusiness(deps: {
       const invoice = await deps.invoices.issue(tx, ctx, {
         policyId: policy.id,
         policyNumber: policy.number,
+        termId: policy.firstTerm.id,
         transactionId: policy.firstTransaction.id,
+        transactionType: "NEW_BUSINESS",
+        effectiveDate: input.effectiveDate,
         currency: input.currency,
         charges: lines.map((line) => ({
           kind: line.kind,
@@ -162,12 +175,19 @@ export function makeIssueNewBusiness(deps: {
         })),
         issuedOn: today,
         dueOn: today,
+        ...(input.billing.payPlan && {
+          schedule: {
+            plan: input.billing.payPlan,
+            dunning: input.billing.dunning,
+            billingMethod: input.billing.method,
+          },
+        }),
       });
 
       if (!existing) {
         policy.billTransaction(
           policy.firstTransaction.id,
-          { ...invoice, total: money(invoice.total) },
+          transactionInvoice(invoice),
           input.actor,
           deps.clocks.forTenant(ctx.tenantId),
         );

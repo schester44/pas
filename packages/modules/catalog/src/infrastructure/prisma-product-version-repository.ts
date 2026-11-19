@@ -6,6 +6,7 @@ import type {
   ProductVersion as ProductVersionRow,
 } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
+import { billingConfigOf } from "@pas/pay-plans";
 import {
   type AvailabilityWindowJson,
   availabilityFromJson,
@@ -39,6 +40,7 @@ export class PrismaProductVersionRepository implements ProductVersionRepository 
       documents: json(v.contents.documents),
       rules: json(v.contents.rules),
       rating: v.contents.rating === null ? PrismaRuntime.DbNull : json(v.contents.rating),
+      billing: json(v.contents.billing),
       updatedAt: toDate(v.updatedAt),
       publishedAt: v.publishedAt ? toDate(v.publishedAt) : null,
       retiredAt: v.retiredAt ? toDate(v.retiredAt) : null,
@@ -117,6 +119,7 @@ function toVersion(row: ProductVersionRow): ProductVersion {
       documents: row.documents as unknown as VersionContents["documents"],
       rules: row.rules as unknown as VersionContents["rules"],
       rating: row.rating as unknown as VersionContents["rating"],
+      billing: billingConfigOf(row.billing),
     },
     basedOnId: row.basedOnId ? asId(row.basedOnId) : null,
     createdAt: toInstant(row.createdAt),

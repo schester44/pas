@@ -23,6 +23,7 @@ import {
   PrismaProductRepository,
   PrismaProductVersionRepository,
 } from "@pas/catalog/infrastructure";
+import { composeCompliance } from "@pas/compliance/infrastructure";
 import { getPrismaClient, PrismaUnitOfWork } from "@pas/db";
 import {
   makeFindExistingFormEditions,
@@ -37,19 +38,30 @@ import {
 } from "@pas/form-library/infrastructure";
 import { asId, sameJurisdiction, type TenantContext } from "@pas/kernel";
 import {
+  makeApplyBillingEvent,
   makeApplyPayment,
+  makeEnrollAutopay,
   makeGetPolicyBilling,
   makeIssueInvoice,
   makeListInvoices,
   makePayInvoice,
+  makeInstallmentTimers,
+  makeSetAutopay,
+  pastDueOf,
 } from "@pas/billing";
-import { PrismaInvoiceRepository } from "@pas/billing/infrastructure";
+import {
+  PrismaBillingEventLog,
+  PrismaBillingScheduleRepository,
+  PrismaInvoiceRepository,
+} from "@pas/billing/infrastructure";
 import {
   makeAttachPolicyDocuments,
   makeCancellationReasons,
+  makeChangeProducer,
   makeDiscardTransaction,
   makeGetEndorsementSetup,
   makeGetPolicy,
+  makeGetTransactionFacts,
   makeInitiateCancellation,
   makeIssueNewBusiness,
   makeIssueTransaction,
@@ -63,6 +75,7 @@ import {
   makeReinstatePolicy,
   makeRequestPolicyChange,
   makeRescindCancellation,
+  makeCureNonpayment,
   type PolicyProductConfig,
   type PolicyRelease,
   type PolicyScope,
@@ -70,6 +83,7 @@ import {
 } from "@pas/policy";
 import {
   PrismaChangeRequestRepository,
+  PortNoticeDelivery,
   PrismaPolicyRepository,
   ReactPdfNoticeDocuments,
 } from "@pas/policy/infrastructure";
@@ -108,7 +122,29 @@ import {
   PrismaRaterWorkbookCloner,
   PrismaRaterWorkbookRepository,
 } from "@pas/rating/infrastructure";
-import { builtinProviders, composeIntegrations } from "@pas/integrations/infrastructure";
+import { composeAddresses } from "@pas/addresses/infrastructure";
+import {
+  builtinProviders,
+  composeIntegrations,
+  filingChannelsFrom,
+  licensingProviders,
+} from "@pas/integrations/infrastructure";
+import {
+  makeAgencyStatement,
+  makeCheckProducerLicense,
+  makeManageAgencies,
+  makeManageProducers,
+  makeManageRules,
+  makeProducerOfRecord,
+  makeResolveBookScope,
+} from "@pas/distribution";
+import {
+  OnFileLicensing,
+  PrismaAgencyRepository,
+  PrismaCommissionRepository,
+  PrismaMemberDirectory,
+  PrismaProducerRepository,
+} from "@pas/distribution/infrastructure";
 import { makeSearch } from "@pas/search";
 import { PostgresSearchIndex } from "@pas/search/infrastructure";
 import {
@@ -130,6 +166,8 @@ import {
 } from "@pas/tenants/infrastructure";
 import {
   makeBindQuote,
+  makeCheckSubmissionClearance,
+  makeChoosePayPlan,
   makeCustomizeQuote,
   makeDecideReferral,
   makeGetQuote,
@@ -245,9 +283,27 @@ export function compose() {
   const policies = new PrismaPolicyRepository();
 
   const invoices = new PrismaInvoiceRepository();
-  const issueInvoice = makeIssueInvoice({ invoices, clocks });
+  const schedules = new PrismaBillingScheduleRepository();
   const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks });
-  const getPolicyBilling = makeGetPolicyBilling({ uow, invoices });
+
+  const billingEvents = {
+    invoices,
+    events: new PrismaBillingEventLog(),
+    timeline: { record: recordPolicyEvent },
+    outbox,
+    clocks,
+  };
+
+  const applyBillingEvent = makeApplyBillingEvent({ ...billingEvents, uow });
+  const issueInvoice = makeIssueInvoice({ ...billingEvents, schedules });
+  const getPolicyBilling = makeGetPolicyBilling({ uow, invoices, schedules });
+
+  const enrollAutopay = makeEnrollAutopay({
+    uow,
+    schedules,
+    applyEvent: applyBillingEvent,
+    clocks,
+  });
 
   const clientAccounts = new PrismaClientAccountRepository();
   const policyParties = new PrismaPolicyPartyRepository();
@@ -263,6 +319,14 @@ export function compose() {
 
   const mailer = new ConsoleMailer(logger);
 
+  const distributionDeps = {
+    uow,
+    agencies: new PrismaAgencyRepository(),
+    producers: new PrismaProducerRepository(),
+    commissions: new PrismaCommissionRepository(),
+    clocks,
+  };
+
   const integrations = composeIntegrations({
     prisma,
     uow,
@@ -275,11 +339,14 @@ export function compose() {
         return clocks.isSandbox(tenantId);
       },
     },
-    builtins: builtinProviders({
-      payments: new FakeCardGateway(clocks),
-      esign: new ClickToSignGateway(),
-      email: mailer,
-    }),
+    builtins: [
+      ...builtinProviders({
+        payments: new FakeCardGateway(clocks),
+        esign: new ClickToSignGateway(),
+        email: mailer,
+      }),
+      ...licensingProviders(new OnFileLicensing(distributionDeps)),
+    ],
     notices: {
       record: (tx, ctx, input) =>
         recordPolicyEvent(tx, ctx, {
@@ -291,6 +358,38 @@ export function compose() {
     secretKey: process.env.INTEGRATIONS_SECRET_KEY,
     publicUrl: env.BETTER_AUTH_URL,
   });
+
+  const addresses = composeAddresses({
+    uow,
+    clocks,
+    providers: {
+      for: async (ctx) => (await integrations.resolver.chain(ctx, "address")).map((p) => p.adapter),
+    },
+    isSandbox: (ctx) => integrations.resolver.isSandbox(ctx.tenantId),
+  });
+
+  const producerOfRecord = makeProducerOfRecord(distributionDeps);
+
+  const checkProducerLicense = makeCheckProducerLicense({
+    ...distributionDeps,
+    licensing: integrations.resolver.port("licensing"),
+    placeName: jurisdictionName,
+  });
+
+  const manageProducers = makeManageProducers({
+    ...distributionDeps,
+    members: new PrismaMemberDirectory(prisma),
+  });
+
+  const distribution = {
+    resolveBookScope: makeResolveBookScope(distributionDeps),
+    producerOfRecord,
+    checkLicense: checkProducerLicense,
+    agencies: makeManageAgencies(distributionDeps),
+    producers: manageProducers,
+    rules: makeManageRules(distributionDeps),
+    statements: makeAgencyStatement(distributionDeps),
+  };
 
   const cardGateway = integrations.resolver.port("payments");
   const emailFor = integrations.resolver.port("email");
@@ -309,11 +408,36 @@ export function compose() {
     get: makeGetPolicy({ uow, policies, storage }),
   };
 
-  const applyPayment = makeApplyPayment({
+  const compliance = composeCompliance({
     uow,
-    invoices,
-    timeline: { record: (tx, ctx, entry) => recordPolicyEvent(tx, ctx, entry) },
+    outbox,
     clocks,
+    storage,
+    policies: {
+      transaction: makeGetTransactionFacts({ uow, policies }),
+      release: async (ctx, id) => {
+        const r = await productCatalog.getRelease(ctx, id);
+
+        return { id: r.id, market: r.market, rules: r.rules };
+      },
+    },
+    timeline: {
+      record: (tx, ctx, input) =>
+        recordPolicyEvent(tx, ctx, { ...input, actor: { type: "system", name: "Compliance" } }),
+    },
+    channels: filingChannelsFrom(integrations),
+    tenantName: async (ctx) => (await getProfile(ctx)).displayName,
+  });
+
+  const applyPayment = makeApplyPayment({ applyEvent: applyBillingEvent, clocks });
+
+  const setAutopay = makeSetAutopay({
+    uow,
+    schedules,
+    applyEvent: applyBillingEvent,
+    clocks,
+    gateway: cardGateway,
+    enroll: enrollAutopay,
   });
 
   const listInvoices = makeListInvoices({ uow, invoices });
@@ -371,7 +495,7 @@ export function compose() {
     policies: makeListClientPolicies(portal),
     policy: makeGetClientPolicy(portal),
     invoices: makeClientInvoices(portal),
-    requestChange: makeRequestClientChange(portal),
+    requestChange: makeRequestClientChange({ ...portal, addresses }),
     search: makeSearchClientAccounts({ uow, ...partyRepos }),
     merge: makeMergeClientAccounts({ uow, outbox, ...partyRepos, clocks }),
     policyClients: makeGetPolicyClients({ uow, ...partyRepos }),
@@ -437,6 +561,33 @@ export function compose() {
 
   const termRater: TermRater = makeRateTerm({ ...evaluation, catalog: productCatalog });
 
+  const noticeDelivery = new PortNoticeDelivery({
+    emails: async (ctx, policyId) =>
+      (await parties.policyClients(ctx, { policyId })).flatMap((c) =>
+        c.emails.map((e) => e.address),
+      ),
+    sendEmail: async (ctx, message) => {
+      await (await emailFor.for(ctx)).send(message);
+    },
+    sendLetter: integrations.sendLetter,
+    // Tenant profiles have no postal address yet; real print & mail needs one (TODO.md).
+    returnAddress: async (ctx) => ({
+      name: (await getProfile(ctx)).displayName,
+      line1: "",
+      city: "",
+      region: "",
+      postalCode: "",
+      country: "US",
+    }),
+  });
+
+  const billingStatus = {
+    pastDue: async (ctx: TenantContext, policyId: string) =>
+      (
+        await uow.run(ctx, async (tx) => pastDueOf(await invoices.listByPolicy(tx, ctx, policyId)))
+      )?.toJSON() ?? null,
+  };
+
   const policyChanges = {
     uow,
     outbox,
@@ -447,7 +598,11 @@ export function compose() {
     clocks,
     storage,
     notices: new ReactPdfNoticeDocuments({ branding: documentBranding, jurisdictionName }),
+    delivery: noticeDelivery,
+    billing: billingStatus,
   };
+
+  const quoteEndorsement = makeQuoteEndorsement(policyChanges);
 
   const renderQuotePacket = makeRenderQuotePacket({
     ...quoting,
@@ -463,6 +618,15 @@ export function compose() {
 
   const sandboxTimers = makeSandboxTimers({
     workflows,
+    obligations: compliance.timers,
+    installments: makeInstallmentTimers({
+      ...billingEvents,
+      uow,
+      schedules,
+      gateway: cardGateway,
+      applyEvent: applyBillingEvent,
+      notices: { remind: async () => [] },
+    }),
     terms: makeTermTimers({
       uow,
       outbox,
@@ -481,6 +645,11 @@ export function compose() {
     isTrustedTenantOrigin: async (origin) =>
       URL.canParse(origin) &&
       (await resolveTenantByHost({ host: new URL(origin).host })).status === "tenant",
+    onInvitationAccepted: ({ organizationId, ...user }) =>
+      manageProducers.linkUser(
+        { tenantId: asId(organizationId), actor: { type: "system", process: "auth" } },
+        user,
+      ),
     sendSignInCode: async ({ email, code, headers }) => {
       const resolved = await resolveTenantByHost({
         host: headers?.get("x-pas-host") ?? headers?.get("host") ?? "",
@@ -554,13 +723,19 @@ export function compose() {
         }),
         get: makeGetSubmission({ uow, submissions, quotes, catalog: productCatalog }),
         saveDraft: makeSaveDraft({ uow, submissions, clocks }),
-        submit: makeSubmitSubmission({ ...quoting, ...evaluation }),
+        submit: makeSubmitSubmission({ ...quoting, ...evaluation, addresses }),
+        clearance: makeCheckSubmissionClearance({
+          uow,
+          submissions,
+          catalog: productCatalog,
+          addresses,
+        }),
         list: makeListSubmissions({ uow, submissions, quotes, catalog: productCatalog }),
       },
       quotes: {
         get: makeGetQuote({ uow, submissions, quotes }),
         customize: makeCustomizeQuote({ ...quoting, ...evaluation }),
-        saveDetails: makeSaveBindDetails({ uow, submissions, quotes, clocks }),
+        saveDetails: makeSaveBindDetails({ uow, submissions, quotes, clocks, addresses }),
         packet: renderQuotePacket,
         sign: makeSignQuote({
           ...quoting,
@@ -571,33 +746,86 @@ export function compose() {
         bind: makeBindQuote({
           ...quoting,
           ...evaluation,
+          addresses,
           payments: cardGateway,
+          licensing: {
+            check: (ctx, input) =>
+              checkProducerLicense(ctx, { ...input, userId: input.producerId }),
+          },
           policies: {
-            issue: policy.issueNewBusiness,
+            issue: async (ctx, request) => {
+              const record = await producerOfRecord(ctx, {
+                userId: request.producer.id,
+                agencyId: request.producer.agencyId,
+              });
+
+              return policy.issueNewBusiness(ctx, {
+                ...(request as Parameters<typeof policy.issueNewBusiness>[1]),
+                producer: {
+                  ...request.producer,
+                  agencyId: record.agencyId,
+                  agencyName: record.agencyName,
+                },
+              });
+            },
             attachDocuments: policy.attachDocuments,
             applyPayment: async (ctx, input) => {
               await applyPayment(ctx, input);
             },
+            enrollAutopay,
           },
           documents: quoteDocuments,
           storage,
         }),
         decideReferral: makeDecideReferral(quoting),
+        choosePayPlan: makeChoosePayPlan({ uow, submissions, quotes, clocks }),
         checkout: async (ctx: TenantContext) => (await cardGateway.for(ctx)).checkout,
       },
       parties,
+      compliance,
+      addresses,
+      distribution,
       search: makeSearch({ uow, index: new PostgresSearchIndex() }),
       policies: {
         list: policy.list,
         get: policy.get,
         changeRequests: listChangeRequests,
+        changeProducer: makeChangeProducer({ uow, outbox, policies, clocks }),
         billing: async (ctx: TenantContext, scope: PolicyScope, input: { id: string }) => {
           await policy.get.detail(ctx, scope, input);
 
           return getPolicyBilling(ctx, { policyId: input.id });
         },
+        setAutopay: async (
+          ctx: TenantContext,
+          scope: PolicyScope,
+          input: Omit<Parameters<typeof setAutopay>[1], "payer"> & { payerName: string },
+        ) => {
+          const detail = await policy.get.detail(ctx, scope, { id: input.policyId });
+          const { payerName, ...rest } = input;
+
+          return setAutopay(ctx, { ...rest, payer: { name: payerName || detail.insuredName } });
+        },
+        payInvoice: async (
+          ctx: TenantContext,
+          scope: PolicyScope,
+          input: Parameters<typeof payInvoice>[1] & { policyId: string },
+        ) => {
+          await policy.get.detail(ctx, scope, { id: input.policyId });
+
+          return payInvoice(ctx, input);
+        },
+        cureNonpayment: makeCureNonpayment(policyChanges),
+        applyBillingEvent,
         endorsementSetup: makeGetEndorsementSetup(policyChanges),
-        quoteEndorsement: makeQuoteEndorsement(policyChanges),
+        quoteEndorsement: async (
+          ...[ctx, scope, input]: Parameters<ReturnType<typeof makeQuoteEndorsement>>
+        ) =>
+          quoteEndorsement(ctx, scope, {
+            ...input,
+            ...(input.risk && { risk: await addresses.stampDocument(ctx, input.risk) }),
+            ...(input.parties && { parties: await addresses.stampDocument(ctx, input.parties) }),
+          }),
         issueTransaction: makeIssueTransaction(policyChanges),
         discardTransaction: makeDiscardTransaction(policyChanges),
         cancellationReasons: makeCancellationReasons(policyChanges),

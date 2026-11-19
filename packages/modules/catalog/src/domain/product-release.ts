@@ -1,5 +1,6 @@
 import { type DocumentSet, emptyDocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
+import { type BillingConfig, billingConfigOf } from "@pas/pay-plans";
 import {
   type Id,
   type Instant,
@@ -14,6 +15,7 @@ import {
   type AvailabilityKind,
   type AvailabilityWindow,
   type DateWindow,
+  type Market,
   type DateWindowJson,
   dateWindowToJson,
   windowContains,
@@ -31,6 +33,7 @@ export interface ReleaseManifest {
   productVersionId: string;
   version: string;
   jurisdiction: Jurisdiction;
+  market: Market;
   newBusiness: DateWindowJson;
   renewal: DateWindowJson;
   riskSchema: RiskSchema;
@@ -40,6 +43,7 @@ export interface ReleaseManifest {
   documents: DocumentSet;
   rules: VersionDecision[];
   rating: RatingConfig | null;
+  billing: BillingConfig;
 }
 
 export function completeManifest(
@@ -57,12 +61,14 @@ export function completeManifest(
 ): ReleaseManifest {
   return {
     ...stored,
+    market: stored.market ?? "admitted",
     forms: stored.forms ?? [],
     coverages: stored.coverages ?? [],
     lifecycle: stored.lifecycle ?? {},
     documents: { ...emptyDocumentSet(), ...stored.documents },
     rules: stored.rules ?? [],
     rating: stored.rating ?? null,
+    billing: billingConfigOf(stored.billing),
   };
 }
 
@@ -92,6 +98,7 @@ export class ProductRelease {
       productVersionId: v.id,
       version: v.version,
       jurisdiction: window.jurisdiction,
+      market: window.market ?? "admitted",
       newBusiness: dateWindowToJson(window.newBusiness),
       renewal: dateWindowToJson(window.renewal),
       riskSchema: v.contents.riskSchema,
@@ -101,6 +108,7 @@ export class ProductRelease {
       documents: v.contents.documents,
       rules: v.contents.rules,
       rating: v.contents.rating,
+      billing: v.contents.billing,
     };
   }
 

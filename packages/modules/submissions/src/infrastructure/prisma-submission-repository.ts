@@ -24,9 +24,14 @@ const plainDateToDb = (d: Temporal.PlainDate) => new Date(`${d.toString()}T00:00
 const plainDateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0, 10));
 
 function scoped(ctx: TenantContext, scope: SubmissionScope): Prisma.SubmissionWhereInput {
-  return scope.kind === "producer"
-    ? { tenantId: ctx.tenantId, producerId: scope.producerId }
-    : { tenantId: ctx.tenantId };
+  switch (scope.kind) {
+    case "producer":
+      return { tenantId: ctx.tenantId, producerId: scope.producerId };
+    case "agencies":
+      return { tenantId: ctx.tenantId, agencyId: { in: [...scope.agencyIds] } };
+    case "tenant":
+      return { tenantId: ctx.tenantId };
+  }
 }
 
 export class PrismaSubmissionRepository implements SubmissionRepository {
@@ -62,6 +67,7 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
         stage: s.stage,
         producerId: s.producer.userId,
         producerName: s.producer.name,
+        agencyId: s.producer.agencyId,
         createdAt: toDate(s.createdAt),
       },
     });
@@ -123,7 +129,7 @@ function toSubmission(row: SubmissionRow): Submission {
     effectiveDate: plainDateFromDb(row.effectiveDate),
     channel: row.channel as SubmissionChannel,
     stage: row.stage as SubmissionStage,
-    producer: { userId: asId(row.producerId), name: row.producerName },
+    producer: { userId: asId(row.producerId), name: row.producerName, agencyId: row.agencyId },
     riskData: row.riskData as RiskData,
     insuredName: row.insuredName,
     status: fromDbStatus(row.status),

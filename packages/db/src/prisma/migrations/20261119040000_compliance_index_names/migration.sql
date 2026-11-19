@@ -1,0 +1,2 @@
+ALTER INDEX "compliance_obligation_events_tenant_id_obligation_id_occurred_a" RENAME TO "compliance_obligation_events_tenant_id_obligation_id_occurr_idx";
+ALTER INDEX "compliance_obligations_tenant_id_kind_jurisdiction_licensee_id_" RENAME TO "compliance_obligations_tenant_id_kind_jurisdiction_licensee_idx";

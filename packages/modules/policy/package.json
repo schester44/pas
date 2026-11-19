@@ -16,6 +16,7 @@
     "@pas/documents": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/kernel": "workspace:*",
+    "@pas/pay-plans": "workspace:*",
     "@pas/storage": "workspace:*"
   }
 }

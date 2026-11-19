@@ -11,13 +11,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@pas/addresses": "workspace:*",
     "@pas/catalog": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/decisions-engine": "workspace:*",
     "@pas/documents": "workspace:*",
+    "@pas/expressions": "workspace:*",
     "@pas/form-library": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/kernel": "workspace:*",
+    "@pas/pay-plans": "workspace:*",
     "@pas/rating": "workspace:*",
     "@pas/rating-engine": "workspace:*",
     "@pas/storage": "workspace:*",

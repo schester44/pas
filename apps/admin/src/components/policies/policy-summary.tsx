@@ -1,0 +1,108 @@
+import { Card } from "@pas/ui/components/card";
+import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
+import { daysUntil } from "@pas/ui/lib/policy-change";
+import type * as React from "react";
+import { formatPlainDate } from "@/lib/format";
+import { PolicyActions } from "./policy-actions";
+import { type Billing, isZero, money, type Policy } from "./policy-format";
+import { PolicyStatus } from "./policy-status";
+
+/** The facts people need at a glance: who, what, state, term, premium, balance, producer. */
+export function PolicySummary({ policy, billing }: { policy: Policy; billing?: Billing }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-start justify-between gap-4 p-(--card-p)">
+        <div className="grid min-w-0 gap-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <h2 className="m-0 truncate text-2xl leading-8 font-semibold tracking-tight">
+              {policy.insuredName}
+            </h2>
+            <PolicyStatus status={policy.status} cancellation={policy.cancellation} />
+          </div>
+          <p className="m-0 text-sm text-muted-foreground">
+            {policy.productName} <span className="tabular-nums">{policy.productVersion}</span>
+            {" · "}
+            {jurisdictionName(policy.jurisdiction)}
+          </p>
+        </div>
+        <PolicyActions policy={policy} />
+      </div>
+      <dl className="m-0 grid grid-cols-2 gap-px border-t bg-border lg:grid-cols-4">
+        <Fact label="Term" hint={termHint(policy)}>
+          {formatPlainDate(policy.effectiveDate)} – {formatPlainDate(policy.expirationDate)}
+        </Fact>
+        <Fact
+          label="Written premium"
+          hint={!isZero(policy.taxesAndFees) && `+ ${money(policy.taxesAndFees)} taxes and fees`}
+        >
+          {money(policy.writtenPremium)}
+        </Fact>
+        <Fact label="Balance due" hint={billing && <BalanceHint billing={billing} />}>
+          {billing ? (
+            billing.balance ? (
+              money(billing.balance)
+            ) : (
+              <span className="text-muted-foreground">–</span>
+            )
+          ) : (
+            <span className="inline-block h-5 w-20 animate-pulse rounded bg-muted align-middle" />
+          )}
+        </Fact>
+        <Fact label="Producer" hint={policy.producerAgency}>
+          {policy.producerName}
+        </Fact>
+      </dl>
+    </Card>
+  );
+}
+
+function termHint(policy: Policy) {
+  if (policy.cancellation?.status === "pending")
+    return `Cancels ${formatPlainDate(policy.cancellation.effectiveDate)}`;
+
+  if (policy.cancellation?.status === "effective")
+    return `Cancelled ${formatPlainDate(policy.cancellation.effectiveDate)}`;
+
+  if (policy.status === "pending_effective")
+    return `Starts in ${plural(daysUntil(policy.effectiveDate), "day")}`;
+
+  const left = daysUntil(policy.expirationDate);
+
+  return left > 0 ? `Expires in ${plural(left, "day")}` : "Expired";
+}
+
+const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+
+function BalanceHint({ billing }: { billing: Billing }) {
+  if (billing.pastDue && !isZero(billing.pastDue))
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="size-1.5 rounded-full bg-red-500" />
+        {money(billing.pastDue)} past due
+      </span>
+    );
+
+  if (billing.nextDue) return `Next due ${formatPlainDate(billing.nextDue.dueOn)}`;
+
+  return billing.balance && !isZero(billing.balance) ? null : "Paid in full";
+}
+
+function Fact({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid content-start gap-1 bg-card px-(--card-p) py-4">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="m-0 grid gap-0.5">
+        <span className="text-sm leading-5 font-medium tabular-nums">{children}</span>
+        {hint && <span className="text-xs text-muted-foreground tabular-nums">{hint}</span>}
+      </dd>
+    </div>
+  );
+}

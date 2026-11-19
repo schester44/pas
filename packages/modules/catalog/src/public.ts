@@ -91,7 +91,7 @@ export {
   type FormStage,
   type VersionDecision,
 } from "./domain/version-contents";
-export type { AvailabilityKind } from "./domain/availability";
+export { MARKETS, type AvailabilityKind, type Market } from "./domain/availability";
 export type { ProductRepository } from "./ports/product-repository";
 export type { ProductVersionRepository } from "./ports/product-version-repository";
 export type { ProductReleaseRepository } from "./ports/product-release-repository";

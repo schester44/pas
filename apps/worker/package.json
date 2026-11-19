@@ -7,19 +7,26 @@
     "dev": "LOG_PRETTY=true tsx watch --env-file=../../.env src/index.ts",
     "build": "tsup",
     "start": "node --env-file-if-exists=../../.env --enable-source-maps dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "commissions:backfill": "tsx --env-file=../../.env src/scripts/backfill-commissions.ts"
   },
   "dependencies": {
     "@pas/billing": "workspace:*",
+    "@pas/catalog": "workspace:*",
+    "@pas/compliance": "workspace:*",
     "@pas/db": "workspace:*",
+    "@pas/distribution": "workspace:*",
     "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
     "@pas/parties": "workspace:*",
     "@pas/policy": "workspace:*",
     "@pas/queues": "workspace:*",
+    "@pas/rating": "workspace:*",
+    "@pas/storage": "workspace:*",
     "@pas/submissions": "workspace:*",
     "@pas/tenants": "workspace:*",
+    "@pas/ui": "workspace:*",
     "@pas/workflows": "workspace:*",
     "zod": "^4.6.7"
   },

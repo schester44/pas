@@ -1,4 +1,4 @@
-import { Blocks, FlaskConical, Palette, ShieldCheck, Users } from "lucide-react";
+import { BadgeCheck, Blocks, FlaskConical, Palette, ShieldCheck, Users } from "lucide-react";
 import type * as React from "react";
 import { type Access, useAccess } from "@/lib/permissions";
 import type { FileRouteTypes } from "@/routeTree.gen";
@@ -25,6 +25,12 @@ const settingsNav: { label: string; items: SettingsNavItem[] }[] = [
         label: "Integrations",
         icon: <Blocks />,
         visible: (access) => access.branding.update,
+      },
+      {
+        to: "/settings/licensees",
+        label: "Licensees",
+        icon: <BadgeCheck />,
+        visible: (access) => access.compliance.write,
       },
       {
         to: "/settings/sandbox",

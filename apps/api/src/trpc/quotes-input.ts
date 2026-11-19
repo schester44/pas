@@ -21,6 +21,8 @@ export const address = z.object({
   region: text(100),
   postalCode: text(20),
   country: z.string().length(2),
+  addressId: z.uuid().optional(),
+  verified: z.boolean().optional(),
 });
 
 export const bySubmission = z.object({ submissionId: id });
@@ -67,6 +69,10 @@ export const bindDetailsInput = bySubmission.extend({
       .array(z.object({ carrier: text(200), declinedOn: text(10), reason: text(500) }))
       .max(10),
     acknowledgements: z.array(text(64)).max(50),
+    homeState: z
+      .string()
+      .regex(/^[A-Z]{2}-[A-Z0-9]{1,3}$/)
+      .optional(),
   }),
 });
 
@@ -91,10 +97,25 @@ export const bindQuoteInput = bySubmission
       .string()
       .regex(/^pm_\w{4,200}$/)
       .optional(),
+    autopay: z.boolean().optional(),
   })
   .refine((input) => Boolean(input.card) !== Boolean(input.paymentToken), {
     message: "Send a card or a payment token",
   });
+
+export const choosePayPlanInput = bySubmission.extend({ payPlan: z.string().min(1).max(40) });
+
+export const payPolicyInvoiceInput = z.object({
+  policyId: z.uuid(),
+  invoiceId: z.uuid(),
+  card: cardInput,
+});
+
+export const setAutopayInput = z.object({
+  policyId: z.uuid(),
+  enabled: z.boolean(),
+  card: cardInput.optional(),
+});
 
 export const decideReferralInput = bySubmission.extend({
   outcome: z.enum(["approve", "decline"]),

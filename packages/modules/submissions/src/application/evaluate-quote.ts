@@ -3,6 +3,7 @@ import { currencyDecimals } from "@pas/forms-core";
 import {
   DomainError,
   type Jurisdiction,
+  jurisdictionCode,
   Money,
   type PlainDate,
   type TenantContext,
@@ -17,6 +18,7 @@ import {
   normalizeSelection,
 } from "../domain/coverages";
 import type { DecisionRecord, QuoteEvaluation, RatingRecord } from "../domain/quote-evaluation";
+import { payPlanOffers } from "../domain/pay-plan-offers";
 import { computeTaxesAndFees, totalOf } from "../domain/taxes-fees";
 import { outcomeOf, reasonsFrom, type UnderwritingReason } from "../domain/underwriting";
 import type { CatalogRelease, ReleaseDecision } from "../ports/product-catalog";
@@ -36,6 +38,7 @@ export interface EvaluationInput {
   termStart: PlainDate;
   termEnd: PlainDate;
   selection: readonly CoverageChoice[] | null;
+  channel?: string;
   transaction?: { type: RatingInput["transaction"]["type"]; effective: PlainDate };
 }
 
@@ -58,7 +61,7 @@ export async function evaluateQuote(
   const started = performance.now();
   const { release } = input;
   const { risk } = await deps.enricher.enrich(ctx, release, input.risk, ["prefill", "pre_rate"]);
-  const data = { ...risk, jurisdiction: input.jurisdiction };
+  const data = { ...risk, jurisdiction: input.jurisdiction, market: release.market };
   const records: DecisionRecord[] = [];
 
   const run = <K extends DecisionKind>(kind: K): DecisionResult<K>[] =>
@@ -117,6 +120,19 @@ export async function evaluateQuote(
         );
 
   const currency = priced?.currency ?? currencyOf(release);
+  const clock = deps.clocks.forTenant(ctx.tenantId);
+
+  const payPlans =
+    priced && input.channel
+      ? payPlanOffers(release.billing, {
+          premium: priced.writtenPremium,
+          taxesFees: priced.taxesFees,
+          jurisdiction: jurisdictionCode(input.jurisdiction),
+          channel: input.channel,
+          termStart: input.termStart,
+          today: clock.today("UTC"),
+        })
+      : [];
 
   return {
     selection,
@@ -132,7 +148,8 @@ export async function evaluateQuote(
       decisions: records,
       diligentSearch,
       attestations,
-      evaluatedAt: deps.clocks.forTenant(ctx.tenantId).now(),
+      payPlans,
+      evaluatedAt: clock.now(),
       durationMs: performance.now() - started,
     },
   };

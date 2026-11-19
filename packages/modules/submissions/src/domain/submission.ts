@@ -30,6 +30,7 @@ export interface PinnedRelease {
 export interface Producer {
   userId: UserId;
   name: string;
+  agencyId: string | null;
 }
 
 export interface SubmissionProps extends PinnedRelease {

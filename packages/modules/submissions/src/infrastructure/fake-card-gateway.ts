@@ -14,6 +14,11 @@ import type {
 
 const APPROVED = new Set(["4242424242424242", "5555555555554444"]);
 
+// Pays on-session (at bind) but every saved-card charge declines, like Stripe's 4000…0341.
+const FAILS_OFF_SESSION = "4000000000000341";
+
+const SAVED = /^pm_test_(ok|fail)_(\w+)_(\d{4})_(\d+)_(\d+)_/;
+
 const DECLINED: Record<string, { code: string; message: string }> = {
   "4000000000000002": { code: "card_declined", message: "The card was declined." },
   "4000000000009995": {
@@ -32,7 +37,10 @@ interface Held {
 const brandOf = (number: string) =>
   number.startsWith("4") ? "Visa" : /^5[1-5]/.test(number) ? "Mastercard" : "Card";
 
-/** Test card provider: 4242 4242 4242 4242 succeeds, 4000 0000 0000 0002 declines. */
+/**
+ * Test card provider: 4242 4242 4242 4242 succeeds, 4000 0000 0000 0002 declines, and
+ * 4000 0000 0000 0341 pays at bind but declines every autopay charge.
+ */
 export class FakeCardGateway implements PaymentGateway {
   readonly provider = "test_card";
   private readonly byKey = new Map<string, Held>();
@@ -106,7 +114,7 @@ export class FakeCardGateway implements PaymentGateway {
     _ctx: TenantContext,
     input: { paymentRef: string; amount: Money; idempotencyKey: string },
   ): Promise<{ refundId: string }> {
-    if (!input.amount.amount.isPositive())
+    if (!input.amount.amount.greaterThan(0))
       throw new DomainError("invalid", "Refunds must be positive");
 
     const existing = this.refunds.get(input.idempotencyKey);
@@ -119,6 +127,84 @@ export class FakeCardGateway implements PaymentGateway {
     return { refundId };
   }
 
+  /** A saved card's reference carries everything the fake needs, so any process can charge it. */
+  async saveMethod(
+    ctx: TenantContext,
+    input: { reference: string; method: PaymentMethodInput; customer: { name: string } },
+  ): Promise<
+    | {
+        status: "saved";
+        methodRef: string;
+        customerRef: string | null;
+        method: PaymentMethodSummary;
+      }
+    | { status: "declined"; code: string; message: string; method: PaymentMethodSummary }
+  > {
+    if (input.method.kind !== "card") {
+      throw new DomainError("invalid", "The test provider only takes card numbers");
+    }
+
+    const card = input.method;
+    const number = card.number.replace(/\D/g, "");
+
+    const method = {
+      brand: brandOf(number),
+      last4: number.slice(-4),
+      expMonth: card.expMonth,
+      expYear: card.expYear,
+    };
+
+    const declined = this.decline(ctx, number, card.expMonth, card.expYear);
+
+    if (declined) return { status: "declined", ...declined, method };
+
+    const outcome = number === FAILS_OFF_SESSION ? "fail" : "ok";
+
+    return {
+      status: "saved",
+      methodRef: `pm_test_${outcome}_${method.brand}_${method.last4}_${method.expMonth}_${method.expYear}_${newId()}`,
+      customerRef: null,
+      method,
+    };
+  }
+
+  async chargeSaved(
+    _ctx: TenantContext,
+    input: { idempotencyKey: string; amount: Money; methodRef: string },
+  ): Promise<
+    | { status: "paid"; paymentRef: string; method: PaymentMethodSummary }
+    | { status: "declined"; code: string; message: string; method: PaymentMethodSummary }
+  > {
+    const match = SAVED.exec(input.methodRef);
+
+    if (!match) throw new DomainError("invalid", "That isn't a saved test card");
+
+    const [, outcome, brand, last4, expMonth, expYear] = match;
+
+    const method = {
+      brand: brand!,
+      last4: last4!,
+      expMonth: Number(expMonth),
+      expYear: Number(expYear),
+    };
+
+    if (outcome === "fail") {
+      return {
+        status: "declined",
+        code: "card_declined",
+        message: "The card was declined.",
+        method,
+      };
+    }
+
+    const existing = this.refunds.get(`charge:${input.idempotencyKey}`);
+    const paymentRef = existing ?? `ch_test_${newId()}`;
+
+    this.refunds.set(`charge:${input.idempotencyKey}`, paymentRef);
+
+    return { status: "paid", paymentRef, method };
+  }
+
   private decline(ctx: TenantContext, number: string, expMonth: number, expYear: number) {
     const today = this.clocks.forTenant(ctx.tenantId).today("UTC");
 
@@ -128,7 +214,7 @@ export class FakeCardGateway implements PaymentGateway {
 
     if (DECLINED[number]) return DECLINED[number];
 
-    if (!APPROVED.has(number)) {
+    if (!APPROVED.has(number) && number !== FAILS_OFF_SESSION) {
       return {
         code: "test_card_required",
         message: "Use a test card, such as 4242 4242 4242 4242.",

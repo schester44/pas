@@ -6,6 +6,7 @@ import {
   Policy,
   type PolicyId,
   type PolicyTermId,
+  type PolicyTermProps,
   type PolicyTransactionProps,
   type TermCancellation,
   type TermStatus,
@@ -27,6 +28,8 @@ function scoped(ctx: TenantContext, scope: PolicyScope): Prisma.PolicyWhereInput
   switch (scope.kind) {
     case "producer":
       return { tenantId: ctx.tenantId, producerId: scope.producerId };
+    case "agencies":
+      return { tenantId: ctx.tenantId, agencyId: { in: [...scope.agencyIds] } };
     case "party":
       return { tenantId: ctx.tenantId, id: { in: [...scope.policyIds] } };
     case "tenant":
@@ -42,7 +45,13 @@ export class PrismaPolicyRepository implements PolicyRepository {
 
     await db.policy.upsert({
       where: { id: p.id },
-      update: { insuredName: p.insuredName },
+      update: {
+        insuredName: p.insuredName,
+        producerId: p.producer.id,
+        producerName: p.producer.name,
+        agencyId: p.producer.agencyId,
+        agencyName: p.producer.agencyName,
+      },
       create: {
         id: p.id,
         tenantId: p.tenantId,
@@ -52,6 +61,8 @@ export class PrismaPolicyRepository implements PolicyRepository {
         insuredName: p.insuredName,
         producerId: p.producer.id,
         producerName: p.producer.name,
+        agencyId: p.producer.agencyId,
+        agencyName: p.producer.agencyName,
         sourceSubmissionId: p.sourceSubmissionId,
         sourceQuoteId: p.sourceQuoteId,
         createdAt: toDate(p.createdAt),
@@ -62,6 +73,8 @@ export class PrismaPolicyRepository implements PolicyRepository {
       const data = {
         status: toDbStatus(term.status),
         activatedAt: term.activatedAt ? toDate(term.activatedAt) : null,
+        billingMethod: term.billingMethod,
+        payPlan: term.payPlan,
         cancellation: term.cancellation
           ? ({
               ...term.cancellation,
@@ -297,7 +310,12 @@ export class PrismaPolicyRepository implements PolicyRepository {
           productId: p.productId,
           productName: p.productName,
           insuredName: p.insuredName,
-          producer: { id: p.producerId, name: p.producerName },
+          producer: {
+            id: p.producerId,
+            name: p.producerName,
+            agencyId: p.agencyId,
+            agencyName: p.agencyName,
+          },
           sourceSubmissionId: p.sourceSubmissionId,
           sourceQuoteId: p.sourceQuoteId,
           createdAt: toInstant(p.createdAt),
@@ -318,6 +336,8 @@ export class PrismaPolicyRepository implements PolicyRepository {
           boundAt: toInstant(t.boundAt),
           activatedAt: t.activatedAt ? toInstant(t.activatedAt) : null,
           cancellation: cancellationFromJson(t.cancellation),
+          billingMethod: t.billingMethod as PolicyTermProps["billingMethod"],
+          payPlan: t.payPlan,
           updatedAt: toInstant(t.updatedAt),
         })),
         transactions: transactions

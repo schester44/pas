@@ -6,6 +6,7 @@ import type { PolicyScope } from "../domain/scope";
 import { coveragesOf } from "../domain/term-state";
 import { premiumOf } from "../domain/transaction";
 import type { NoticeDocuments } from "../ports/notice-documents";
+import type { NoticeAddress, NoticeDelivery } from "../ports/notice-delivery";
 import { type TransactionDto, toTransactionDto } from "./dto";
 import {
   billIssued,
@@ -15,15 +16,29 @@ import {
   today,
 } from "./pricing";
 
-export type CancellationDeps = ChangeDeps & { notices: NoticeDocuments; storage: ObjectStorage };
+export type CancellationDeps = ChangeDeps & {
+  notices: NoticeDocuments;
+  storage: ObjectStorage;
+  delivery: NoticeDelivery;
+};
+
+type MoneyJson = { amount: string; currency: string };
+
+export type NoticeKind = { kind: "intent"; amountDue: MoneyJson } | { kind: "rescission" };
+
+const TITLES = {
+  intent: "Notice of intent to cancel for nonpayment",
+  rescission: "Cancellation rescinded — payment received",
+};
 
 const plain = (date: { toString(): string }) => date.toString();
 
-async function renderNotice(
+export async function renderNotice(
   deps: CancellationDeps,
   ctx: TenantContext,
   policy: Policy,
-  pricing: CancellationPricing,
+  pricing: Pick<CancellationPricing, "details" | "effectiveDate">,
+  special?: NoticeKind,
 ) {
   const term = policy.currentTerm;
   const snapshot = policy.latestVersion(term.id).snapshot;
@@ -67,10 +82,13 @@ async function renderNotice(
       })),
     },
     notice: {
-      title:
-        cancellation.initiator === "insured"
+      title: special
+        ? TITLES[special.kind]
+        : cancellation.initiator === "insured"
           ? "Cancellation confirmation"
           : "Notice of cancellation",
+      ...(special && { kind: special.kind }),
+      ...(special?.kind === "intent" && { amountDue: special.amountDue }),
       reasonLabel: cancellation.reasonLabel,
       noticeDate: cancellation.noticeDate,
       effectiveDate: plain(pricing.effectiveDate),
@@ -94,17 +112,18 @@ export async function commitCancellation(
     transactionId?: string;
     actor: TimelineActor;
     approvedBy?: TimelineActor;
+    notice?: NoticeKind;
   },
 ): Promise<TransactionDto> {
   const policy = await loadPolicy(deps, ctx, scope, input.policyId);
   const term = policy.currentTerm;
   const base = policy.latestVersion(term.id).version;
-  const notice = await renderNotice(deps, ctx, policy, input.pricing);
+  const notice = await renderNotice(deps, ctx, policy, input.pricing, input.notice);
   const key = `tenants/${ctx.tenantId}/policies/${policy.id}/notices/${newId()}.pdf`;
 
   await deps.storage.put({ key, body: notice.pdf, contentType: "application/pdf" });
 
-  return deps.uow.run(ctx, async (tx) => {
+  const committed = await deps.uow.run(ctx, async (tx) => {
     const current = await loadPolicy(deps, ctx, scope, input.policyId, tx);
 
     if (current.latestVersion(term.id).version !== base) {
@@ -146,17 +165,6 @@ export async function commitCancellation(
       deps.clocks.forTenant(ctx.tenantId),
     );
 
-    current.recordNoticeSent(
-      {
-        transactionId: transaction.id,
-        title: notice.title,
-        delivery: input.pricing.earliest.delivery,
-        recipients: [...input.pricing.rule.recipients],
-      },
-      { type: "system", name: "Notices" },
-      deps.clocks.forTenant(ctx.tenantId),
-    );
-
     const now = today(deps.clocks.forTenant(ctx.tenantId));
 
     if (Temporal.PlainDate.compare(input.pricing.effectiveDate, now) <= 0) {
@@ -181,5 +189,72 @@ export async function commitCancellation(
     await deps.outbox.add(tx, current.pullEvents());
 
     return toTransactionDto(current.transaction(transaction.id));
+  });
+
+  await dispatchNotice(deps, ctx, scope, {
+    policyId: input.policyId,
+    transactionId: committed.id,
+    title: notice.title,
+    pdf: notice.pdf,
+    delivery: input.pricing.earliest.delivery,
+    recipients: [...input.pricing.rule.recipients],
+  });
+
+  return committed;
+}
+
+/**
+ * Emails the notice and, when the rule requires mail, mails it through print & mail; proof of
+ * mailing arrives on the timeline from the mail provider (PLAN §17.3).
+ */
+export async function dispatchNotice(
+  deps: CancellationDeps,
+  ctx: TenantContext,
+  scope: PolicyScope,
+  input: {
+    policyId: string;
+    transactionId: string;
+    title: string;
+    pdf: Uint8Array;
+    delivery: string;
+    recipients: string[];
+  },
+): Promise<void> {
+  const policy = await loadPolicy(deps, ctx, scope, input.policyId);
+  const snapshot = policy.latestVersion(policy.currentTerm.id).snapshot;
+  const risk = (snapshot.risk ?? {}) as Record<string, unknown>;
+
+  const parties = (snapshot.parties ?? {}) as {
+    mailingAddress?: NoticeAddress | null;
+    additionalInterests?: { kind: string; name: string; address: NoticeAddress | null }[];
+  };
+
+  const sent = await deps.delivery.deliver(ctx, {
+    policyId: policy.id,
+    policyNumber: policy.number,
+    transactionId: input.transactionId,
+    title: input.title,
+    pdf: input.pdf,
+    delivery: input.delivery,
+    recipients: input.recipients,
+    insured: {
+      name: policy.toSnapshot().policy.insuredName,
+      address: parties.mailingAddress ?? (risk.mailingAddress as NoticeAddress | undefined) ?? null,
+    },
+    interests: input.recipients.includes("mortgagee")
+      ? (parties.additionalInterests ?? []).filter((i) => i.kind === "mortgagee")
+      : [],
+  });
+
+  await deps.uow.run(ctx, async (tx) => {
+    const current = await loadPolicy(deps, ctx, scope, input.policyId, tx);
+
+    current.recordNoticeSent(
+      { ...input, ...sent },
+      { type: "system", name: "Notices" },
+      deps.clocks.forTenant(ctx.tenantId),
+    );
+
+    await deps.policies.save(tx, current);
   });
 }

@@ -23,6 +23,7 @@ model Submission {
   stage            String
   producerId       String           @map("producer_id")
   producerName     String           @map("producer_name")
+  agencyId         String?          @map("agency_id") @db.Uuid
   insuredName      String?          @map("insured_name")
   riskData         Json             @map("risk_data")
   status           SubmissionStatus @default(DRAFT)
@@ -34,6 +35,7 @@ model Submission {
   @@unique([tenantId, number])
   @@index([tenantId, updatedAt])
   @@index([tenantId, producerId, updatedAt])
+  @@index([tenantId, agencyId, updatedAt])
   @@index([tenantId, status, updatedAt])
   @@map("submissions")
 }
@@ -77,6 +79,7 @@ model Quote {
   details          Json?
   signature        Json?
   payment          Json?
+  payPlan          String?     @map("pay_plan")
   policyId         String?     @map("policy_id") @db.Uuid
   policyNumber     String?     @map("policy_number")
   expiresAt        DateTime    @map("expires_at") @db.Timestamptz(6)

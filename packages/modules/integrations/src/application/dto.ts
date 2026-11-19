@@ -17,6 +17,8 @@ export interface IntegrationSummaryDto {
   liveMode: boolean;
   install: { status: InstallStatus; environment: IntegrationEnvironment } | null;
   powering: boolean;
+  files: { kinds: string[]; jurisdictions: string[] | "all" } | null;
+  requiresCredentials: boolean;
 }
 
 export interface ConfigFieldDto {
@@ -75,6 +77,14 @@ export function toSummaryDto(
     liveMode: manifest.liveMode,
     install: install ? { status: install.status, environment: install.environment } : null,
     powering,
+    files: manifest.files
+      ? {
+          kinds: [...manifest.files.kinds],
+          jurisdictions:
+            manifest.files.jurisdictions === "all" ? "all" : [...manifest.files.jurisdictions],
+        }
+      : null,
+    requiresCredentials: manifest.requiresCredentials ?? false,
   };
 }
 

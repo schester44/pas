@@ -84,7 +84,7 @@ export function makeRateTerm(deps: EvaluationDeps & { catalog: ProductCatalog })
       },
     ) {
       const release = await deps.catalog.getRelease(ctx, input.productReleaseId);
-      const data = { ...input.risk, jurisdiction: input.jurisdiction };
+      const data = { ...input.risk, jurisdiction: input.jurisdiction, market: release.market };
 
       const rules = release.rules
         .filter((rule) => rule.kind === "taxes_fees")

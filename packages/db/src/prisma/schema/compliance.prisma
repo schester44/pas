@@ -1,0 +1,114 @@
+/// A regulatory or contractual duty created by a decision on a domain event (PLAN §17.1).
+model ComplianceObligation {
+  id           String    @id @db.Uuid
+  tenantId     String    @map("tenant_id")
+  dedupeKey    String    @map("dedupe_key")
+  kind         String
+  code         String
+  title        String
+  status       String
+  jurisdiction String
+  country      String
+  subjectType  String    @map("subject_type")
+  policyId     String?   @map("policy_id") @db.Uuid
+  transactionId String?  @map("transaction_id") @db.Uuid
+  licenseeId   String?   @map("licensee_id") @db.Uuid
+  anchorDate   DateTime  @map("anchor_date") @db.Date
+  subject      Json
+  responsible  Json
+  channel      String
+  rule         Json
+  timer        Json
+  dueDate      DateTime  @map("due_date") @db.Date
+  lateFrom     DateTime  @map("late_from") @db.Timestamptz(6)
+  escalation   Int       @default(0)
+  data         Json
+  source       Json
+  proof        Json?
+  waiver       Json?
+  createdAt    DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @map("updated_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  filings ComplianceFiling[]
+  events  ComplianceObligationEvent[]
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, status, lateFrom])
+  @@index([tenantId, policyId])
+  @@index([tenantId, kind, jurisdiction, licenseeId, anchorDate])
+  @@map("compliance_obligations")
+}
+
+/// One attempt to deliver an obligation through a filing channel, with what it answered.
+model ComplianceFiling {
+  id           String    @id @db.Uuid
+  tenantId     String    @map("tenant_id")
+  obligationId String    @map("obligation_id") @db.Uuid
+  attempt      Int
+  providerId   String    @map("provider_id")
+  delivery     String
+  reference    String?
+  batchId      String?   @map("batch_id") @db.Uuid
+  status       String
+  filingNumber String?   @map("filing_number")
+  stampNumber  String?   @map("stamp_number")
+  reasons      Json
+  submittedAt  DateTime  @map("submitted_at") @db.Timestamptz(6)
+  respondedAt  DateTime? @map("responded_at") @db.Timestamptz(6)
+
+  obligation ComplianceObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, obligationId])
+  @@map("compliance_filings")
+}
+
+/// Append-only history of an obligation.
+model ComplianceObligationEvent {
+  id           String   @id @db.Uuid
+  tenantId     String   @map("tenant_id")
+  obligationId String   @map("obligation_id") @db.Uuid
+  type         String
+  occurredAt   DateTime @map("occurred_at") @db.Timestamptz(6)
+  actor        Json
+  summary      String
+  data         Json
+
+  obligation ComplianceObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, obligationId, occurredAt])
+  @@map("compliance_obligation_events")
+}
+
+/// An export file generated for manual upload to a portal, with its checklist.
+model ComplianceFilingBatch {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  providerId    String   @map("provider_id")
+  kind          String
+  jurisdiction  String
+  fileKey       String   @map("file_key")
+  fileName      String   @map("file_name")
+  contentType   String   @map("content_type")
+  checklist     Json
+  obligationIds Json     @map("obligation_ids")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@map("compliance_filing_batches")
+}
+
+/// A surplus lines licensee of record in one state.
+model ComplianceLicensee {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  name          String
+  licenseNumber String   @map("license_number")
+  jurisdiction  String
+  active        Boolean  @default(true)
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, jurisdiction, licenseNumber])
+  @@map("compliance_licensees")
+}

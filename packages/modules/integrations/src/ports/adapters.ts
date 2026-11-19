@@ -1,7 +1,9 @@
+import type { AddressProvider } from "@pas/addressing";
+import type { FilingChannel } from "@pas/compliance";
 import type { DataProvider } from "@pas/enrichment";
 import type { Instant, Money, TenantContext } from "@pas/kernel";
 
-export type { DataProvider };
+export type { AddressProvider, DataProvider, FilingChannel };
 
 /** The published adapter contracts (PLAN §16): what a provider package implements per category. */
 
@@ -46,7 +48,35 @@ export interface CardPayments {
     ctx: TenantContext,
     input: { paymentRef: string; amount: Money; idempotencyKey: string },
   ): Promise<{ refundId: string }>;
+  /** Saves a card for off-session charges (autopay), with the payer's consent. */
+  saveMethod(
+    ctx: TenantContext,
+    input: {
+      reference: string;
+      method: PaymentMethodInput;
+      customer: { name: string; email?: string };
+    },
+  ): Promise<SavedMethod>;
+  /** Charges a saved card off-session; idempotent on the key. */
+  chargeSaved(
+    ctx: TenantContext,
+    input: {
+      reference: string;
+      idempotencyKey: string;
+      amount: Money;
+      methodRef: string;
+      customerRef: string | null;
+    },
+  ): Promise<SavedCharge>;
 }
+
+export type SavedMethod =
+  | { status: "saved"; methodRef: string; customerRef: string | null; method: PaymentMethodSummary }
+  | { status: "declined"; code: string; message: string; method: PaymentMethodSummary };
+
+export type SavedCharge =
+  | { status: "paid"; paymentRef: string; method: PaymentMethodSummary }
+  | { status: "declined"; code: string; message: string; method: PaymentMethodSummary };
 
 export interface EmailMessage {
   to: string;
@@ -110,18 +140,49 @@ export interface LetterReceipt {
   status: string;
   trackingNumber: string | null;
   expectedDeliveryDate: string | null;
+  /** True when the provider certifies mailing at once; otherwise proof arrives by webhook. */
+  mailed?: boolean;
 }
 
 export interface PrintMail {
   sendLetter(letter: LetterRequest): Promise<LetterReceipt>;
 }
 
+/** An external billing system (PLAN §13): PAS publishes billing-relevant events to it. */
+export interface BillingSystem {
+  publish(type: string, data: Record<string, unknown>): Promise<void>;
+}
+
+/** A producer's licenses as a licensing source reports them (PLAN §11). Dates are ISO dates. */
+export interface ProducerLicenseRecord {
+  npn: string;
+  country: string;
+  subdivision: string;
+  licenseNumber: string;
+  linesOfAuthority: string[];
+  effectiveDate: string;
+  expirationDate: string | null;
+  status: "active" | "inactive";
+}
+
+export interface ProducerLicenseLookup {
+  readonly provider: string;
+  licenses(
+    ctx: TenantContext,
+    producer: { producerId: string; npn: string | null },
+  ): Promise<ProducerLicenseRecord[]>;
+}
+
 export interface CategoryAdapters {
+  billing: BillingSystem;
   payments: CardPayments;
   esign: ESignProvider;
   email: EmailSender;
   print_mail: PrintMail;
   data: DataProvider;
+  address: AddressProvider;
+  licensing: ProducerLicenseLookup;
+  filing: FilingChannel;
 }
 
 export type AdapterCategory = keyof CategoryAdapters;

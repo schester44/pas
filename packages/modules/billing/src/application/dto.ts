@@ -9,11 +9,17 @@ export interface InvoiceDto {
   policyId: string;
   policyNumber: string;
   transactionId: string;
+  scheduleId: string | null;
+  installment: number;
+  installments: number;
+  payer: string;
   status: string;
   issuedOn: string;
   dueOn: string;
   total: MoneyDto;
   amountPaid: MoneyDto;
+  amountCredited: MoneyDto;
+  amountWrittenOff: MoneyDto;
   balance: MoneyDto;
   lines: {
     kind: string;
@@ -27,7 +33,7 @@ export interface InvoiceDto {
 
 export interface PaymentDto {
   id: string;
-  kind: "payment" | "refund";
+  kind: "payment" | "refund" | "reversal";
   invoiceId: string;
   provider: string;
   reference: string;
@@ -46,11 +52,17 @@ export function toInvoiceDto(invoice: Invoice): InvoiceDto {
     policyId: i.policyId,
     policyNumber: i.policyNumber,
     transactionId: i.transactionId,
+    scheduleId: i.scheduleId,
+    installment: i.installment,
+    installments: i.installments,
+    payer: i.payer,
     status: i.status,
     issuedOn: i.issuedOn.toString(),
     dueOn: i.dueOn.toString(),
     total: i.total.toJSON(),
     amountPaid: i.amountPaid.toJSON(),
+    amountCredited: i.amountCredited.toJSON(),
+    amountWrittenOff: i.amountWrittenOff.toJSON(),
     balance: invoice.balance.toJSON(),
     lines: i.lines.map((line) => ({
       kind: line.kind,

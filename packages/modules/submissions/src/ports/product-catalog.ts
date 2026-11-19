@@ -2,6 +2,7 @@ import type { DecisionKind, JdmDecision } from "@pas/decisions-engine";
 import type { DocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import type { Jurisdiction, TenantContext } from "@pas/kernel";
+import type { BillingConfig } from "@pas/pay-plans";
 import type { RatingConfig } from "@pas/rating-engine";
 import type { CoverageDefinition } from "../domain/coverages";
 
@@ -24,6 +25,7 @@ export interface CatalogRelease {
   productVersionId: string;
   version: string;
   jurisdiction: Jurisdiction;
+  market: "admitted" | "non_admitted";
   riskSchema: RiskSchema;
   forms: ReleaseForm[];
   coverages: CoverageDefinition[];
@@ -31,6 +33,7 @@ export interface CatalogRelease {
   rating: RatingConfig | null;
   documents: DocumentSet;
   lifecycle: Record<string, unknown>;
+  billing: BillingConfig;
 }
 
 /** The submissions context's view of the catalog. Never call it inside a unit of work. */

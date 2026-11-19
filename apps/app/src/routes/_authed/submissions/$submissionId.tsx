@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { useState } from "react";
+import { DuplicateRiskNotice } from "@/components/duplicate-risk";
 import { Journey } from "@/components/journey/journey";
 import { BackLink, SubmissionHeading as Heading } from "@/components/submission-heading";
 import { isStep, type StepId } from "@/lib/quotes";
@@ -61,6 +62,7 @@ function JourneyPage({ submission }: { submission: Submission }) {
 
   return (
     <div className="grid w-full gap-6">
+      <DuplicateRiskNotice submissionId={submission.id} />
       <Journey submission={submission} step={step} />
     </div>
   );
@@ -114,6 +116,7 @@ function Intake({ submission }: { submission: Submission }) {
         submission={submission}
         aside={<SaveIndicator state={autosave.state} onRetry={autosave.flush} />}
       />
+      <DuplicateRiskNotice submissionId={submission.id} riskData={data} />
       <IntakeForm
         schema={submission.riskSchema}
         form={submission.form}

@@ -1,5 +1,7 @@
 import {
   conflict,
+  DomainError,
+  Money,
   newId,
   type Outbox,
   type TenantContext,
@@ -7,12 +9,15 @@ import {
   type ClockProvider,
   type ProviderFor,
 } from "@pas/kernel";
+import { addressesIn, addressIdsIn } from "@pas/addresses";
 import type { ObjectStorage } from "@pas/storage";
 import { outstandingFor } from "../domain/bind-requirements";
 import type { Quote } from "../domain/quote";
 import type { SubmissionScope } from "../domain/scope";
 import type { Submission } from "../domain/submission";
+import type { AddressRegistry } from "../ports/address-registry";
 import type { PaymentGateway, PaymentMethodInput } from "../ports/payment-gateway";
+import type { ProducerLicenseCheck } from "../ports/producer-license-check";
 import type { NewBusinessRequest, PolicyIssuer, TimelineActor } from "../ports/policy-issuer";
 import type { CatalogRelease, ProductCatalog } from "../ports/product-catalog";
 import type { QuoteDocuments } from "../ports/quote-documents";
@@ -42,6 +47,8 @@ type Deps = EvaluationDeps & {
   storage: ObjectStorage;
   journey: QuoteJourney;
   clocks: ClockProvider;
+  licensing: ProducerLicenseCheck;
+  addresses: AddressRegistry;
 };
 
 /**
@@ -52,7 +59,12 @@ export function makeBindQuote(deps: Deps) {
   return async function bindQuote(
     ctx: TenantContext,
     scope: SubmissionScope,
-    input: { submissionId: string; method: PaymentMethodInput; actorName: string },
+    input: {
+      submissionId: string;
+      method: PaymentMethodInput;
+      actorName: string;
+      autopay?: boolean;
+    },
   ): Promise<BindQuoteResult> {
     const actor: TimelineActor =
       ctx.actor.type === "user"
@@ -82,11 +94,32 @@ export function makeBindQuote(deps: Deps) {
       deps.catalog.productName(ctx, s.productId),
     ]);
 
+    const licensing = await deps.licensing.check(ctx, {
+      producerId: s.producer.userId,
+      productId: s.productId,
+      jurisdiction: s.jurisdiction,
+      effectiveDate: q.termStart.toString(),
+    });
+
+    if (licensing.blocks) {
+      throw new DomainError(
+        "precondition_failed",
+        `${licensing.message}. Update the license or change the producer of record to bind.`,
+        { reason: "producer_unlicensed" },
+      );
+    }
+
     const rechecked = await recheck(deps, ctx, scope, release, input.submissionId);
 
     if (rechecked) return { status: "rechecked", quote: rechecked };
 
-    const amount = q.evaluation.total;
+    const offer = quote.selectedPayPlan();
+    const plan = offer ? (release.billing.payPlans.find((p) => p.key === offer.key) ?? null) : null;
+
+    const amount = offer
+      ? Money.of(offer.dueToday.amount, offer.dueToday.currency)
+      : q.evaluation.total;
+
     const payments = await deps.payments.for(ctx);
 
     const authorization = await payments.authorize(ctx, {
@@ -135,6 +168,7 @@ export function makeBindQuote(deps: Deps) {
 
       issued = await deps.policies.issue(ctx, {
         ...issueRequest(quote, submission, release, productName),
+        billing: { method: "direct", payPlan: plan, dunning: release.billing.dunning },
         actor,
         history: history.map((entry) => ({
           type: entry.type,
@@ -151,6 +185,7 @@ export function makeBindQuote(deps: Deps) {
     }
 
     await payments.capture(ctx, { authorizationId: authorization.authorizationId, amount });
+    await trackPolicyAddresses(deps, ctx, { quote, submission, release, policy: issued });
 
     await deps.policies.applyPayment(ctx, {
       invoiceId: issued.invoice.id,
@@ -161,6 +196,16 @@ export function makeBindQuote(deps: Deps) {
       methodLabel: `${authorization.method.brand} ending ${authorization.method.last4}`,
       actor,
     });
+
+    if (input.autopay && plan && plan.installments > 1) {
+      await enrollAutopay(deps, ctx, {
+        policyId: issued.policyId,
+        reference: issued.policyNumber,
+        method: input.method,
+        payer: namedInsuredOf(quote),
+        actor,
+      });
+    }
 
     const packet = await deps.documents.render(ctx, {
       release,
@@ -246,6 +291,39 @@ export function makeBindQuote(deps: Deps) {
   };
 }
 
+/** Saves the card for autopay; a card the provider won't save leaves the policy on invoices. */
+async function enrollAutopay(
+  deps: Deps,
+  ctx: TenantContext,
+  input: {
+    policyId: string;
+    reference: string;
+    method: PaymentMethodInput;
+    payer: string;
+    actor: TimelineActor;
+  },
+) {
+  const payments = await deps.payments.for(ctx);
+
+  const saved = await payments.saveMethod(ctx, {
+    reference: input.reference,
+    method: input.method,
+    customer: { name: input.payer },
+  });
+
+  if (saved.status === "declined") return;
+
+  await deps.policies.enrollAutopay(ctx, {
+    policyId: input.policyId,
+    provider: payments.provider,
+    methodRef: saved.methodRef,
+    customerRef: saved.customerRef,
+    method: saved.method,
+    consent: { acceptedAt: deps.clocks.forTenant(ctx.tenantId).now().toString(), by: input.payer },
+    actor: input.actor,
+  });
+}
+
 const dto = (quote: Quote, submission: Submission) => toQuoteDto(quote, submission, "producer");
 
 /** Bind-time re-check (PLAN §7.2): null when the quote still binds as signed. */
@@ -270,6 +348,7 @@ async function recheck(
     termStart: q.termStart,
     termEnd: q.termEnd,
     selection: q.selection,
+    channel: submission.toSnapshot().channel,
   });
 
   return deps.uow.run(ctx, async (tx) => {
@@ -291,7 +370,7 @@ function issueRequest(
   submission: Submission,
   release: CatalogRelease,
   productName: string,
-): Omit<NewBusinessRequest, "actor" | "history"> {
+): Omit<NewBusinessRequest, "actor" | "history" | "billing"> {
   const q = quote.toSnapshot();
   const s = submission.toSnapshot();
   const names = new Map(release.coverages.map((c) => [c.code, c.name]));
@@ -334,7 +413,7 @@ function issueRequest(
       q.riskData,
       q.details?.mailingAddress ?? mailingAddressOf(q.riskData),
     ),
-    producer: { id: s.producer.userId, name: s.producer.name },
+    producer: { id: s.producer.userId, name: s.producer.name, agencyId: s.producer.agencyId },
     currency: q.evaluation.total.currency,
     coverages,
     taxesFees,
@@ -359,3 +438,40 @@ function issueRequest(
 }
 
 export type BindQuote = ReturnType<typeof makeBindQuote>;
+
+/** The bound policy takes over the submission's locations in the address registry. */
+async function trackPolicyAddresses(
+  deps: Deps,
+  ctx: TenantContext,
+  input: {
+    quote: Quote;
+    submission: Submission;
+    release: CatalogRelease;
+    policy: { policyId: string; policyNumber: string };
+  },
+) {
+  const q = input.quote.toSnapshot();
+  const s = input.submission.toSnapshot();
+  const stamped = addressesIn(input.release.riskSchema, q.riskData);
+
+  const mailing = addressIdsIn(q.details?.mailingAddress ?? null).map((addressId) => ({
+    addressId,
+    role: "mailing" as const,
+  }));
+
+  await deps.addresses.track(ctx, {
+    subject: { kind: "policy", id: input.policy.policyId },
+    label: input.policy.policyNumber,
+    productId: s.productId,
+    producer: { id: s.producer.userId, name: s.producer.name },
+    active: true,
+    addresses: [
+      ...stamped.flatMap((a) =>
+        addressIdsIn(a.value).map((addressId) => ({ addressId, role: a.role })),
+      ),
+      ...mailing,
+    ],
+  });
+
+  await deps.addresses.track.setActive(ctx, { kind: "submission", id: s.id }, false);
+}

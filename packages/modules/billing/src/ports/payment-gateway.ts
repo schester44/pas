@@ -10,10 +10,23 @@ export type CardMethod = {
   postalCode?: string;
 };
 
+export type PaymentMethodInput = CardMethod | { kind: "token"; token: string };
+
 export interface CardSummary {
   brand: string;
   last4: string;
+  expMonth?: number;
+  expYear?: number;
 }
+
+export type SaveResult =
+  | {
+      status: "saved";
+      methodRef: string;
+      customerRef: string | null;
+      method: CardSummary & { expMonth: number; expYear: number };
+    }
+  | { status: "declined"; code: string; message: string; method: CardSummary };
 
 /** The card provider (PLAN §13), the same one quoting pays through at bind. */
 export interface PaymentGateway {
@@ -32,4 +45,27 @@ export interface PaymentGateway {
     ctx: TenantContext,
     input: { paymentRef: string; amount: Money; idempotencyKey: string },
   ): Promise<{ refundId: string }>;
+  /** Saves a card for later off-session charges, with the payer's consent. */
+  saveMethod(
+    ctx: TenantContext,
+    input: {
+      reference: string;
+      method: PaymentMethodInput;
+      customer: { name: string; email?: string };
+    },
+  ): Promise<SaveResult>;
+  /** Charges a saved card off-session (autopay); idempotent on the key. */
+  chargeSaved(
+    ctx: TenantContext,
+    input: {
+      reference: string;
+      idempotencyKey: string;
+      amount: Money;
+      methodRef: string;
+      customerRef: string | null;
+    },
+  ): Promise<
+    | { status: "paid"; paymentRef: string; method: CardSummary }
+    | { status: "declined"; code: string; message: string; method: CardSummary }
+  >;
 }

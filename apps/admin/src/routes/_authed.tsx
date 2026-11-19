@@ -13,6 +13,8 @@ import {
 } from "@pas/ui/components/dropdown-menu";
 import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
 import {
+  BadgeCheck,
+  Building,
   Building2,
   Check,
   ChevronsUpDown,
@@ -21,8 +23,10 @@ import {
   Inbox,
   Layers,
   LogOut,
+  Percent,
   Plus,
   ScrollText,
+  ShieldCheck,
   Search,
   Settings,
   Users,
@@ -147,6 +151,28 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
               <Link to="/clients" className={navItemClassName}>
                 <Users /> Clients
               </Link>
+            )}
+            {access.compliance.read && (
+              <Link to="/compliance" className={navItemClassName}>
+                <ShieldCheck /> Compliance
+              </Link>
+            )}
+          </NavSection>
+        )}
+        {access.agencies.read && (
+          <NavSection label="Distribution">
+            <Link to="/agencies" className={navItemClassName}>
+              <Building /> Agencies
+            </Link>
+            {access.agencies.write && access.products.read && (
+              <>
+                <Link to="/distribution/licensing" className={navItemClassName}>
+                  <BadgeCheck /> Licensing
+                </Link>
+                <Link to="/distribution/commissions" className={navItemClassName}>
+                  <Percent /> Commissions
+                </Link>
+              </>
             )}
           </NavSection>
         )}

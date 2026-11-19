@@ -48,6 +48,7 @@ function evaluationFromJson(value: EvaluationJson): QuoteEvaluation {
     taxesFees: value.taxesFees.map((line) => ({ ...line, amount: money(line.amount) })),
     total: money(value.total),
     evaluatedAt: instant(value.evaluatedAt),
+    payPlans: value.payPlans ?? [],
   };
 }
 
@@ -106,6 +107,7 @@ export class PrismaQuoteRepository implements QuoteRepository {
       details: q.details ? json(q.details) : DbNull,
       signature: q.signature ? json(q.signature) : DbNull,
       payment: q.payment ? json(q.payment) : DbNull,
+      payPlan: q.payPlan,
       policyId: q.policy?.id ?? null,
       policyNumber: q.policy?.number ?? null,
       expiresAt: toDate(q.expiresAt),
@@ -245,6 +247,7 @@ function toQuote(row: QuoteRow): Quote {
     referral: referral ? referralFromJson(referral) : null,
     details: row.details as unknown as BindDetails | null,
     signature: signature && { ...signature, signedAt: instant(signature.signedAt) },
+    payPlan: row.payPlan,
     payment: payment && {
       ...payment,
       amount: money(payment.amount),

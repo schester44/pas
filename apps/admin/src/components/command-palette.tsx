@@ -87,10 +87,15 @@ export function CommandPalette({
     run(() => {
       switch (result.type) {
         case "policy":
+          return navigate({
+            to: "/policies/$policyId",
+            params: { policyId: result.policyId ?? result.id },
+          });
         case "invoice":
           return navigate({
             to: "/policies/$policyId",
             params: { policyId: result.policyId ?? result.id },
+            search: result.policyId ? { tab: "billing", invoice: result.id } : {},
           });
         case "submission":
           return navigate({

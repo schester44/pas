@@ -1,9 +1,8 @@
-import type { PolicyScope } from "@pas/policy";
-import type { SubmissionScope } from "@pas/submissions";
-import { asId } from "@pas/kernel";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { requireAppPermission } from "./app-tenant";
+import { addressRouter } from "./addresses";
+import { requireAppPermission, tenantFromHost } from "./app-tenant";
+import { bookScopeOf } from "./book-scope";
 import { clientRouter } from "./client";
 import { policyChangesRouter, type ScopeResolver } from "./policy-changes";
 import { authedProcedure, publicProcedure, router } from "./init";
@@ -19,7 +18,10 @@ import {
   bindDetailsInput,
   bindQuoteInput,
   bySubmission,
+  choosePayPlanInput,
   customizeQuoteInput,
+  payPolicyInvoiceInput,
+  setAutopayInput,
   listPoliciesInput,
   packetInput,
   policyById,
@@ -27,40 +29,26 @@ import {
   signQuoteInput,
 } from "./quotes-input";
 
-const ownBook = (userId: string): SubmissionScope & PolicyScope => ({
-  kind: "producer",
-  producerId: asId(userId),
-});
+/** RBAC against the host's tenant, then the caller's book there (PLAN §5.7). */
+const inBook = (permissions: Parameters<typeof requireAppPermission>[0]) =>
+  requireAppPermission(permissions).use(async ({ ctx, next }) =>
+    next({ ctx: { ...ctx, scope: await bookScopeOf(ctx, ctx.tenant) } }),
+  );
 
 const agentScope: ScopeResolver = async (ctx) => {
-  const host =
-    ctx.headers.get("x-pas-host") ?? ctx.headers.get("x-forwarded-host") ?? ctx.headers.get("host");
-
-  const resolved = await ctx.container.useCases.tenants.resolveTenantByHost({
-    host: host ?? "",
-    slug: ctx.headers.get("x-pas-tenant"),
-  });
-
-  if (resolved.status !== "tenant")
-    throw new TRPCError({ code: "NOT_FOUND", message: "No tenant for this address" });
+  const tenant = await tenantFromHost(ctx);
 
   const allowed = await ctx.container.auth.api
     .hasPermission({
       headers: ctx.headers,
-      body: { permissions: { policy: ["read"] }, organizationId: resolved.tenantId },
+      body: { permissions: { policy: ["read"] }, organizationId: tenant.tenantId },
     })
     .then((result) => result.success)
     .catch(() => false);
 
   if (!allowed) throw new TRPCError({ code: "FORBIDDEN" });
 
-  return {
-    tenant: {
-      tenantId: asId(resolved.tenantId),
-      actor: { type: "user", userId: asId(ctx.session.user.id) },
-    },
-    scope: ownBook(ctx.session.user.id),
-  };
+  return { tenant, scope: await bookScopeOf(ctx, tenant) };
 };
 
 const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
@@ -84,8 +72,10 @@ export const appRouter = router({
 
   client: clientRouter,
 
+  addresses: addressRouter(tenantFromHost),
+
   submissions: router({
-    availableProducts: requireAppPermission({ submission: ["create"] })
+    availableProducts: inBook({ submission: ["create"] })
       .input(availableProductsInput)
       .query(({ ctx, input }) => {
         const { jurisdiction, effectiveDate } = input;
@@ -95,119 +85,183 @@ export const appRouter = router({
           ...(jurisdiction && effectiveDate && { at: { jurisdiction, effectiveDate } }),
         });
       }),
-    start: requireAppPermission({ submission: ["create"] })
+    start: inBook({ submission: ["create"] })
       .input(startSubmissionInput)
-      .mutation(({ ctx, input }) =>
-        ctx.container.useCases.submissions.start(ctx.tenant, {
+      .mutation(async ({ ctx, input }) => {
+        const record = await ctx.container.useCases.distribution.producerOfRecord(ctx.tenant, {
+          userId: ctx.session.user.id,
+        });
+
+        return ctx.container.useCases.submissions.start(ctx.tenant, {
           ...input,
-          producerName: ctx.session.user.name,
-        }),
-      ),
-    get: requireAppPermission({ submission: ["read"] })
+          producerName: record.name ?? ctx.session.user.name,
+          producerAgencyId: record.agencyId,
+        });
+      }),
+    get: inBook({ submission: ["read"] })
       .input(submissionById)
       .query(({ ctx, input }) =>
-        ctx.container.useCases.submissions.get(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.submissions.get(ctx.tenant, ctx.scope, input),
       ),
-    saveDraft: requireAppPermission({ submission: ["update"] })
+    saveDraft: inBook({ submission: ["update"] })
       .input(submissionData)
       .mutation(({ ctx, input }) =>
-        ctx.container.useCases.submissions.saveDraft(
+        ctx.container.useCases.submissions.saveDraft(ctx.tenant, ctx.scope, input),
+      ),
+    submit: inBook({ submission: ["update"] })
+      .input(submissionData)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.submit(ctx.tenant, ctx.scope, input),
+      ),
+    clearance: inBook({ submission: ["read"] })
+      .input(submissionById.extend({ riskData: z.record(z.string(), z.unknown()).optional() }))
+      .query(async ({ ctx, input }) => {
+        const result = await ctx.container.useCases.submissions.clearance(
           ctx.tenant,
-          ownBook(ctx.session.user.id),
+          ctx.scope,
           input,
-        ),
-      ),
-    submit: requireAppPermission({ submission: ["update"] })
-      .input(submissionData)
-      .mutation(({ ctx, input }) =>
-        ctx.container.useCases.submissions.submit(ctx.tenant, ownBook(ctx.session.user.id), input),
-      ),
-    list: requireAppPermission({ submission: ["read"] })
+        );
+
+        // Agents learn that a possible duplicate exists, not whose book it's in.
+        return { mode: result.mode, outcome: result.outcome, count: result.conflicts.length };
+      }),
+    list: inBook({ submission: ["read"] })
       .input(listSubmissionsInput)
       .query(({ ctx, input }) =>
-        ctx.container.useCases.submissions.list(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.submissions.list(ctx.tenant, ctx.scope, input),
       ),
   }),
 
   quotes: router({
-    get: requireAppPermission({ quote: ["read"] })
+    get: inBook({ quote: ["read"] })
       .input(bySubmission)
       .query(({ ctx, input }) =>
-        ctx.container.useCases.quotes.get.forProducer(
-          ctx.tenant,
-          ownBook(ctx.session.user.id),
-          input,
-        ),
+        ctx.container.useCases.quotes.get.forProducer(ctx.tenant, ctx.scope, input),
       ),
-    customize: requireAppPermission({ quote: ["read"], submission: ["update"] })
+    customize: inBook({ quote: ["read"], submission: ["update"] })
       .input(customizeQuoteInput)
       .mutation(({ ctx, input }) =>
-        ctx.container.useCases.quotes.customize(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.quotes.customize(ctx.tenant, ctx.scope, input),
       ),
-    saveDetails: requireAppPermission({ quote: ["bind"] })
+    choosePayPlan: inBook({ quote: ["bind"] })
+      .input(choosePayPlanInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.choosePayPlan(ctx.tenant, ctx.scope, input),
+      ),
+    saveDetails: inBook({ quote: ["bind"] })
       .input(bindDetailsInput)
       .mutation(({ ctx, input }) =>
-        ctx.container.useCases.quotes.saveDetails(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.quotes.saveDetails(ctx.tenant, ctx.scope, input),
       ),
-    packet: requireAppPermission({ quote: ["read"] })
+    packet: inBook({ quote: ["read"] })
       .input(packetInput)
       .query(async ({ ctx, input }) => {
-        const packet = await ctx.container.useCases.quotes.packet(
-          ctx.tenant,
-          ownBook(ctx.session.user.id),
-          { submissionId: input.submissionId },
-        );
+        const packet = await ctx.container.useCases.quotes.packet(ctx.tenant, ctx.scope, {
+          submissionId: input.submissionId,
+        });
 
         return { pdf: base64(packet.pdf), documents: packet.documents, revision: packet.revision };
       }),
-    sign: requireAppPermission({ quote: ["bind"] })
+    sign: inBook({ quote: ["bind"] })
       .input(signQuoteInput)
       .mutation(({ ctx, input }) =>
-        ctx.container.useCases.quotes.sign(ctx.tenant, ownBook(ctx.session.user.id), {
+        ctx.container.useCases.quotes.sign(ctx.tenant, ctx.scope, {
           ...input,
           ...ctx.client,
         }),
       ),
-    checkout: requireAppPermission({ quote: ["bind"] }).query(async ({ ctx }) =>
+    checkout: inBook({ quote: ["bind"] }).query(async ({ ctx }) =>
       ctx.container.useCases.quotes.checkout(ctx.tenant),
     ),
-    bind: requireAppPermission({ quote: ["bind"] })
+    bind: inBook({ quote: ["bind"] })
       .input(bindQuoteInput)
       .mutation(({ ctx, input }) =>
-        ctx.container.useCases.quotes.bind(ctx.tenant, ownBook(ctx.session.user.id), {
+        ctx.container.useCases.quotes.bind(ctx.tenant, ctx.scope, {
           submissionId: input.submissionId,
           method: input.paymentToken
             ? { kind: "token", token: input.paymentToken }
             : { kind: "card", ...input.card! },
           actorName: ctx.session.user.name,
+          autopay: input.autopay ?? false,
         }),
       ),
   }),
 
   search: router({ query: appSearch }),
 
+  agency: router({
+    mine: inBook({ agency: ["read"] }).query(({ ctx }) =>
+      ctx.scope.kind === "agencies"
+        ? ctx.container.useCases.distribution.agencies.list(ctx.tenant, ctx.scope)
+        : [],
+    ),
+    get: inBook({ agency: ["read"] })
+      .input(z.object({ id: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.distribution.agencies.get(ctx.tenant, ctx.scope, input),
+      ),
+  }),
+
+  quoteLicensing: inBook({ quote: ["read"] })
+    .input(bySubmission)
+    .query(async ({ ctx, input }) => {
+      const submission = await ctx.container.useCases.submissions.get(ctx.tenant, ctx.scope, {
+        id: input.submissionId,
+      });
+
+      const result = await ctx.container.useCases.distribution.checkLicense(ctx.tenant, {
+        userId: submission.producer.id,
+        productId: submission.productId,
+        jurisdiction: submission.jurisdiction,
+        effectiveDate: submission.effectiveDate,
+      });
+
+      return { mode: result.mode, blocks: result.blocks, message: result.message };
+    }),
+
   policies: router({
-    list: requireAppPermission({ policy: ["read"] })
+    list: inBook({ policy: ["read"] })
       .input(listPoliciesInput)
       .query(({ ctx, input }) =>
-        ctx.container.useCases.policies.list(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.policies.list(ctx.tenant, ctx.scope, input),
       ),
-    get: requireAppPermission({ policy: ["read"] })
+    get: inBook({ policy: ["read"] })
       .input(policyById)
       .query(({ ctx, input }) =>
-        ctx.container.useCases.policies.get.detail(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input),
       ),
-    billing: requireAppPermission({ policy: ["read"] })
+    billing: inBook({ policy: ["read"] })
       .input(policyById)
       .query(({ ctx, input }) =>
-        ctx.container.useCases.policies.billing(ctx.tenant, ownBook(ctx.session.user.id), input),
+        ctx.container.useCases.policies.billing(ctx.tenant, ctx.scope, input),
       ),
-    document: requireAppPermission({ policy: ["read"] })
+    payInvoice: inBook({ policy: ["read"] })
+      .input(payPolicyInvoiceInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.policies.payInvoice(ctx.tenant, ctx.scope, {
+          policyId: input.policyId,
+          invoiceId: input.invoiceId,
+          card: { kind: "card", ...input.card },
+          actor: { type: "user", id: ctx.session.user.id, name: ctx.session.user.name },
+        }),
+      ),
+    setAutopay: inBook({ policy: ["read"] })
+      .input(setAutopayInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.policies.setAutopay(ctx.tenant, ctx.scope, {
+          policyId: input.policyId,
+          enabled: input.enabled,
+          ...(input.card && { method: { kind: "card" as const, ...input.card } }),
+          payerName: input.card?.name ?? "",
+          actor: { type: "user", id: ctx.session.user.id, name: ctx.session.user.name },
+        }),
+      ),
+    document: inBook({ policy: ["read"] })
       .input(policyDocument)
       .query(async ({ ctx, input }) => {
         const file = await ctx.container.useCases.policies.get.document(
           ctx.tenant,
-          ownBook(ctx.session.user.id),
+          ctx.scope,
           input,
         );
 

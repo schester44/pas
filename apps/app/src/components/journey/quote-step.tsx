@@ -4,6 +4,7 @@ import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { ArrowRight } from "lucide-react";
 import { formatMoney, formatPlainDateRange } from "@/lib/format";
 import type { StepProps } from "./journey";
+import { PayPlanPicker } from "./pay-plans";
 import { PremiumBreakdown } from "./premium";
 
 export function QuoteStep({ quote, submission, go }: StepProps) {
@@ -34,6 +35,7 @@ export function QuoteStep({ quote, submission, go }: StepProps) {
           <PremiumBreakdown quote={quote} />
         </div>
       </Card>
+      <PayPlanPicker quote={quote} submissionId={submission.id} />
     </div>
   );
 }

@@ -36,7 +36,7 @@ export function makePayInvoice(deps: {
     const i = invoice.toSnapshot();
     const balance = invoice.balance;
 
-    if (i.kind !== "invoice" || i.status === "void" || !balance.amount.isPositive()) {
+    if (i.kind !== "invoice" || i.status === "void" || !balance.amount.greaterThan(0)) {
       throw conflict(`${i.number} has nothing to pay`);
     }
 

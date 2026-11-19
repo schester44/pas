@@ -24,6 +24,9 @@ export const KIND_COPY: Record<DecisionKind, string> = {
   dea: "Says when a surplus lines diligent search is required.",
   attestations: "Lists the statements the insured must confirm before binding.",
   referral_triggers: "Flags conditions that need an underwriter's review.",
+  filing_obligations:
+    "Creates filings and affidavits owed for each issued transaction, with their deadlines.",
+  reporting_obligations: "Creates periodic reports and remittances owed per licensee and state.",
   custom: "Returns any output for lifecycle settings to use.",
 };
 
@@ -76,7 +79,17 @@ export function decisionSchema(contents: Contents): RiskSchema {
     ],
   };
 
-  return { fields: [...contents.riskSchema.fields, jurisdiction] };
+  const market: SchemaNode = {
+    key: "market",
+    kind: "enum",
+    label: "Market",
+    options: [
+      { value: "admitted", label: "Admitted" },
+      { value: "non_admitted", label: "Non-admitted" },
+    ],
+  };
+
+  return { fields: [...contents.riskSchema.fields, jurisdiction, market] };
 }
 
 export function decisionSample(contents: Contents): Record<string, unknown> {
@@ -84,7 +97,11 @@ export function decisionSample(contents: Contents): Record<string, unknown> {
   const jurisdiction = window?.jurisdiction ?? { country: "US" };
   const effective = window?.newBusiness.from ?? Temporal.Now.plainDateISO().toString();
 
-  return { ...sampleRisk(contents.riskSchema, jurisdiction, effective), jurisdiction };
+  return {
+    ...sampleRisk(contents.riskSchema, jurisdiction, effective),
+    jurisdiction,
+    market: window?.market ?? "admitted",
+  };
 }
 
 function canonical(value: unknown): unknown {
@@ -178,6 +195,16 @@ export function summarize(kind: DecisionKind, result: unknown): string {
       return terms.minimumEarnedType
         ? `${terms.minimumEarnedType === "percent" ? `${terms.minimumEarnedValue}%` : terms.minimumEarnedValue} minimum earned`
         : "Pro rata";
+    }
+    case "filing_obligations":
+    case "reporting_obligations": {
+      const { obligations } = result as DecisionResult<"filing_obligations">;
+
+      return obligations.length
+        ? obligations
+            .map((o) => `${o.code} · ${plural(o.dueDays, o.businessDays ? "business day" : "day")}`)
+            .join(", ")
+        : "Nothing owed";
     }
     case "custom":
       return JSON.stringify(result).slice(0, 80);

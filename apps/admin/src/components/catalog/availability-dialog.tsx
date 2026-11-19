@@ -38,6 +38,7 @@ interface Draft {
   newBusinessLast: string;
   renewalFrom: string;
   renewalLast: string;
+  market: "admitted" | "non_admitted";
 }
 
 function toDraft(window: AvailabilityWindow | undefined): Draft {
@@ -49,6 +50,7 @@ function toDraft(window: AvailabilityWindow | undefined): Draft {
       newBusinessLast: "",
       renewalFrom: "",
       renewalLast: "",
+      market: "admitted",
     };
   }
 
@@ -59,6 +61,7 @@ function toDraft(window: AvailabilityWindow | undefined): Draft {
     newBusinessLast: window.newBusiness.to ? addDays(window.newBusiness.to, -1) : "",
     renewalFrom: window.renewal.from,
     renewalLast: window.renewal.to ? addDays(window.renewal.to, -1) : "",
+    market: window.market ?? "admitted",
   };
 }
 
@@ -72,6 +75,7 @@ function fromDraft(draft: Draft): AvailabilityWindow {
         : { country: draft.country },
     newBusiness: toWindow(draft.newBusinessFrom, draft.newBusinessLast),
     renewal: toWindow(draft.renewalFrom, draft.renewalLast),
+    ...(draft.market === "non_admitted" && { market: draft.market }),
   };
 }
 
@@ -216,6 +220,20 @@ function AvailabilityForm({
               </Select>
             </Field>
           )}
+          <Field id={`${id}-market`} label="Market">
+            <Select
+              value={draft.market}
+              onValueChange={(market) => set({ market: market as Draft["market"] })}
+            >
+              <SelectTrigger id={`${id}-market`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admitted">Admitted</SelectItem>
+                <SelectItem value="non_admitted">Non-admitted (surplus lines)</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
 
         <fieldset className="m-0 grid gap-3 border-0 p-0">

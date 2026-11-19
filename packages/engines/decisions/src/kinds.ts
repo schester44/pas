@@ -69,6 +69,57 @@ export function overallOutcome<O extends UnderwritingOutcome>(
   return "pass";
 }
 
+/** What an obligation is for (PLAN §17.1); the engine is the same for all of them. */
+export const OBLIGATION_KINDS = [
+  "sl_filing",
+  "sl_affidavit",
+  "sl_remittance",
+  "notice",
+  "bordereau",
+  "stat_report",
+  "adverse_action",
+  "evidence_of_insurance",
+  "ams_download",
+  "carrier_report",
+  "custom",
+] as const;
+
+export type ObligationKind = (typeof OBLIGATION_KINDS)[number];
+
+/** How an obligation is delivered; the filing channel adapter is chosen per kind and jurisdiction. */
+export const CHANNEL_KINDS = ["api", "file_export", "manual", "print_mail", "email"] as const;
+
+export type ChannelKind = (typeof CHANNEL_KINDS)[number];
+
+export const DUE_FROM = ["effective", "issue", "later_of_effective_issue"] as const;
+
+export type DueFrom = (typeof DUE_FROM)[number];
+
+export const REPORT_FREQUENCIES = ["monthly", "quarterly", "semiannual", "annual"] as const;
+
+export type ReportFrequency = (typeof REPORT_FREQUENCIES)[number];
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
+
+const obligationRule = {
+  kind: z.enum(OBLIGATION_KINDS),
+  code: text,
+  title: text,
+  dueDays: z.number().int().min(0),
+  businessDays: z.boolean().optional(),
+  channel: z.enum(CHANNEL_KINDS),
+  responsible: z.enum(["licensee", "tenant", "agency", "carrier"]).optional(),
+  remindDays: z.number().int().min(0).optional(),
+  escalateDays: z.number().int().min(0).optional(),
+  holidays: z.array(isoDate).optional(),
+};
+
+const firstPerCode = <T extends { code: string }>(rows: T[]) => {
+  const seen = new Set<string>();
+
+  return rows.filter((row) => !seen.has(row.code) && seen.add(row.code));
+};
+
 const withRuleNames = <T extends { rule?: string; reasonCode: string }>(rows: T[]) =>
   rows.map((row) => ({ ...row, rule: row.rule ?? row.reasonCode }));
 
@@ -204,6 +255,7 @@ export const DECISION_KINDS = {
         declinationsRequired: z.number().int().min(0),
         timing: z.enum(["pre_bind", "post_bind"]).optional(),
         exemptions: codes,
+        fileAffidavit: z.boolean().optional(),
       })
       .refine((dea) => !dea.required || dea.timing !== undefined, {
         message: "Say when the diligent search is due",
@@ -228,6 +280,38 @@ export const DECISION_KINDS = {
     cardinality: "many",
     row: z.object({ code: text, message: text, authority: text.optional() }),
     aggregate: (rows) => ({ triggers: rows }),
+  }),
+  filing_obligations: defineKind({
+    label: "Filing obligations",
+    cardinality: "many",
+    contextPaths: [
+      "transaction",
+      "transaction.type",
+      "transaction.premiumBearing",
+      "transaction.premium",
+      "homeState",
+      "diligentSearch",
+      "diligentSearch.required",
+      "diligentSearch.fileAffidavit",
+      "diligentSearch.timing",
+    ],
+    row: z.object({
+      ...obligationRule,
+      dueFrom: z.enum(DUE_FROM),
+      jurisdiction: text.optional(),
+    }),
+    aggregate: (rows) => ({ obligations: firstPerCode(rows) }),
+  }),
+  reporting_obligations: defineKind({
+    label: "Reporting obligations",
+    cardinality: "many",
+    contextPaths: ["homeState", "report", "report.kind"],
+    row: z.object({
+      ...obligationRule,
+      frequency: z.enum(REPORT_FREQUENCIES),
+      aggregates: z.enum(OBLIGATION_KINDS),
+    }),
+    aggregate: (rows) => ({ obligations: firstPerCode(rows) }),
   }),
   custom: defineKind({
     label: "Custom",

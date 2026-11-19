@@ -1,22 +1,12 @@
-import {
-  asId,
-  Money,
-  newId,
-  notFound,
-  type TenantContext,
-  type UnitOfWork,
-  type ClockProvider,
-} from "@pas/kernel";
-import type { InvoiceRepository } from "../ports/invoice-repository";
-import type { BillingTimelineEntry, PolicyTimeline } from "../ports/policy-timeline";
+import { Money, type TenantContext } from "@pas/kernel";
+import type { BillingTimelineEntry } from "../ports/policy-timeline";
+import type { ApplyBillingEvent } from "./apply-billing-event";
 import { type InvoiceDto, toInvoiceDto } from "./dto";
 
-/** Records money received against an invoice; idempotent on the provider's reference. */
+/** Money received against an invoice, as a `payment.received` event; idempotent on the reference. */
 export function makeApplyPayment(deps: {
-  uow: UnitOfWork;
-  invoices: InvoiceRepository;
-  timeline: PolicyTimeline;
-  clocks: ClockProvider;
+  applyEvent: ApplyBillingEvent;
+  clocks: { forTenant(id: string): { now(): Temporal.Instant } };
 }) {
   return async function applyPayment(
     ctx: TenantContext,
@@ -26,59 +16,24 @@ export function makeApplyPayment(deps: {
       provider: string;
       providerRef: string;
       method: Record<string, unknown>;
-      methodLabel: string;
+      methodLabel?: string;
       actor: BillingTimelineEntry["actor"];
     },
   ): Promise<InvoiceDto> {
-    return deps.uow.run(ctx, async (tx) => {
-      const invoice = await deps.invoices.findById(tx, ctx, asId(input.invoiceId));
-
-      if (!invoice) throw notFound("Invoice", input.invoiceId);
-
-      if (await deps.invoices.findPayment(tx, ctx, input.provider, input.providerRef)) {
-        return toInvoiceDto(invoice);
-      }
-
-      const amount = Money.of(input.amount.amount, input.amount.currency);
-      invoice.applyPayment(amount, deps.clocks.forTenant(ctx.tenantId));
-      const i = invoice.toSnapshot();
-
-      await deps.invoices.save(tx, invoice);
-
-      await deps.invoices.addPayment(tx, ctx, {
-        id: newId(),
-        kind: "payment",
-        policyId: i.policyId,
-        invoiceId: invoice.id,
-        provider: input.provider,
-        providerRef: input.providerRef,
-        method: input.method,
-        amount,
-        receivedAt: deps.clocks.forTenant(ctx.tenantId).now(),
-      });
-
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: amount.currency,
-      }).format(Number(amount.toString()));
-
-      await deps.timeline.record(tx, ctx, {
-        policyId: i.policyId,
-        type: "payment_received",
-        invoiceId: invoice.id,
-        actor: input.actor,
-        summary: `Payment of ${formatted} received by ${input.methodLabel} for ${i.number}`,
-        data: {
-          invoiceNumber: i.number,
-          amount: amount.toJSON(),
-          provider: input.provider,
-          reference: input.providerRef,
-          invoiceStatus: i.status,
-        },
-      });
-
-      return toInvoiceDto(invoice);
+    const { invoice } = await deps.applyEvent(ctx, {
+      eventId: `${input.provider}:${input.providerRef}`,
+      source: "pas",
+      type: "payment.received",
+      occurredAt: deps.clocks.forTenant(ctx.tenantId).now(),
+      invoiceId: input.invoiceId,
+      amount: Money.of(input.amount.amount, input.amount.currency),
+      provider: input.provider,
+      reference: input.providerRef,
+      method: input.method as { brand?: string; last4?: string },
+      actor: input.actor,
     });
+
+    return toInvoiceDto(invoice!);
   };
 }
 

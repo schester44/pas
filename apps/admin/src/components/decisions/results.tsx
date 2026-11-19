@@ -94,6 +94,18 @@ function KindResult({ kind, result }: { kind: DecisionKind; result: unknown }) {
           }))}
         />
       );
+    case "filing_obligations":
+    case "reporting_obligations":
+      return (
+        <Rows
+          empty="Nothing owed."
+          items={(result as DecisionResult<"filing_obligations">).obligations.map((o) => ({
+            key: o.code,
+            title: o.title,
+            meta: `${o.code} · ${o.dueDays} ${o.businessDays ? "business days" : "days"} · ${o.channel.replaceAll("_", " ")}`,
+          }))}
+        />
+      );
     case "coverage_options":
       return (
         <Rows

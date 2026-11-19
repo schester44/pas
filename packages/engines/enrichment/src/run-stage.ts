@@ -13,11 +13,23 @@ import type {
 } from "./plan";
 import type { DataProvider, ProviderRegistry, ProviderRequest, ProviderResponse } from "./provider";
 
+/** An answer the PAS already holds, such as a geocode from the address registry. */
+export interface KnownResult {
+  readonly capability: ProviderCapability;
+  /** The risk path it answers for (`locations[0].address`); calls reading under it match. */
+  readonly path: string;
+  readonly providerId: string;
+  readonly response: ProviderResponse;
+  /** Skip the call (a rooftop-verified address); otherwise used only when every provider fails. */
+  readonly authoritative: boolean;
+}
+
 export interface EnrichmentRisk {
   readonly data: Readonly<Record<string, unknown>>;
   /** Paths the user entered or overrode. Enrichment reports on them but never replaces them. */
   readonly userEntered: ReadonlySet<string>;
   readonly consents?: ReadonlySet<ConsentKind>;
+  readonly known?: readonly KnownResult[];
 }
 
 export interface EnrichmentDeps {
@@ -52,7 +64,8 @@ export type CallOutcome =
   | "circuit_open"
   | "unavailable"
   | "consent_missing"
-  | "missing_input";
+  | "missing_input"
+  | "known";
 
 export interface CallRecord {
   readonly callId: string;
@@ -182,7 +195,10 @@ async function executeCall(
   derived: ReadonlyMap<string, unknown>,
   deps: EnrichmentDeps,
 ): Promise<{ entry?: SnapshotEntry; records: CallRecord[] }> {
+  const known = knownFor(call, risk);
   const request = resolveRequest(call, risk, derived);
+
+  if (known?.authoritative) return answeredByKnown(call, request ?? {}, known);
 
   if (!request) return { records: [skipped(call, null, "missing_input")] };
 
@@ -201,6 +217,8 @@ async function executeCall(
       distinct.map((providerId) => attempt(call, providerId, request, risk, deps)),
     );
 
+    if (known) attempts.push(knownAttempt(call, known));
+
     return { entry: merged(call, request, attempts), records: attempts.map((a) => a.record) };
   }
 
@@ -215,7 +233,37 @@ async function executeCall(
     }
   }
 
+  if (known) {
+    const fallback = knownAttempt(call, known);
+
+    return { entry: merged(call, request, [fallback]), records: [...records, fallback.record] };
+  }
+
   return { records };
+}
+
+function knownFor(call: EnrichmentCall, risk: EnrichmentRisk): KnownResult | undefined {
+  const paths = Object.values(call.request);
+
+  return risk.known?.find(
+    (k) =>
+      k.capability === call.capability &&
+      paths.some((path) => path === k.path || path.startsWith(`${k.path}.`)),
+  );
+}
+
+function knownAttempt(call: EnrichmentCall, known: KnownResult): Attempt {
+  return {
+    providerId: known.providerId,
+    response: known.response,
+    record: skipped(call, known.providerId, "known"),
+  };
+}
+
+function answeredByKnown(call: EnrichmentCall, request: ProviderRequest, known: KnownResult) {
+  const answer = knownAttempt(call, known);
+
+  return { entry: merged(call, request, [answer]), records: [answer.record] };
 }
 
 /** First non-empty value per field in provider order, unless `fieldSources` names the winner. */

@@ -1,4 +1,5 @@
 import type { AdminOutputs } from "@pas/api-client";
+import { Button } from "@pas/ui/components/button";
 import { Panel } from "@pas/ui/components/panel";
 import {
   Sheet,
@@ -12,10 +13,12 @@ import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 
 type Billing = AdminOutputs["policies"]["billing"];
-type Invoice = Billing["invoices"][number];
+export type Invoice = Billing["invoices"][number];
 
 const STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  scheduled: { label: "Scheduled", tone: "neutral" },
   open: { label: "Open", tone: "warning" },
+  past_due: { label: "Past due", tone: "danger" },
   partially_paid: { label: "Partially paid", tone: "warning" },
   paid: { label: "Paid", tone: "success" },
   void: { label: "Void", tone: "neutral" },
@@ -32,9 +35,14 @@ const exposureLabel = (exposure: string) => {
 
 const CREDIT_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   open: { label: "Credit", tone: "neutral" },
-  partially_paid: { label: "Part refunded", tone: "neutral" },
-  paid: { label: "Refunded", tone: "success" },
+  partially_paid: { label: "Part applied", tone: "neutral" },
+  paid: { label: "Settled", tone: "success" },
 };
+
+const PAYABLE = new Set(["open", "past_due", "partially_paid", "scheduled"]);
+
+export const isPayable = (invoice: Invoice) =>
+  invoice.kind === "invoice" && PAYABLE.has(invoice.status) && Number(invoice.balance.amount) > 0;
 
 export function InvoiceStatus({ status, kind }: { status: string; kind?: string }) {
   const { label, tone } = (kind === "credit_note" ? CREDIT_STATUS[status] : undefined) ??
@@ -43,22 +51,47 @@ export function InvoiceStatus({ status, kind }: { status: string; kind?: string 
   return <StatusChip tone={tone}>{label}</StatusChip>;
 }
 
-/** Invoices, payments and what's still owed on the policy. */
+const planSummary = (schedule: NonNullable<Billing["schedule"]>) =>
+  schedule.plan.installments <= 1
+    ? schedule.plan.label
+    : `${schedule.plan.label} · ${schedule.plan.installments} installments`;
+
+/** The installment schedule, autopay, other bills and payments for the policy. */
 export function BillingPanel({
   billing,
   onOpenInvoice,
+  onPay,
 }: {
   billing: Billing;
   onOpenInvoice: (invoiceId: string) => void;
+  onPay?: (invoice: Invoice) => void;
 }) {
+  const installments = billing.invoices
+    .filter((i) => i.scheduleId && i.kind === "invoice")
+    .toSorted((a, b) => a.installment - b.installment);
+
+  const others = billing.invoices.filter((i) => !installments.includes(i));
+  const schedule = billing.schedule;
+
   return (
     <Panel
       title="Billing"
+      description={
+        schedule && (
+          <span className="tabular-nums">
+            {planSummary(schedule)}
+            {schedule.plan.installments > 1 &&
+              (schedule.autopay
+                ? ` · Autopay ${schedule.autopay.brand} ${schedule.autopay.last4}`
+                : " · Autopay off")}
+          </span>
+        )
+      }
       flush
       action={
         billing.balance && (
           <span className="text-sm text-muted-foreground">
-            Balance{" "}
+            Due now{" "}
             <span className="font-medium text-foreground tabular-nums">
               {money(billing.balance)}
             </span>
@@ -66,32 +99,22 @@ export function BillingPanel({
         )
       }
     >
-      <ul className="m-0 list-none divide-y p-0">
-        {billing.invoices.map((invoice) => (
-          <li key={invoice.id}>
-            <button
-              type="button"
-              onClick={() => onOpenInvoice(invoice.id)}
-              className="flex w-full items-center gap-3 px-(--card-p) py-3 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
-            >
-              <span className="grid min-w-0 flex-1 gap-0.5">
-                <span className="text-sm font-medium whitespace-nowrap tabular-nums">
-                  {invoice.number}
-                </span>
-                <span className="truncate text-xs text-muted-foreground tabular-nums">
-                  {invoice.kind === "credit_note"
-                    ? "Credit note"
-                    : `Due ${formatPlainDate(invoice.dueOn)}`}
-                </span>
-              </span>
-              <InvoiceStatus status={invoice.status} kind={invoice.kind} />
-              <span className="text-right text-sm whitespace-nowrap tabular-nums">
-                {money(invoice.total)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {installments.length > 0 && (
+        <InvoiceList
+          heading={installments.length > 1 ? "Schedule" : undefined}
+          invoices={installments}
+          onOpenInvoice={onOpenInvoice}
+          onPay={onPay}
+        />
+      )}
+      {others.length > 0 && (
+        <InvoiceList
+          heading={installments.length > 0 ? "Other bills" : undefined}
+          invoices={others}
+          onOpenInvoice={onOpenInvoice}
+          onPay={onPay}
+        />
+      )}
       {billing.payments.length > 0 && (
         <section className="border-t">
           <h3 className="m-0 px-(--card-p) pt-3 pb-1 text-xs font-medium text-muted-foreground">
@@ -106,8 +129,12 @@ export function BillingPanel({
                 <li key={payment.id} className="flex items-center gap-3 px-(--card-p) py-2 text-sm">
                   <span className="grid min-w-0 flex-1 gap-0.5">
                     <span>
-                      {payment.kind === "refund" ? "Refund to " : ""}
-                      {method.brand} ending {method.last4}
+                      {payment.kind === "refund"
+                        ? "Refund to "
+                        : payment.kind === "reversal"
+                          ? "Reversed: "
+                          : ""}
+                      {method.last4 ? `${method.brand} ending ${method.last4}` : payment.provider}
                     </span>
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {formatDate(payment.receivedAt)} · {invoice?.number}
@@ -121,6 +148,61 @@ export function BillingPanel({
         </section>
       )}
     </Panel>
+  );
+}
+
+function InvoiceList({
+  heading,
+  invoices,
+  onOpenInvoice,
+  onPay,
+}: {
+  heading?: string;
+  invoices: Invoice[];
+  onOpenInvoice: (invoiceId: string) => void;
+  onPay?: (invoice: Invoice) => void;
+}) {
+  return (
+    <section className="border-t first:border-t-0">
+      {heading && (
+        <h3 className="m-0 px-(--card-p) pt-3 pb-1 text-xs font-medium text-muted-foreground">
+          {heading}
+        </h3>
+      )}
+      <ul className="m-0 list-none divide-y p-0">
+        {invoices.map((invoice) => (
+          <li key={invoice.id} className="flex items-center gap-2 pr-(--card-p)">
+            <button
+              type="button"
+              onClick={() => onOpenInvoice(invoice.id)}
+              className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-(--card-p) text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
+            >
+              <span className="grid min-w-0 flex-1 gap-0.5">
+                <span className="text-sm font-medium whitespace-nowrap tabular-nums">
+                  {invoice.installments > 1
+                    ? `${invoice.installment} of ${invoice.installments}`
+                    : invoice.number}
+                </span>
+                <span className="truncate text-xs text-muted-foreground tabular-nums">
+                  {invoice.kind === "credit_note"
+                    ? `Credit note ${invoice.number}`
+                    : `Due ${formatPlainDate(invoice.dueOn)}`}
+                </span>
+              </span>
+              <InvoiceStatus status={invoice.status} kind={invoice.kind} />
+              <span className="text-right text-sm whitespace-nowrap tabular-nums">
+                {money(invoice.total)}
+              </span>
+            </button>
+            {onPay && isPayable(invoice) && invoice.status !== "scheduled" && (
+              <Button size="sm" variant="outline" onClick={() => onPay(invoice)}>
+                Pay
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -180,6 +262,12 @@ export function InvoiceSheet({
                   <dt>Paid</dt>
                   <dd className="m-0 tabular-nums">{money(invoice.amountPaid)}</dd>
                 </div>
+                {Number(invoice.amountCredited.amount) !== 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <dt>Credited</dt>
+                    <dd className="m-0 tabular-nums">{money(invoice.amountCredited)}</dd>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <dt>Balance</dt>
                   <dd className="m-0 tabular-nums">{money(invoice.balance)}</dd>

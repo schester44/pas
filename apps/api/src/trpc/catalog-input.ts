@@ -1,4 +1,4 @@
-import { FORM_CHANNELS, FORM_STAGES } from "@pas/catalog";
+import { FORM_CHANNELS, FORM_STAGES, MARKETS } from "@pas/catalog";
 import { DECISION_KIND_KEYS, type JdmDecision } from "@pas/decisions-engine";
 import { documentSetSchema } from "@pas/documents";
 import { formDefinitionSchema, riskSchemaSchema } from "@pas/forms-core";
@@ -157,6 +157,43 @@ export const ratingConfigInput = z.discriminatedUnion("engine", [
   }),
 ]);
 
+const decimalText = z.string().regex(/^\d+(\.\d+)?$/);
+const days = z.number().int().min(0).max(366);
+
+const payPlan = z.object({
+  key: z.string().min(1).max(40),
+  label: z.string().max(80),
+  installments: z.number().int().min(1).max(24),
+  intervalMonths: z.number().int().min(1).max(12),
+  downPayment: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("first_installment") }),
+    z.object({ kind: z.literal("percent"), percent: decimalText }),
+  ]),
+  installmentFee: decimalText.nullable(),
+  taxesFees: z.enum(["up_front", "spread"]),
+  dueDaysBefore: days,
+  billDaysBeforeDue: days,
+  graceDays: days,
+  eligibility: z.object({
+    minPremium: decimalText.optional(),
+    jurisdictions: z.array(z.string().max(6)).max(100).optional(),
+    channels: z.array(z.string().max(20)).max(10).optional(),
+    mortgageeBilling: z.boolean().optional(),
+    when: z.string().max(2000).optional(),
+  }),
+});
+
+const billingConfig = z.object({
+  payPlans: z.array(payPlan).max(20),
+  defaultPlan: z.string().max(40).nullable(),
+  dunning: z.object({
+    retryAfterDays: days,
+    retries: z.number().int().min(0).max(5),
+    reminderAfterDays: days,
+    delinquencySource: z.enum(["pas", "billing_system"]),
+  }),
+});
+
 export const versionContentsInput = z.object({
   riskSchema: riskSchemaSchema,
   forms: z
@@ -171,13 +208,19 @@ export const versionContentsInput = z.object({
   coverages: z.array(coverage).max(500),
   availability: z
     .array(
-      z.object({ jurisdiction: jurisdictionInput, newBusiness: dateWindow, renewal: dateWindow }),
+      z.object({
+        jurisdiction: jurisdictionInput,
+        newBusiness: dateWindow,
+        renewal: dateWindow,
+        market: z.enum(MARKETS).optional(),
+      }),
     )
     .max(300),
   lifecycle: z.record(z.string(), z.unknown()),
   documents: documentSetSchema,
   rules: z.array(decision).max(100),
   rating: ratingConfigInput.nullable(),
+  billing: billingConfig,
 });
 
 export const byId = z.object({ id });

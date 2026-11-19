@@ -1,4 +1,5 @@
 import type { TenantContext } from "@pas/kernel";
+import type { Dunning, PayPlan } from "@pas/pay-plans";
 import type { InsuredParty } from "../domain/insured";
 
 export interface MoneyJson {
@@ -18,7 +19,7 @@ export interface NewBusinessRequest {
   expirationDate: string;
   insuredName: string;
   insureds: InsuredParty[];
-  producer: { id: string; name: string };
+  producer: { id: string; name: string; agencyId: string | null };
   currency: string;
   coverages: {
     coverage: string;
@@ -31,6 +32,7 @@ export interface NewBusinessRequest {
   taxesFees: { code: string; label: string; remitter: string; amount: MoneyJson }[];
   writtenPremium: MoneyJson;
   snapshot: Record<string, unknown>;
+  billing: { method: "direct" | "agency" | "mortgagee"; payPlan: PayPlan | null; dunning: Dunning };
   actor: TimelineActor;
   history: {
     type: string;
@@ -77,6 +79,19 @@ export interface PolicyIssuer {
       providerRef: string;
       method: Record<string, unknown>;
       methodLabel: string;
+      actor: TimelineActor;
+    },
+  ): Promise<void>;
+  /** Saves the consented card for autopay on the policy's installments. */
+  enrollAutopay(
+    ctx: TenantContext,
+    input: {
+      policyId: string;
+      provider: string;
+      methodRef: string;
+      customerRef: string | null;
+      method: { brand: string; last4: string; expMonth: number; expYear: number };
+      consent: { acceptedAt: string; by: string };
       actor: TimelineActor;
     },
   ): Promise<void>;

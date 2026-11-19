@@ -1,57 +1,46 @@
-import type { AdminOutputs } from "@pas/api-client";
-import { Button } from "@pas/ui/components/button";
 import { Notice } from "@pas/ui/components/notice";
 import { PageBody, PageHeader } from "@pas/ui/components/page";
-import { Panel } from "@pas/ui/components/panel";
-import { Spinner } from "@pas/ui/components/spinner";
-import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Download, FileText } from "lucide-react";
-import type * as React from "react";
 import { useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
-import { humanize } from "@/components/decisions/jdm-edit";
 import { ActivityTimeline } from "@/components/policies/activity";
-import { BillingPanel, InvoiceSheet } from "@/components/policies/billing";
-import { PolicyClients } from "@/components/policies/clients";
-import { PolicyActions, RescindDialog } from "@/components/policies/policy-actions";
-import { countdown, PolicyStatus } from "@/components/policies/policy-status";
-import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
+import { BillingPanel, type Invoice, InvoiceSheet } from "@/components/policies/billing";
+import { PolicyCoverage } from "@/components/policies/coverage";
+import { PolicyDocuments } from "@/components/policies/documents";
+import { PolicyOverview } from "@/components/policies/overview";
+import { ProducerOfRecord } from "@/components/policies/producer-of-record";
+import { PayDialog } from "@/components/policies/pay-dialog";
+import type { Billing, Policy } from "@/components/policies/policy-format";
+import { PolicySummary } from "@/components/policies/policy-summary";
+import { isPolicyTab, type PolicyTab, PolicyTabs } from "@/components/policies/policy-tabs";
+import { PolicyTransactions } from "@/components/policies/transactions";
 import { useTRPC } from "@/lib/trpc";
 
+interface PolicySearch {
+  tab?: Exclude<PolicyTab, "overview">;
+  invoice?: string;
+}
+
 export const Route = createFileRoute("/_authed/policies/$policyId")({
+  validateSearch: (search: Record<string, unknown>): PolicySearch => ({
+    ...(isPolicyTab(search.tab) && search.tab !== "overview" && { tab: search.tab }),
+    ...(typeof search.invoice === "string" && search.invoice && { invoice: search.invoice }),
+  }),
   component: PolicyPage,
 });
 
-type Policy = AdminOutputs["policies"]["get"];
-type Amount =
-  | { kind: "money"; amount: string; currency: string }
-  | { kind: "percent"; value: string };
-
-const money = (value: { amount: string; currency: string }) =>
-  formatMoney(value.amount, value.currency);
-
-function amount(value: unknown) {
-  const a = value as Amount | undefined;
-
-  if (!a) return <span className="text-muted-foreground">–</span>;
-
-  return a.kind === "money" ? formatMoney(a.amount, a.currency) : `${a.value}%`;
-}
-
-const exposureLabel = (exposure?: string) => {
-  const match = exposure ? /\[(\d+)\]$/.exec(exposure) : null;
-
-  return match ? `Location ${Number(match[1]) + 1}` : "Policy";
-};
-
 function PolicyPage() {
   const { policyId } = Route.useParams();
+  const { tab = "overview", invoice: invoiceId } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const trpc = useTRPC();
   const policy = useQuery(trpc.policies.get.queryOptions({ id: policyId }));
   const billing = useQuery(trpc.policies.billing.queryOptions({ id: policyId }));
-  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [paying, setPaying] = useState<Invoice | null>(null);
+
+  const openInvoice = (id: string | undefined) =>
+    navigate({ search: (prev) => ({ ...prev, invoice: id }), resetScroll: false });
 
   return (
     <>
@@ -66,14 +55,6 @@ function PolicyPage() {
             current={policy.data && <span className="tabular-nums">{policy.data.number}</span>}
           />
         }
-        actions={
-          policy.data && (
-            <>
-              <PolicyStatus status={policy.data.status} cancellation={policy.data.cancellation} />
-              <PolicyActions policy={policy.data} />
-            </>
-          )
-        }
       />
       <PageBody className="max-w-6xl">
         {policy.error ? (
@@ -81,314 +62,86 @@ function PolicyPage() {
             {policy.error.message}
           </Notice>
         ) : !policy.data ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <>
+            <div className="h-44 animate-pulse rounded-xl bg-muted/60" />
             <div className="h-96 animate-pulse rounded-xl bg-muted/60" />
-            <div className="h-72 animate-pulse rounded-xl bg-muted/60" />
-          </div>
+          </>
         ) : (
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <>
+            <PolicySummary policy={policy.data} billing={billing.data} />
             <div className="grid gap-6">
-              <Callouts policy={policy.data} />
-              <Coverages policy={policy.data} />
-              <ActivityTimeline
-                policy={policy.data}
-                invoices={billing.data?.invoices ?? []}
-                onOpenInvoice={setInvoiceId}
+              <PolicyTabs
+                policyId={policy.data.id}
+                current={tab}
+                counts={{
+                  documents: policy.data.documents.length,
+                  transactions: policy.data.transactions.length,
+                }}
               />
-              <Transactions policy={policy.data} />
-              <Financials policy={policy.data} />
-            </div>
-            <div className="grid gap-6">
-              <Term policy={policy.data} />
-              <PolicyClients policyId={policy.data.id} />
-              {billing.data && <BillingPanel billing={billing.data} onOpenInvoice={setInvoiceId} />}
-              <Documents policy={policy.data} />
+              <TabContent
+                tab={tab}
+                policy={policy.data}
+                billing={billing.data}
+                onOpenInvoice={openInvoice}
+                onPay={setPaying}
+              />
             </div>
             <InvoiceSheet
               invoice={billing.data?.invoices.find((i) => i.id === invoiceId)}
-              onOpenChange={(open) => !open && setInvoiceId(null)}
+              onOpenChange={(open) => !open && openInvoice(undefined)}
             />
-          </div>
+            <PayDialog
+              policyId={policy.data.id}
+              invoice={paying}
+              onOpenChange={(open) => !open && setPaying(null)}
+            />
+          </>
         )}
       </PageBody>
     </>
   );
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  NEW_BUSINESS: "New business",
-  ENDORSEMENT: "Endorsement",
-  CANCELLATION: "Cancellation",
-  CANCELLATION_RESCISSION: "Cancellation rescission",
-  REINSTATEMENT: "Reinstatement",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  quoted: "Quoted",
-  pending_approval: "Pending approval",
-  scheduled: "Scheduled",
-  issued: "Issued",
-};
-
-/** One-line callouts for what needs attention: a pending cancellation, an open change. */
-function Callouts({ policy }: { policy: Policy }) {
-  const [rescinding, setRescinding] = useState(false);
-  const pending = policy.status === "pending_cancellation" && policy.cancellation;
-  const open = policy.openTransaction;
-  const openChange = open && open.type !== "CANCELLATION" ? open : null;
-
-  if (!pending && !openChange && !(open?.status === "pending_approval")) return null;
-
-  return (
-    <div className="grid gap-2">
-      {pending && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2.5 text-sm">
-          <span aria-hidden className="size-2 shrink-0 rounded-full bg-amber-500" />
-          <span className="min-w-0 flex-1">
-            Cancels{" "}
-            <span className="font-medium tabular-nums">
-              {formatPlainDate(pending.effectiveDate)}
-            </span>{" "}
-            <span className="text-muted-foreground tabular-nums">
-              ({countdown(pending.effectiveDate)}) · {pending.reasonLabel}
-            </span>
-          </span>
-          <Button size="sm" variant="outline" onClick={() => setRescinding(true)}>
-            Rescind
-          </Button>
-          <RescindDialog policy={policy} open={rescinding} onOpenChange={setRescinding} />
-        </div>
-      )}
-      {open && (openChange || open.status === "pending_approval") && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2.5 text-sm">
-          <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
-          <span className="min-w-0 flex-1">
-            {TYPE_LABELS[open.type]} {STATUS_LABELS[open.status]?.toLowerCase()}{" "}
-            <span className="text-muted-foreground tabular-nums">
-              · effective {formatPlainDate(open.effectiveDate)} · {money(open.total)}
-              {open.createdBy && ` · by ${open.createdBy}`}
-            </span>
-          </span>
-          <Button size="sm" variant="outline" asChild>
-            <Link
-              to={
-                open.type === "CANCELLATION"
-                  ? "/policies/$policyId/cancel"
-                  : "/policies/$policyId/endorse"
-              }
-              params={{ policyId: policy.id }}
-            >
-              Review
-            </Link>
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Term({ policy }: { policy: Policy }) {
-  return (
-    <Panel title="Term">
-      <dl className="m-0 grid gap-4">
-        <Fact label="Named insured">{policy.insuredName}</Fact>
-        <Fact label="Product">
-          {policy.productName} <span className="tabular-nums">{policy.productVersion}</span>
-        </Fact>
-        <Fact label="State">{jurisdictionName(policy.jurisdiction)}</Fact>
-        <Fact label="Term">
-          <span className="tabular-nums">
-            {formatPlainDate(policy.effectiveDate)} – {formatPlainDate(policy.expirationDate)}
-          </span>
-        </Fact>
-        <Fact label="Annual premium">
-          <span className="tabular-nums">{money(policy.annualPremium)}</span>
-          <span className="block text-xs text-muted-foreground tabular-nums">
-            {money(policy.writtenPremium)} written · {money(policy.taxesAndFees)} taxes and fees
-          </span>
-        </Fact>
-        <Fact label="Producer">{policy.producerName}</Fact>
-        <Fact label="Bound">
-          <span className="tabular-nums">{formatDate(policy.boundAt)}</span>
-        </Fact>
-        <Fact label="Submission">
-          <Link
-            to="/submissions/$submissionId"
-            params={{ submissionId: policy.sourceSubmissionId }}
-            className="font-medium text-primary outline-none hover:underline focus-visible:underline"
-          >
-            View the quote
-          </Link>
-        </Fact>
-      </dl>
-    </Panel>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="m-0 text-sm">{children}</dd>
-    </div>
-  );
-}
-
-function Coverages({ policy }: { policy: Policy }) {
-  return (
-    <Panel title="Coverages" flush>
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="h-10 bg-muted/40 text-left text-xs font-medium text-muted-foreground">
-            <th className="pl-(--card-p) font-medium">Coverage</th>
-            <th className="px-3 text-right font-medium">Limit</th>
-            <th className="px-3 text-right font-medium">Deductible</th>
-            <th className="pr-(--card-p) text-right font-medium">Premium</th>
-          </tr>
-        </thead>
-        <tbody>
-          {policy.coverages.map((c) => (
-            <tr key={`${c.coverage}@${c.exposure ?? ""}`} className="h-13 border-t">
-              <td className="py-2.5 pl-(--card-p)">
-                <span className="grid gap-0.5">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="text-xs text-muted-foreground">{exposureLabel(c.exposure)}</span>
-                </span>
-              </td>
-              <td className="px-3 text-right tabular-nums">{amount(c.limit)}</td>
-              <td className="px-3 text-right tabular-nums">{amount(c.deductible)}</td>
-              <td className="pr-(--card-p) text-right tabular-nums">{money(c.premium)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Panel>
-  );
-}
-
-function Transactions({ policy }: { policy: Policy }) {
-  return (
-    <Panel title="Transactions" flush>
-      <ul className="m-0 list-none divide-y p-0">
-        {policy.transactions.map((t) => (
-          <li key={t.id} className="flex items-center gap-4 px-(--card-p) py-3">
-            <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="text-sm font-medium">
-                {TYPE_LABELS[t.type] ?? humanize(t.type.toLowerCase())}
-              </span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                Effective {formatPlainDate(t.effectiveDate)}
-                {t.issuedAt
-                  ? ` · issued ${formatDate(t.issuedAt)}`
-                  : t.createdBy
-                    ? ` · by ${t.createdBy}`
-                    : ""}
-              </span>
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {STATUS_LABELS[t.status] ?? humanize(t.status)}
-            </span>
-            <span className="w-24 text-right text-sm tabular-nums">{money(t.premiumDelta)}</span>
-          </li>
-        ))}
-      </ul>
-    </Panel>
-  );
-}
-
-function Financials({ policy }: { policy: Policy }) {
-  return (
-    <Panel
-      title="Financial transactions"
-      description="Written premium by coverage, plus taxes and fees."
-      flush
-    >
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="h-10 bg-muted/40 text-left text-xs font-medium text-muted-foreground">
-            <th className="pl-(--card-p) font-medium">Line</th>
-            <th className="px-3 font-medium">Kind</th>
-            <th className="px-3 font-medium">Remitted by</th>
-            <th className="pr-(--card-p) text-right font-medium">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {policy.financials.map((f) => (
-            <tr key={f.id} className="h-11 border-t">
-              <td className="pl-(--card-p)">
-                {f.label}
-                {f.exposure && (
-                  <span className="text-muted-foreground"> · {exposureLabel(f.exposure)}</span>
-                )}
-              </td>
-              <td className="px-3 text-muted-foreground">
-                {f.kind === "written_premium" ? "Written premium" : "Tax or fee"}
-              </td>
-              <td className="px-3 text-muted-foreground">
-                {f.remitter ? humanize(f.remitter) : "–"}
-              </td>
-              <td className="pr-(--card-p) text-right tabular-nums">{money(f.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Panel>
-  );
-}
-
-const fromBase64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-
-function Documents({ policy }: { policy: Policy }) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const [busy, setBusy] = useState<string | null>(null);
-
-  async function download(documentId: string) {
-    setBusy(documentId);
-
-    try {
-      const file = await queryClient.fetchQuery(
-        trpc.policies.document.queryOptions({ policyId: policy.id, documentId }),
+function TabContent({
+  tab,
+  policy,
+  billing,
+  onOpenInvoice,
+  onPay,
+}: {
+  tab: PolicyTab;
+  policy: Policy;
+  billing: Billing | undefined;
+  onOpenInvoice: (invoiceId: string) => void;
+  onPay: (invoice: Invoice) => void;
+}) {
+  switch (tab) {
+    case "overview":
+      return (
+        <>
+          <PolicyOverview policy={policy} billing={billing} />
+          <ProducerOfRecord policy={policy} />
+        </>
       );
-
-      const url = URL.createObjectURL(
-        new Blob([fromBase64(file.pdf)], { type: "application/pdf" }),
+    case "coverage":
+      return <PolicyCoverage policy={policy} />;
+    case "activity":
+      return (
+        <ActivityTimeline
+          policy={policy}
+          invoices={billing?.invoices ?? []}
+          onOpenInvoice={onOpenInvoice}
+        />
       );
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.fileName;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } finally {
-      setBusy(null);
-    }
+    case "billing":
+      return billing ? (
+        <BillingPanel billing={billing} onOpenInvoice={onOpenInvoice} onPay={onPay} />
+      ) : (
+        <div className="h-96 animate-pulse rounded-xl bg-muted/60" />
+      );
+    case "documents":
+      return <PolicyDocuments policy={policy} />;
+    case "transactions":
+      return <PolicyTransactions policy={policy} />;
   }
-
-  return (
-    <Panel title="Documents" flush>
-      <ul className="m-0 list-none divide-y p-0">
-        {policy.documents.map((d) => (
-          <li key={d.id} className="flex items-center gap-3 px-(--card-p) py-3">
-            <FileText aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <span className="grid min-w-0 flex-1">
-              <span className="truncate text-sm font-medium">{d.title}</span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {Math.round(d.sizeBytes / 1024)} KB
-              </span>
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Download ${d.title}`}
-              disabled={busy === d.id}
-              onClick={() => download(d.id)}
-            >
-              {busy === d.id ? <Spinner /> : <Download />}
-            </Button>
-          </li>
-        ))}
-      </ul>
-    </Panel>
-  );
 }

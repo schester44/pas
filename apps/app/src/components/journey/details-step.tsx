@@ -1,3 +1,4 @@
+import { AddressField, defaultCopy } from "@pas/forms-react";
 import { Button } from "@pas/ui/components/button";
 import { Checkbox } from "@pas/ui/components/checkbox";
 import { Input } from "@pas/ui/components/input";
@@ -33,6 +34,9 @@ const INTEREST_LABELS: Record<Interest["kind"], string> = {
   additional_insured: "Additional insured",
   loss_payee: "Loss payee",
 };
+
+const homeStateFrom = (address: Address | null | undefined) =>
+  address?.region ? `${address.country || "US"}-${address.region.toUpperCase()}` : "";
 
 const EMPTY_ADDRESS: Address = { line1: "", city: "", region: "", postalCode: "", country: "US" };
 const EMPTY_DECLINATION: Declination = { carrier: "", declinedOn: "", reason: "" };
@@ -157,6 +161,33 @@ export function DetailsStep({ quote, submission, go }: StepProps) {
             errors={errors}
           />
         </Panel>
+
+        {search && (
+          <Panel
+            title="Home state"
+            description="The insured's principal residence or place of business. It decides which state's surplus lines filing and taxes apply."
+          >
+            <Field label="Home state">
+              {(id) => (
+                <Select
+                  value={details.homeState ?? homeStateFrom(details.mailingAddress)}
+                  onValueChange={(homeState) => set({ homeState })}
+                >
+                  <SelectTrigger id={id} className="sm:max-w-xs">
+                    <SelectValue placeholder="Same as the mailing address" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {subdivisionsOf("US").map(([code, name]) => (
+                      <SelectItem key={code} value={code}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+          </Panel>
+        )}
 
         <Panel title="Producer">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -495,69 +526,33 @@ function AddressFields({
   onChange: (value: Address) => void;
   errors: Record<string, string>;
 }) {
-  const set = (patch: Partial<Address>) => onChange({ ...value, ...patch });
-  const states = subdivisionsOf("US");
+  const id = useId();
+
+  const error = ["address.line1", "address.city", "address.region", "address.postalCode"]
+    .map((key) => errors[key])
+    .find(Boolean);
 
   return (
-    <div className="grid gap-4 sm:grid-cols-6">
-      <Field label="Street address" error={errors["address.line1"]} className="sm:col-span-4">
-        {(id) => (
-          <Input
-            id={id}
-            value={value.line1}
-            autoComplete="address-line1"
-            onChange={(e) => set({ line1: e.target.value })}
-          />
-        )}
-      </Field>
-      <Field label="Apt, suite" optional className="sm:col-span-2">
-        {(id) => (
-          <Input
-            id={id}
-            value={value.line2 ?? ""}
-            autoComplete="address-line2"
-            onChange={(e) => set({ line2: e.target.value })}
-          />
-        )}
-      </Field>
-      <Field label="City" error={errors["address.city"]} className="sm:col-span-3">
-        {(id) => (
-          <Input
-            id={id}
-            value={value.city}
-            autoComplete="address-level2"
-            onChange={(e) => set({ city: e.target.value })}
-          />
-        )}
-      </Field>
-      <Field label="State" error={errors["address.region"]} className="sm:col-span-2">
-        {(id) => (
-          <Select value={value.region} onValueChange={(region) => set({ region })}>
-            <SelectTrigger id={id} aria-invalid={!!errors["address.region"] || undefined}>
-              <SelectValue placeholder="State" />
-            </SelectTrigger>
-            <SelectContent className="max-h-80">
-              {states.map(([code, name]) => (
-                <SelectItem key={code} value={code.split("-")[1]!}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </Field>
-      <Field label="ZIP code" error={errors["address.postalCode"]} className="sm:col-span-1">
-        {(id) => (
-          <Input
-            id={id}
-            value={value.postalCode}
-            inputMode="numeric"
-            autoComplete="postal-code"
-            className="tabular-nums"
-            onChange={(e) => set({ postalCode: e.target.value })}
-          />
-        )}
-      </Field>
+    <div className="grid gap-2">
+      <AddressField
+        id={id}
+        value={value}
+        onChange={(next) => onChange(next ?? EMPTY_ADDRESS)}
+        country="US"
+        invalid={Boolean(error)}
+        describedBy={error ? `${id}-error` : undefined}
+        copy={{
+          ...defaultCopy.address,
+          line2: "Apt, suite",
+          region: "State",
+          postalCode: "ZIP code",
+        }}
+      />
+      {error && (
+        <p id={`${id}-error`} className="m-0 text-sm text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { UserId } from "@pas/kernel";
+import type { BookScope } from "@pas/kernel";
 
-/** Which submissions a caller may see: the whole tenant's book, or only those they produced. */
-export type SubmissionScope = { kind: "tenant" } | { kind: "producer"; producerId: UserId };
+/** Which submissions a caller may see: the tenant's book, their agencies' or their own (PLAN §5.7). */
+export type SubmissionScope = BookScope;

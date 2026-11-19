@@ -4,7 +4,9 @@ import {
   BadgeCheck,
   CreditCard,
   Database,
+  FileSpreadsheet,
   Inbox,
+  Landmark,
   type LucideIcon,
   Mail,
   MapPin,
@@ -29,7 +31,14 @@ export const CATEGORIES: Record<string, { label: string; port: string }> = {
     label: "Data providers",
     port: "Enable several; choose which one supplies each kind of data in each product's enrichment plan.",
   },
-  filing: { label: "Filing", port: "Files surplus lines and regulatory reports." },
+  address: {
+    label: "Addresses",
+    port: "Suggests addresses as people type and verifies them into the address registry. Enable a suggestion-only provider alongside a verifier to cut lookup costs.",
+  },
+  filing: {
+    label: "Regulatory reporting",
+    port: "Files surplus lines, affidavits, tax remittances and other regulatory reports. Each channel files the kinds and states it lists.",
+  },
   carrier: { label: "Carriers", port: "Exchanges policies with carriers." },
   billing: { label: "Billing", port: "Runs billing in an outside system." },
   llm: { label: "Language models", port: "Powers AI drafting." },
@@ -48,6 +57,8 @@ const ICONS: Record<string, LucideIcon> = {
   map: MapPin,
   webhook: Webhook,
   mail: Mail,
+  landmark: Landmark,
+  file: FileSpreadsheet,
 };
 
 /** A neutral tile: the vendor's initial, or an icon for generic and built-in providers. */

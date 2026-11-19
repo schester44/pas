@@ -1,6 +1,7 @@
 import { checkDocuments, type DocumentSet, type DocumentTarget } from "@pas/documents";
 import { checkReferences, schemaIndex } from "@pas/forms-core";
 import { jurisdictionCode, sameJurisdiction } from "@pas/kernel";
+import { checkPayPlans } from "@pas/pay-plans";
 import {
   type AvailabilityKind,
   type AvailabilityWindow,
@@ -34,6 +35,7 @@ export type CheckTarget =
       property?: string;
     }
   | { area: "rules"; decision?: string; node?: string; rule?: string; test?: string }
+  | { area: "billing"; plan?: string; field?: string }
   | ({ area: "rating" } & RatingTarget);
 
 export interface CheckIssue {
@@ -75,6 +77,7 @@ export function checkVersion(
     ...checkAvailability(contents.availability, published),
     ...checkVersionDocuments(contents, resolved.formEditions),
     ...checkRules(contents),
+    ...checkBilling(contents),
     ...(resolved.rating ?? []).map((issue) => ({
       ...issue,
       target: { area: "rating" as const, ...issue.target },
@@ -142,6 +145,19 @@ function checkVersionDocuments(
   }
 
   return issues;
+}
+
+function checkBilling(contents: VersionContents): CheckIssue[] {
+  const term = (contents.lifecycle.term ?? {}) as { months?: unknown };
+  const termMonths = typeof term.months === "number" ? term.months : 12;
+
+  return checkPayPlans(contents.billing, { termMonths }).map(
+    ({ severity, message, plan, field }) => ({
+      severity,
+      message,
+      target: { area: "billing", ...(plan && { plan }), ...(field && { field }) },
+    }),
+  );
 }
 
 function checkRiskSchema(contents: VersionContents): CheckIssue[] {

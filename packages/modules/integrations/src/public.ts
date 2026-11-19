@@ -4,6 +4,8 @@ export {
   type IntegrationEnvironment,
 } from "./domain/category";
 export type {
+  AddressProvider,
+  BillingSystem,
   CardPayments,
   CategoryAdapters,
   CheckoutSetup,
@@ -15,6 +17,8 @@ export type {
   MailType,
   PostalAddress,
   PrintMail,
+  ProducerLicenseLookup,
+  ProducerLicenseRecord,
 } from "./ports/adapters";
 export type { MailProof, MailReference, NoticeProofs } from "./ports/mail-pieces";
 export type {

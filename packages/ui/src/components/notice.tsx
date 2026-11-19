@@ -1,4 +1,4 @@
-import { CircleAlert, Info } from "lucide-react";
+import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import type * as React from "react";
 import { cn } from "../lib/utils";
 
@@ -9,38 +9,40 @@ function Notice({
   children,
   className,
 }: {
-  tone?: "info" | "error";
+  tone?: "info" | "warning" | "error";
   title?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
 }) {
-  const Icon = tone === "error" ? CircleAlert : Info;
+  const Icon = tone === "error" ? CircleAlert : tone === "warning" ? TriangleAlert : Info;
+
+  const tones = {
+    info: {
+      box: "bg-muted/50 text-foreground",
+      icon: "text-muted-foreground",
+      body: "text-muted-foreground",
+    },
+    warning: {
+      box: "border-amber-200 bg-amber-50 text-amber-900",
+      icon: "text-amber-600",
+      body: "text-amber-800",
+    },
+    error: {
+      box: "border-red-200 bg-red-50 text-red-900",
+      icon: "text-red-600",
+      body: "text-red-800",
+    },
+  }[tone];
 
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
-      className={cn(
-        "flex gap-3 rounded-lg border px-3 py-2.5 text-sm",
-        tone === "error" ? "border-red-200 bg-red-50 text-red-900" : "bg-muted/50 text-foreground",
-        className,
-      )}
+      className={cn("flex gap-3 rounded-lg border px-3 py-2.5 text-sm", tones.box, className)}
     >
-      <Icon
-        aria-hidden
-        className={cn(
-          "mt-0.5 size-4 shrink-0",
-          tone === "error" ? "text-red-600" : "text-muted-foreground",
-        )}
-      />
+      <Icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", tones.icon)} />
       <div className="grid gap-0.5">
         {title && <p className="m-0 font-medium">{title}</p>}
-        {children && (
-          <div
-            className={cn(title && (tone === "error" ? "text-red-800" : "text-muted-foreground"))}
-          >
-            {children}
-          </div>
-        )}
+        {children && <div className={cn(title && tones.body)}>{children}</div>}
       </div>
     </div>
   );

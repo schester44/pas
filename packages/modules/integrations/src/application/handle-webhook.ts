@@ -59,6 +59,20 @@ export function makeHandleWebhook(deps: Deps) {
 
         if (event.kind === "mail_tracking") await track(deps, tx, ctx, install.providerId, event);
 
+        if (event.kind === "billing") {
+          await deps.outbox.add(tx, [
+            {
+              id: newId(),
+              type: "integrations.billing_event_received",
+              tenantId,
+              aggregateType: "integration_install",
+              aggregateId: install.id,
+              occurredAt: clock.now(),
+              payload: { installId: install.id, event: event.data },
+            },
+          ]);
+        }
+
         if (event.kind === "payment") {
           await deps.outbox.add(tx, [
             {

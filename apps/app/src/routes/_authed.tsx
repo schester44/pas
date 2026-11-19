@@ -8,11 +8,12 @@ import {
 } from "@pas/ui/components/dropdown-menu";
 import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { SearchTrigger } from "@/components/search-palette";
 import { authClient } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { currentTenant, useTenant } from "@/lib/tenant";
-import { queryClient } from "@/lib/trpc";
+import { queryClient, useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async () => {
@@ -36,6 +37,8 @@ function AuthedLayout() {
   const { session } = Route.useRouteContext();
   const router = useRouter();
   const tenant = useTenant();
+  const trpc = useTRPC();
+  const agencies = useQuery({ ...trpc.agency.mine.queryOptions(), retry: false });
 
   return (
     <div className="min-h-svh bg-canvas">
@@ -44,6 +47,14 @@ function AuthedLayout() {
           <Link to="/">
             <Brand name={tenant?.displayName} logoUrl={tenant?.logoUrl} />
           </Link>
+          {agencies.data && agencies.data.length > 0 && (
+            <Link
+              to="/agency"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground [&.active]:text-foreground"
+            >
+              My agency
+            </Link>
+          )}
           <div className="ml-auto flex flex-1 items-center justify-end gap-3">
             <SearchTrigger userId={session.user.id} />
             <DropdownMenu>

@@ -5,12 +5,13 @@ import { Panel } from "@pas/ui/components/panel";
 import { StatusChip } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Mail, MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { ChangeRequestDialog } from "@/components/portal/change-request-dialog";
 import { PayDialog } from "@/components/portal/pay-dialog";
+import { BillingSchedule, type PolicyBilling } from "@/components/policy/billing-schedule";
 import { PolicyDocumentList } from "@/components/policy-documents";
 import {
   formatDate,
@@ -20,15 +21,7 @@ import {
   formatRelative,
   initials,
 } from "@/lib/format";
-import {
-  amountText,
-  type ClientInvoice,
-  type ClientPolicy,
-  exposureText,
-  invoiceStatus,
-  isDue,
-  policyStatus,
-} from "@/lib/portal";
+import { amountText, type ClientPolicy, exposureText, policyStatus } from "@/lib/portal";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_portal/portal/policies/$policyId")({
@@ -46,7 +39,10 @@ function ClientPolicyPage() {
   const { policyId } = Route.useParams();
   const trpc = useTRPC();
   const policy = useQuery(trpc.client.policies.get.queryOptions({ id: policyId }));
-  const [paying, setPaying] = useState<ClientInvoice | null>(null);
+  const billing = useQuery(trpc.client.policies.billing.queryOptions({ id: policyId }));
+  const setAutopay = useMutation(trpc.client.policies.setAutopay.mutationOptions());
+  const queryClient = useQueryClient();
+  const [paying, setPaying] = useState<PolicyBilling["invoices"][number] | null>(null);
   const [requesting, setRequesting] = useState(false);
 
   if (policy.error) {
@@ -134,7 +130,20 @@ function ClientPolicyPage() {
           <Activity policy={p} />
         </div>
         <div className="order-1 grid gap-6 lg:order-2">
-          <Billing invoices={p.invoices} onPay={setPaying} />
+          {billing.data ? (
+            <BillingSchedule
+              billing={billing.data}
+              onPay={setPaying}
+              onAutopay={async (input) => {
+                const result = await setAutopay.mutateAsync({ policyId: p.id, ...input });
+                await queryClient.invalidateQueries({ queryKey: trpc.client.pathKey() });
+
+                return result;
+              }}
+            />
+          ) : (
+            <div className="h-48 animate-pulse rounded-xl border bg-card" />
+          )}
           <Agent policy={p} onRequest={() => setRequesting(true)} />
         </div>
       </div>
@@ -209,52 +218,6 @@ function Coverage({ policy }: { policy: ClientPolicy }) {
           );
         })}
       </ul>
-    </Panel>
-  );
-}
-
-function Billing({
-  invoices,
-  onPay,
-}: {
-  invoices: ClientInvoice[];
-  onPay: (invoice: ClientInvoice) => void;
-}) {
-  return (
-    <Panel title="Billing" flush>
-      {invoices.length === 0 ? (
-        <EmptyState title="No invoices yet" />
-      ) : (
-        <ul className="m-0 list-none divide-y p-0">
-          {invoices.map((invoice) => {
-            const status = invoiceStatus(invoice.status, invoice.kind);
-            const due = isDue(invoice);
-
-            return (
-              <li key={invoice.id} className="flex items-center gap-3 px-(--card-p) py-3">
-                <span className="grid min-w-0 flex-1 gap-0.5">
-                  <span className="text-sm font-medium tabular-nums">
-                    {formatMoney(due ? invoice.balance : invoice.total, { cents: true })}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground tabular-nums">
-                    {invoice.number} ·{" "}
-                    {invoice.kind === "credit_note"
-                      ? "Credit note"
-                      : `${due ? "Due " : ""}${formatPlainDate(due ? invoice.dueOn : invoice.issuedOn)}`}
-                  </span>
-                </span>
-                {due ? (
-                  <Button size="sm" onClick={() => onPay(invoice)}>
-                    Pay
-                  </Button>
-                ) : (
-                  <StatusChip tone={status.tone}>{status.label}</StatusChip>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
     </Panel>
   );
 }

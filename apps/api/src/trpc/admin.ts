@@ -1,6 +1,4 @@
-import { seesTenantBook } from "@pas/auth";
 import { riskSchemaSchema } from "@pas/forms-core";
-import { asId } from "@pas/kernel";
 import type { PolicyScope } from "@pas/policy";
 import type { SubmissionScope } from "@pas/submissions";
 import { TRPCError } from "@trpc/server";
@@ -26,33 +24,39 @@ import {
   bySubmission,
   decideReferralInput,
   listPoliciesInput,
+  payPolicyInvoiceInput,
   policyById,
   policyDocument,
+  setAutopayInput,
 } from "./quotes-input";
 import { listSubmissionsInput, submissionById } from "./submissions-input";
 import { policyChangesRouter, staffScope } from "./policy-changes";
+import { addressRouter } from "./addresses";
+import { complianceRouter } from "./compliance";
 import { integrationsRouter } from "./integrations";
 import { adminSearch } from "./search";
+import { bookScopeOf } from "./book-scope";
+import { distributionRouter } from "./distribution";
 
 const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ ctx, next }) => {
-  const { role } = await ctx.container.auth.api.getActiveMemberRole({ headers: ctx.headers });
-
-  const scope: SubmissionScope = seesTenantBook(role)
-    ? { kind: "tenant" }
-    : { kind: "producer", producerId: asId(ctx.session.user.id) };
+  const scope: SubmissionScope = await bookScopeOf(ctx, ctx.tenant);
 
   return next({ ctx: { ...ctx, scope } });
 });
 
 const policyRead = requirePermission({ policy: ["read"] }).use(async ({ ctx, next }) => {
-  const { role } = await ctx.container.auth.api.getActiveMemberRole({ headers: ctx.headers });
-
-  const scope: PolicyScope = seesTenantBook(role)
-    ? { kind: "tenant" }
-    : { kind: "producer", producerId: asId(ctx.session.user.id) };
+  const scope: PolicyScope = await bookScopeOf(ctx, ctx.tenant);
 
   return next({ ctx: { ...ctx, scope } });
 });
+
+const policyBilling = requirePermission({ policy: ["read", "update"] }).use(
+  async ({ ctx, next }) => {
+    const scope: PolicyScope = await bookScopeOf(ctx, ctx.tenant);
+
+    return next({ ctx: { ...ctx, scope } });
+  },
+);
 
 const clientsAdmin = policyRead.use(({ ctx, next }) => {
   if (ctx.scope.kind !== "tenant") throw new TRPCError({ code: "FORBIDDEN" });
@@ -207,6 +211,11 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.submissions.get(ctx.tenant, ctx.scope, input),
       ),
+    clearance: submissionRead
+      .input(submissionById)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.submissions.clearance(ctx.tenant, ctx.scope, input),
+      ),
     quote: submissionRead
       .input(bySubmission)
       .query(({ ctx, input }) =>
@@ -243,6 +252,23 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.policies.billing(ctx.tenant, ctx.scope, input),
       ),
+    payInvoice: policyBilling.input(payPolicyInvoiceInput).mutation(({ ctx, input }) =>
+      ctx.container.useCases.policies.payInvoice(ctx.tenant, ctx.scope, {
+        policyId: input.policyId,
+        invoiceId: input.invoiceId,
+        card: { kind: "card", ...input.card },
+        actor: { type: "user", id: ctx.session.user.id, name: ctx.session.user.name },
+      }),
+    ),
+    setAutopay: policyBilling.input(setAutopayInput).mutation(({ ctx, input }) =>
+      ctx.container.useCases.policies.setAutopay(ctx.tenant, ctx.scope, {
+        policyId: input.policyId,
+        enabled: input.enabled,
+        ...(input.card && { method: { kind: "card" as const, ...input.card } }),
+        payerName: input.card?.name ?? "",
+        actor: { type: "user", id: ctx.session.user.id, name: ctx.session.user.name },
+      }),
+    ),
     clients: policyRead.input(policyById).query(async ({ ctx, input }) => {
       await ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input);
 
@@ -271,8 +297,13 @@ export const adminRouter = router({
   }),
 
   search: router({ query: adminSearch }),
+  addresses: addressRouter(async (ctx) => (await staffScope(ctx)).tenant),
 
   integrations: integrationsRouter,
+
+  compliance: complianceRouter,
+
+  distribution: distributionRouter,
 
   clients: router({
     list: clientsAdmin

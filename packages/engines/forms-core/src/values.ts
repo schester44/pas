@@ -119,6 +119,8 @@ function coerceAddress(field: FieldNode, value: unknown, messages: Messages): Co
     region: part("region"),
     postalCode: part("postalCode"),
     country: field.country ?? part("country"),
+    ...(part("addressId") && { addressId: part("addressId") }),
+    ...(typeof value.verified === "boolean" && { verified: value.verified }),
   };
 
   const complete =

@@ -1,6 +1,6 @@
 import { invalid, Money, type RoundingMode } from "@pas/kernel";
 
-export type ChargeKind = "written_premium" | "tax_fee";
+export type ChargeKind = "written_premium" | "tax_fee" | "installment_fee";
 
 export interface Charge {
   kind: ChargeKind;
@@ -8,6 +8,7 @@ export interface Charge {
   label: string;
   coverage?: string;
   exposure?: string;
+  transactionId?: string;
   amount: Money;
 }
 
@@ -17,7 +18,10 @@ export interface InvoiceDraft {
   total: Money;
 }
 
-const ORDER: Record<ChargeKind, number> = { written_premium: 0, tax_fee: 1 };
+const ORDER: Record<ChargeKind, number> = { written_premium: 0, tax_fee: 1, installment_fee: 2 };
+
+export const totalOf = (lines: readonly Charge[], currency: string) =>
+  lines.reduce((sum, line) => sum.plus(line.amount), Money.zero(currency));
 
 /**
  * Invoice lines from a transaction's financial transactions: premium by coverage first, then
@@ -42,7 +46,7 @@ export function invoiceFrom(
       return { ...charge, amount: charge.amount.round(rounding.places, rounding.mode) };
     });
 
-  const total = lines.reduce((sum, line) => sum.plus(line.amount), Money.zero(currency));
+  const total = totalOf(lines, currency);
 
   return { kind: total.isNegative() ? "credit_note" : "invoice", lines, total };
 }

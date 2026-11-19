@@ -195,6 +195,7 @@ function copyContents(contents: VersionContents): VersionContents {
       jurisdiction: { ...window.jurisdiction },
       newBusiness: { ...window.newBusiness },
       renewal: { ...window.renewal },
+      ...(window.market && { market: window.market }),
     })),
   };
 }

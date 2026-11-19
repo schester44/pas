@@ -16,6 +16,7 @@ export interface PolicySummaryDto {
   producerId: string;
   producerName: string;
   producerAgency: string | null;
+  agencyId: string | null;
   jurisdiction: { country: string; subdivision?: string };
   effectiveDate: string;
   expirationDate: string;
@@ -217,7 +218,8 @@ export function toPolicySummaryDto(policy: Policy): PolicySummaryDto {
     productName: p.productName,
     producerId: p.producer.id,
     producerName: p.producer.name,
-    producerAgency: agencyOf(latest?.snapshot),
+    producerAgency: p.producer.agencyName ?? agencyOf(latest?.snapshot),
+    agencyId: p.producer.agencyId,
     jurisdiction: term.jurisdiction,
     effectiveDate: term.effectiveDate.toString(),
     expirationDate: term.expirationDate.toString(),

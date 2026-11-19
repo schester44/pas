@@ -14,7 +14,8 @@ export type IssueLink =
       search: { section: DocumentSection; item?: string; block?: string };
     }
   | { to: "/products/$productId/versions/$versionId/rules"; search: { decision?: string } }
-  | { to: "/products/$productId/versions/$versionId/rating"; search: RatingSearch };
+  | { to: "/products/$productId/versions/$versionId/rating"; search: RatingSearch }
+  | { to: "/products/$productId/versions/$versionId/billing"; search: { plan?: string } };
 
 export interface RatingSearch {
   section?: "rater" | "golden";
@@ -157,6 +158,18 @@ export function describeIssue(
             ...(target.coverage && { coverage: target.coverage }),
             ...(target.golden && { golden: target.golden }),
           },
+        },
+      };
+    }
+    case "billing": {
+      const plan = contents.billing.payPlans.find((p) => p.key === target.plan);
+
+      return {
+        area: "Billing",
+        where: [plan?.label || target.plan].filter((part): part is string => !!part),
+        link: {
+          to: "/products/$productId/versions/$versionId/billing",
+          search: target.plan ? { plan: target.plan } : {},
         },
       };
     }

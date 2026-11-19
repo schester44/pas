@@ -4,13 +4,16 @@ import { Panel } from "@pas/ui/components/panel";
 import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "@pas/ui/components/button";
 import { daysUntil, money } from "@pas/ui/lib/policy-change";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { BillingSchedule, type PolicyBilling } from "@/components/policy/billing-schedule";
+import { PayDialog } from "@/components/portal/pay-dialog";
 import { PolicyDocumentList } from "@/components/policy-documents";
 import { BackLink } from "@/components/submission-heading";
-import { formatDate, formatMoney, formatPlainDate, formatPlainDateRange } from "@/lib/format";
+import { formatDate, formatPlainDate, formatPlainDateRange } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/policies/$policyId")({
@@ -27,18 +30,14 @@ const TERM_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   cancelled: { label: "Cancelled", tone: "danger" },
 };
 
-const INVOICE_STATUS: Record<string, { label: string; tone: StatusTone }> = {
-  open: { label: "Open", tone: "warning" },
-  partially_paid: { label: "Partially paid", tone: "warning" },
-  paid: { label: "Paid", tone: "success" },
-  void: { label: "Void", tone: "neutral" },
-};
-
 function PolicyPage() {
   const { policyId } = Route.useParams();
   const trpc = useTRPC();
   const policy = useQuery(trpc.policies.get.queryOptions({ id: policyId }));
   const billing = useQuery(trpc.policies.billing.queryOptions({ id: policyId }));
+  const queryClient = useQueryClient();
+  const setAutopay = useMutation(trpc.policies.setAutopay.mutationOptions());
+  const [paying, setPaying] = useState<PolicyBilling["invoices"][number] | null>(null);
 
   if (policy.error) {
     return (
@@ -84,53 +83,25 @@ function PolicyPage() {
         </div>
       </div>
       <Callout policy={p} />
+      <PayDialog invoice={paying} policyId={p.id} onOpenChange={() => setPaying(null)} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline policy={p} />
         <div className="grid gap-6">
           <Panel title="Documents" flush>
             <PolicyDocumentList policyId={p.id} documents={p.documents} />
           </Panel>
-          <Panel title="Invoices" flush>
-            <ul className="m-0 list-none divide-y p-0">
-              {billing.data?.invoices.map((invoice) => {
-                const s = INVOICE_STATUS[invoice.status] ?? {
-                  label: invoice.status,
-                  tone: "neutral" as const,
-                };
+          {billing.data && (
+            <BillingSchedule
+              billing={billing.data}
+              onPay={setPaying}
+              onAutopay={async (input) => {
+                const result = await setAutopay.mutateAsync({ policyId: p.id, ...input });
+                await queryClient.invalidateQueries({ queryKey: trpc.policies.pathKey() });
 
-                return (
-                  <li key={invoice.id} className="flex items-center gap-3 px-(--card-p) py-3">
-                    <span className="grid min-w-0 flex-1 gap-0.5">
-                      <span className="text-sm font-medium tabular-nums">{invoice.number}</span>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {invoice.kind === "credit_note"
-                          ? `Credit note · ${formatPlainDate(invoice.issuedOn)}`
-                          : `Due ${formatPlainDate(invoice.dueOn)}`}
-                      </span>
-                    </span>
-                    <StatusChip
-                      tone={
-                        invoice.kind === "credit_note"
-                          ? invoice.status === "paid"
-                            ? "success"
-                            : "neutral"
-                          : s.tone
-                      }
-                    >
-                      {invoice.kind === "credit_note"
-                        ? invoice.status === "paid"
-                          ? "Refunded"
-                          : "Credit"
-                        : s.label}
-                    </StatusChip>
-                    <span className="text-sm tabular-nums">
-                      {formatMoney(invoice.total, { cents: true })}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </Panel>
+                return result;
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

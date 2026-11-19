@@ -18,6 +18,8 @@ model Policy {
   insuredName        String   @map("insured_name")
   producerId         String   @map("producer_id")
   producerName       String   @map("producer_name")
+  agencyId           String?  @map("agency_id") @db.Uuid
+  agencyName         String?  @map("agency_name")
   sourceSubmissionId String   @map("source_submission_id") @db.Uuid
   sourceQuoteId      String   @map("source_quote_id") @db.Uuid
   createdAt          DateTime @map("created_at") @db.Timestamptz(6)
@@ -26,6 +28,7 @@ model Policy {
   @@unique([tenantId, sourceQuoteId])
   @@index([tenantId, createdAt])
   @@index([tenantId, producerId, createdAt])
+  @@index([tenantId, agencyId, createdAt])
   @@map("policies")
 }
 
@@ -47,6 +50,8 @@ model PolicyTerm {
   boundAt          DateTime         @map("bound_at") @db.Timestamptz(6)
   activatedAt      DateTime?        @map("activated_at") @db.Timestamptz(6)
   cancellation     Json?
+  billingMethod    String           @default("direct") @map("billing_method")
+  payPlan          String?          @map("pay_plan")
   updatedAt        DateTime         @map("updated_at") @db.Timestamptz(6)
 
   @@unique([tenantId, policyId, termNumber])
@@ -162,15 +167,15 @@ model PolicyEvent {
 
 /// A client's request to change a policy, routed to the producer (PLAN §7.7).
 model ChangeRequest {
-  id              String   @id @db.Uuid
-  tenantId        String   @map("tenant_id")
-  policyId        String   @map("policy_id") @db.Uuid
-  kind            String
-  details         String
-  status          String
-  requestedBy     Json     @map("requested_by")
-  producerId      String   @map("producer_id")
-  createdAt       DateTime @map("created_at") @db.Timestamptz(6)
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  policyId    String   @map("policy_id") @db.Uuid
+  kind        String
+  details     String
+  status      String
+  requestedBy Json     @map("requested_by")
+  producerId  String   @map("producer_id")
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
 
   @@index([tenantId, policyId, createdAt])
   @@index([tenantId, producerId, status])

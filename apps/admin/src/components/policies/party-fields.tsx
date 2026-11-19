@@ -1,3 +1,4 @@
+import { AddressField } from "@pas/forms-react";
 import { Button } from "@pas/ui/components/button";
 import { Input } from "@pas/ui/components/input";
 import { Label } from "@pas/ui/components/label";
@@ -18,6 +19,8 @@ export interface Address {
   region: string;
   postalCode: string;
   country: string;
+  addressId?: string;
+  verified?: boolean;
 }
 
 export interface Interest {
@@ -43,28 +46,14 @@ export function AddressFields({
   onChange: (value: Address) => void;
 }) {
   const id = useId();
-  const address = value ?? EMPTY;
-  const set = (patch: Partial<Address>) => onChange({ ...address, ...patch });
-
-  const field = (key: keyof Address, label: string, className = "") => (
-    <div className={`grid gap-2 ${className}`}>
-      <Label htmlFor={`${id}-${key}`}>{label}</Label>
-      <Input
-        id={`${id}-${key}`}
-        value={address[key] ?? ""}
-        onChange={(e) => set({ [key]: e.target.value })}
-      />
-    </div>
-  );
 
   return (
-    <div className="grid gap-4 sm:grid-cols-6">
-      {field("line1", "Street address", "sm:col-span-4")}
-      {field("line2", "Apt, suite or unit", "sm:col-span-2")}
-      {field("city", "City", "sm:col-span-3")}
-      {field("region", "State", "sm:col-span-1")}
-      {field("postalCode", "ZIP code", "sm:col-span-2")}
-    </div>
+    <AddressField
+      id={id}
+      value={value ?? EMPTY}
+      onChange={(next) => onChange(next ?? EMPTY)}
+      country="US"
+    />
   );
 }
 

@@ -2,6 +2,7 @@ import type { DecisionKind } from "@pas/decisions-engine";
 import type { Instant, Money } from "@pas/kernel";
 import type { Attestation, DiligentSearch } from "./bind-requirements";
 import type { CoverageOffer } from "./coverages";
+import type { PayPlanOffer } from "./pay-plan-offers";
 import type { TaxFeeLine } from "./taxes-fees";
 import type { EvaluatedOutcome, UnderwritingReason } from "./underwriting";
 
@@ -43,6 +44,7 @@ export interface QuoteEvaluation {
   decisions: DecisionRecord[];
   diligentSearch: DiligentSearch | null;
   attestations: Attestation[];
+  payPlans: PayPlanOffer[];
   evaluatedAt: Instant;
   durationMs: number;
 }

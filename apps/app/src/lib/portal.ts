@@ -15,7 +15,9 @@ export const POLICY_STATUS: Record<string, { label: string; tone: StatusTone }> 
 };
 
 export const INVOICE_STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  scheduled: { label: "Upcoming", tone: "neutral" },
   open: { label: "Due", tone: "warning" },
+  past_due: { label: "Past due", tone: "danger" },
   partially_paid: { label: "Partly paid", tone: "warning" },
   paid: { label: "Paid", tone: "success" },
   void: { label: "Void", tone: "neutral" },
@@ -26,16 +28,19 @@ export const policyStatus = (status: string) =>
 
 const CREDIT_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   open: { label: "Credit", tone: "neutral" },
-  partially_paid: { label: "Part refunded", tone: "neutral" },
-  paid: { label: "Refunded", tone: "success" },
+  partially_paid: { label: "Part applied", tone: "neutral" },
+  paid: { label: "Settled", tone: "success" },
 };
 
 export const invoiceStatus = (status: string, kind?: string) =>
   (kind === "credit_note" ? CREDIT_STATUS[status] : undefined) ??
   INVOICE_STATUS[status] ?? { label: status, tone: "neutral" as const };
 
-export const isDue = (invoice: ClientInvoice) =>
-  invoice.kind === "invoice" && (invoice.status === "open" || invoice.status === "partially_paid");
+export const isDue = (invoice: Pick<ClientInvoice, "kind" | "status">) =>
+  invoice.kind === "invoice" &&
+  (invoice.status === "open" ||
+    invoice.status === "partially_paid" ||
+    invoice.status === "past_due");
 
 export function totalDue(invoices: ClientInvoice[]): MoneyValue | null {
   const due = invoices.filter(isDue);

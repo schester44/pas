@@ -1,8 +1,10 @@
+import { clearanceModeFrom } from "@pas/addresses";
 import { validateSubmission } from "@pas/forms-core";
 import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import { Quote } from "../domain/quote";
 import type { RiskData } from "../domain/submission";
 import type { SubmissionScope } from "../domain/scope";
+import type { AddressRegistry } from "../ports/address-registry";
 import type { ProductCatalog } from "../ports/product-catalog";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
@@ -26,6 +28,7 @@ export function makeSubmitSubmission(
     catalog: ProductCatalog;
     journey: QuoteJourney;
     clocks: ClockProvider;
+    addresses: AddressRegistry;
   },
 ) {
   return async function submitSubmission(
@@ -57,20 +60,53 @@ export function makeSubmitSubmission(
       return { ok: false, errors: result.errors };
     }
 
+    const stamped = await deps.addresses.stamp(ctx, intake.riskSchema, result.data);
+    const locations = stamped.addresses.filter((a) => a.role === "location");
+
+    const clearance = await deps.addresses.clearance(ctx, {
+      mode: clearanceModeFrom(release.lifecycle),
+      subject: { kind: "submission", id: d.id },
+      producerId: d.producer.userId,
+      addressIds: locations.map((a) => a.addressId),
+    });
+
+    if (clearance.outcome === "block") {
+      await deps.uow.run(ctx, async (tx) => {
+        const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
+        submission.saveDraft(stamped.data, deps.clocks.forTenant(ctx.tenantId));
+        await deps.submissions.save(tx, submission);
+      });
+
+      const taken = new Set(clearance.conflicts.map((c) => c.addressId));
+
+      return {
+        ok: false,
+        errors: Object.fromEntries(
+          locations
+            .filter((a) => taken.has(a.addressId))
+            .map(({ path }) => [
+              path,
+              ["Another producer already has an active submission or policy at this address"],
+            ]),
+        ),
+      };
+    }
+
     const { terms, termStart, termEnd, reviewWithin } = termOf(release, d.effectiveDate);
 
     const { evaluation, selection } = await evaluateQuote(deps, ctx, {
       release,
-      risk: result.data,
+      risk: stamped.data,
       jurisdiction: d.jurisdiction,
       termStart,
       termEnd,
       selection: null,
+      channel: d.channel,
     });
 
     const quote = await deps.uow.run(ctx, async (tx) => {
       const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
-      submission.submit(result.data, deps.clocks.forTenant(ctx.tenantId));
+      submission.submit(stamped.data, deps.clocks.forTenant(ctx.tenantId));
 
       const created = Quote.create(
         {
@@ -80,7 +116,7 @@ export function makeSubmitSubmission(
           productReleaseId: d.productReleaseId,
           termStart,
           termEnd,
-          riskData: result.data,
+          riskData: stamped.data,
           selection,
           evaluation,
           timing: {
@@ -100,6 +136,15 @@ export function makeSubmitSubmission(
       await deps.outbox.add(tx, [...submission.pullEvents(), ...created.pullEvents()]);
 
       return { created, summary: toSummaryDto(submission, productName) };
+    });
+
+    await deps.addresses.track(ctx, {
+      subject: { kind: "submission", id: d.id },
+      label: d.number,
+      productId: d.productId,
+      producer: { id: d.producer.userId, name: d.producer.name },
+      active: true,
+      addresses: stamped.addresses,
     });
 
     await deps.journey.start(ctx, quote.created);

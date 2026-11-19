@@ -82,6 +82,7 @@ export const roles = {
   }),
   agency_admin: ac.newRole({
     ...memberAc.statements,
+    invitation: ["create"],
     submission: ["read", "create", "update"],
     quote: ["read", "bind"],
     policy: ["read"],
@@ -104,17 +105,28 @@ export const roles = {
 
 export type RoleName = keyof typeof roles;
 
-const OWN_BOOK_ROLES: ReadonlySet<string> = new Set(["agency_admin", "agent", "customer"]);
+/** Roles that sell (agencies and their producers); everything else built in is tenant staff. */
+export const DISTRIBUTION_ROLES: readonly string[] = ["agency_admin", "agent"];
+
+const AGENCY_ROLES: ReadonlySet<string> = new Set(["agency_admin"]);
+const OWN_BOOK_ROLES: ReadonlySet<string> = new Set(["agent", "customer"]);
+
+export type BookReach = "tenant" | "agency" | "own";
 
 /**
- * ABAC on top of RBAC (PLAN §5.7): staff roles see the tenant's whole book; distribution roles
- * and custom roles see only what they produced until agencies and custom scopes exist.
+ * ABAC on top of RBAC (PLAN §5.7): staff roles reach the tenant's whole book, agency admins their
+ * agencies and sub-agencies, and agents, customers and custom roles only their own production.
+ * With several roles the widest wins.
  */
-export function seesTenantBook(role: string): boolean {
-  return role
+export function bookReach(role: string): BookReach {
+  const names = role
     .split(",")
     .map((name) => name.trim())
-    .some((name) => Object.hasOwn(roles, name) && !OWN_BOOK_ROLES.has(name));
+    .filter((name) => Object.hasOwn(roles, name));
+
+  if (names.some((name) => !AGENCY_ROLES.has(name) && !OWN_BOOK_ROLES.has(name))) return "tenant";
+
+  return names.some((name) => AGENCY_ROLES.has(name)) ? "agency" : "own";
 }
 
 export type Statements = typeof statements;

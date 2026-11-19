@@ -1,0 +1,57 @@
+/// A tenant's canonical address (PLAN §15.9), keyed by provider address id + unit, or by a
+/// normalized text key when no provider could verify it. Locations and mailing addresses point here.
+model AddressRecord {
+  id                String    @id @db.Uuid
+  tenantId          String    @map("tenant_id")
+  key               String
+  textKey           String    @map("text_key")
+  provider          String
+  providerAddressId String?   @map("provider_address_id")
+  status            String
+  line1             String
+  line2             String?
+  city              String
+  region            String
+  postalCode        String    @map("postal_code")
+  plus4             String?
+  country           String    @db.Char(2)
+  components        Json
+  countyName        String?   @map("county_name")
+  countyFips        String?   @map("county_fips") @db.VarChar(5)
+  latitude          Decimal?  @db.Decimal(9, 6)
+  longitude         Decimal?  @db.Decimal(9, 6)
+  geocodePrecision  String?   @map("geocode_precision")
+  geocodeSource     String?   @map("geocode_source")
+  dpvMatch          String?   @map("dpv_match") @db.Char(1)
+  vacant            Boolean?
+  deliverable       Boolean?
+  verifiedAt        DateTime? @map("verified_at") @db.Timestamptz(6)
+  createdAt         DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, textKey])
+  @@map("address_records")
+}
+
+/// Where an address record is used: a submission or policy location, or a mailing address.
+/// Clearance reads the active location usages of a record.
+model AddressUsage {
+  id           String   @id @db.Uuid
+  tenantId     String   @map("tenant_id")
+  addressId    String   @map("address_id") @db.Uuid
+  subjectKind  String   @map("subject_kind")
+  subjectId    String   @map("subject_id")
+  subjectLabel String   @map("subject_label")
+  role         String
+  productId    String?  @map("product_id")
+  producerId   String?  @map("producer_id")
+  producerName String?  @map("producer_name")
+  active       Boolean
+  createdAt    DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, subjectKind, subjectId, role, addressId])
+  @@index([tenantId, addressId, active])
+  @@map("address_usages")
+}

@@ -5,6 +5,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { StatusScreen } from "./lib/status-screen";
 import { applyBranding, type ResolvedTenant, resolveTenant, TenantProvider } from "./lib/tenant";
+import { AddressLookupBoundary } from "./lib/address-lookup";
 import { queryClient, TRPCProvider, trpcClient } from "./lib/trpc";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
@@ -52,7 +53,9 @@ function render(resolved: ResolvedTenant | "error") {
         <TenantProvider value={tenant}>
           <QueryClientProvider client={queryClient}>
             <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-              <RouterProvider router={router} />
+              <AddressLookupBoundary>
+                <RouterProvider router={router} />
+              </AddressLookupBoundary>
             </TRPCProvider>
           </QueryClientProvider>
         </TenantProvider>

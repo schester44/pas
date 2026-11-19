@@ -2,8 +2,21 @@ import type { TenantContext, Transaction } from "@pas/kernel";
 
 export interface BillingTimelineEntry {
   policyId: string;
-  type: "payment_received" | "refund_issued";
-  invoiceId: string;
+  type:
+    | "payment_received"
+    | "payment_failed"
+    | "payment_reversed"
+    | "refund_issued"
+    | "write_off"
+    | "past_due"
+    | "invoice_issued"
+    | "credit_applied"
+    | "invoice_adjusted"
+    | "payment_reminder"
+    | "autopay_updated"
+    | "delinquent"
+    | "account_current";
+  invoiceId?: string;
   actor: { type: "user" | "system" | "api"; id?: string; name: string };
   summary: string;
   data: Record<string, unknown>;

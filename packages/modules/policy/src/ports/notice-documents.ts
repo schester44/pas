@@ -9,6 +9,8 @@ export interface NoticeContent {
   effectiveDate: string;
   minDaysNotice: number;
   returnPremium: { amount: string; currency: string };
+  kind?: "cancellation" | "intent" | "rescission";
+  amountDue?: { amount: string; currency: string };
 }
 
 /** Renders a notice from the release's notice template, or a plain built-in one. */

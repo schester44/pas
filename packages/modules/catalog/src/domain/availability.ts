@@ -6,10 +6,16 @@ export interface DateWindow {
   to?: PlainDate;
 }
 
+/** Admitted business follows the admitted forms and filings; non-admitted switches on surplus lines (PLAN §17.2). */
+export const MARKETS = ["admitted", "non_admitted"] as const;
+
+export type Market = (typeof MARKETS)[number];
+
 export interface AvailabilityWindow {
   jurisdiction: Jurisdiction;
   newBusiness: DateWindow;
   renewal: DateWindow;
+  market?: Market;
 }
 
 export type AvailabilityKind = "new_business" | "renewal";
@@ -40,6 +46,7 @@ export interface AvailabilityWindowJson {
   jurisdiction: Jurisdiction;
   newBusiness: DateWindowJson;
   renewal: DateWindowJson;
+  market?: Market;
 }
 
 export function dateWindowToJson(window: DateWindow): DateWindowJson {
@@ -59,6 +66,7 @@ export function availabilityToJson(window: AvailabilityWindow): AvailabilityWind
     jurisdiction: window.jurisdiction,
     newBusiness: dateWindowToJson(window.newBusiness),
     renewal: dateWindowToJson(window.renewal),
+    ...(window.market && { market: window.market }),
   };
 }
 
@@ -67,5 +75,6 @@ export function availabilityFromJson(json: AvailabilityWindowJson): Availability
     jurisdiction: jurisdiction(json.jurisdiction.country, json.jurisdiction.subdivision),
     newBusiness: dateWindowFromJson(json.newBusiness),
     renewal: dateWindowFromJson(json.renewal),
+    ...(json.market && { market: json.market }),
   };
 }

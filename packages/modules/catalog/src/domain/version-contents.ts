@@ -1,6 +1,7 @@
 import type { DecisionKind, JdmDecision } from "@pas/decisions-engine";
 import { type DocumentSet, emptyDocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
+import { type BillingConfig, emptyBillingConfig } from "@pas/pay-plans";
 import type { RatingConfig } from "@pas/rating-engine";
 import type { AvailabilityWindow } from "./availability";
 import type { CoverageDefinition } from "./coverage";
@@ -45,6 +46,7 @@ export interface VersionContents {
   documents: DocumentSet;
   rules: VersionDecision[];
   rating: RatingConfig | null;
+  billing: BillingConfig;
 }
 
 export function emptyContents(): VersionContents {
@@ -57,5 +59,6 @@ export function emptyContents(): VersionContents {
     documents: emptyDocumentSet(),
     rules: [],
     rating: null,
+    billing: emptyBillingConfig(),
   };
 }

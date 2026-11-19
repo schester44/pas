@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@pas/ui/components/textarea";
 import { cn } from "@pas/ui/lib/utils";
 import type * as React from "react";
+import { AddressField } from "./address-field";
 import type { Copy } from "./copy";
 
 export interface ControlProps {
@@ -226,46 +227,21 @@ function MultiEnumControl(props: ControlProps) {
   );
 }
 
-const ADDRESS_PARTS = ["line1", "line2", "city", "region", "postalCode", "country"] as const;
-
 function AddressControl(props: ControlProps) {
-  const { id, field, value, onChange, copy, invalid } = props;
-
-  const address = (
-    typeof value === "object" && value !== null ? value : {}
-  ) as Partial<AddressValue>;
-
-  const set = (key: keyof AddressValue, next: string) => {
-    const updated = { ...address, [key]: next };
-    const filled = ADDRESS_PARTS.some((part) => part !== "country" && updated[part]);
-    onChange(filled ? updated : undefined);
-  };
-
-  const part = (key: keyof AddressValue, className?: string, autoComplete?: string) => (
-    <div className={cn("grid gap-1.5", className)}>
-      <Label htmlFor={`${id}-${key}`} className="text-xs text-muted-foreground">
-        {copy.address[key]}
-      </Label>
-      <Input
-        id={key === "line1" ? id : `${id}-${key}`}
-        aria-invalid={(invalid && key !== "line2" && !address[key]) || undefined}
-        aria-describedby={props.describedBy}
-        autoComplete={autoComplete}
-        value={address[key] ?? ""}
-        onChange={(event) => set(key, event.target.value)}
-      />
-    </div>
-  );
+  const { id, field, value, onChange, copy, invalid, describedBy } = props;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-6">
-      {part("line1", "sm:col-span-4", "address-line1")}
-      {part("line2", "sm:col-span-2", "address-line2")}
-      {part("city", "sm:col-span-2", "address-level2")}
-      {part("region", "sm:col-span-2", "address-level1")}
-      {part("postalCode", "sm:col-span-2", "postal-code")}
-      {!field.country && part("country", "sm:col-span-2", "country")}
-    </div>
+    <AddressField
+      id={id}
+      value={
+        typeof value === "object" && value !== null ? (value as Partial<AddressValue>) : undefined
+      }
+      onChange={onChange}
+      country={field.country}
+      invalid={invalid}
+      describedBy={describedBy}
+      copy={copy.address}
+    />
   );
 }
 

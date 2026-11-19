@@ -33,6 +33,8 @@ export interface ProviderManifest {
   supplies?: readonly string[];
   /** Needs an account and credentials issued by the vendor. */
   requiresCredentials?: boolean;
+  /** Filing channels: the obligation kinds and jurisdictions they file (PLAN §17.5). */
+  files?: { kinds: readonly string[]; jurisdictions: readonly string[] | "all" };
 }
 
 /** An install's resolved settings, with secrets decrypted. Never leaves the server. */
@@ -51,6 +53,12 @@ export interface HealthResult {
 }
 
 export type WebhookEvent =
+  | {
+      kind: "billing";
+      externalId: string;
+      summary: string;
+      data: Record<string, unknown>;
+    }
   | {
       kind: "payment";
       externalId: string;

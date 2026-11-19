@@ -12,7 +12,15 @@ export {
 export { makeGetSubmission, type GetSubmission } from "./application/get-submission";
 export { makeListSubmissions, type ListSubmissions } from "./application/list-submissions";
 export { makeGetQuote, type GetQuote } from "./application/get-quote";
+export {
+  makeCheckSubmissionClearance,
+  type CheckSubmissionClearance,
+  type SubmissionClearance,
+} from "./application/check-submission-clearance";
+export type { AddressRegistry } from "./ports/address-registry";
 export { makeCustomizeQuote, type CustomizeQuote } from "./application/customize-quote";
+export { makeChoosePayPlan, type ChoosePayPlan } from "./application/choose-pay-plan";
+export type { PayPlanOffer } from "./domain/pay-plan-offers";
 export {
   makeSaveBindDetails,
   type BindDetailsInput,
@@ -44,6 +52,7 @@ export type { SubmissionStatus } from "./domain/submission";
 export type { ESignGateway } from "./ports/esign-gateway";
 export type { PaymentGateway, PaymentMethodInput } from "./ports/payment-gateway";
 export type { IssuedPolicy, NewBusinessRequest, PolicyIssuer } from "./ports/policy-issuer";
+export type { ProducerLicenseCheck } from "./ports/producer-license-check";
 export type { ProductCatalog } from "./ports/product-catalog";
 export type { QuoteDocuments } from "./ports/quote-documents";
 export type { QuoteRepository } from "./ports/quote-repository";

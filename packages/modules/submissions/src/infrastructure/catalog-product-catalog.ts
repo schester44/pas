@@ -57,11 +57,13 @@ export class CatalogProductCatalog implements ProductCatalog {
       jurisdiction: dto.jurisdiction,
       riskSchema: dto.manifest.riskSchema,
       forms: dto.manifest.forms,
+      market: dto.manifest.market ?? "admitted",
       coverages: dto.manifest.coverages,
       rules: dto.manifest.rules,
       rating: dto.manifest.rating,
       documents: dto.manifest.documents,
       lifecycle: dto.manifest.lifecycle,
+      billing: dto.manifest.billing,
     };
 
     this.releases.set(cacheKey(ctx, dto.id), release);
