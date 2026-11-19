@@ -147,3 +147,44 @@ describe.skipIf(!connectionString)("PostgresWorkflows", () => {
     }
   }, 30_000);
 });
+
+describe.skipIf(!connectionString)("PostgresWorkflows orphan sweep", () => {
+  const sweepBase = {
+    ...base,
+    schema: `workflows_sweep_${suffix}`,
+    bossSchema: `pgboss_sweep_${suffix}`,
+  };
+
+  const pool = new Pool({ connectionString });
+
+  afterAll(async () => {
+    await pool.query(`DROP SCHEMA IF EXISTS ${sweepBase.schema} CASCADE`);
+    await pool.query(`DROP SCHEMA IF EXISTS ${sweepBase.bossSchema} CASCADE`);
+    await pool.end();
+  });
+
+  it("re-enqueues a run whose job was lost so a current worker finishes it", async () => {
+    const starter = new PostgresWorkflows(sweepBase);
+    const { runId } = await starter.start(ctx, pair, { n: 4 });
+
+    await pool.query(`DELETE FROM ${sweepBase.bossSchema}.job WHERE data->>'runId' = $1`, [runId]);
+
+    await pool.query(
+      `UPDATE ${sweepBase.schema}.runs
+       SET status = 'running', updated_at = now() - interval '30 minutes' WHERE id = $1`,
+      [runId],
+    );
+
+    await starter.close();
+
+    const worker = new PostgresWorkflows({ ...sweepBase, workflows: definitions });
+
+    try {
+      await worker.open();
+      expect(await worker.sweep()).toBe(1);
+      expect((await settled(worker, runId, ["completed"])).output).toBe(9);
+    } finally {
+      await worker.close();
+    }
+  }, 30_000);
+});

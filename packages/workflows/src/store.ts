@@ -275,6 +275,23 @@ export class WorkflowStore {
     return rows;
   }
 
+  /** Live runs nothing will wake: stuck pending/running, or past-due timed waits (wall time). */
+  async orphans(staleMinutes: number, limit: number): Promise<RunKey[]> {
+    const { rows } = await this.pool.query<{ id: string; tenant_id: TenantId }>(
+      `SELECT r.id, r.tenant_id FROM ${this.s}.runs r
+       WHERE (r.status IN ('pending', 'running')
+              AND r.updated_at < now() - $1::int * interval '1 minute')
+          OR (r.status = 'waiting' AND EXISTS (
+                SELECT 1 FROM ${this.s}.waits w
+                WHERE w.run_id = r.id AND w.wake_at < now() - $1::int * interval '1 minute'))
+       ORDER BY r.updated_at
+       LIMIT $2`,
+      [staleMinutes, limit],
+    );
+
+    return rows.map((row) => ({ runId: row.id, tenantId: row.tenant_id }));
+  }
+
   async activeRuns(tenantId: TenantId): Promise<number> {
     const { rows } = await this.pool.query<{ active: number }>(
       `SELECT count(*)::int AS active FROM ${this.s}.runs

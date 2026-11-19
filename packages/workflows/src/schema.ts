@@ -2,6 +2,7 @@ export const DEFAULT_WORKFLOWS_SCHEMA = "workflows";
 
 export const EXECUTE_QUEUE = "workflow.execute";
 export const TIMER_QUEUE = "workflow.timer";
+export const SWEEP_QUEUE = "workflow.sweep";
 
 export function assertIdentifier(name: string): string {
   if (!/^[a-z_][a-z0-9_]*$/.test(name)) throw new Error(`Invalid schema name "${name}"`);

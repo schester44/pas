@@ -16,7 +16,13 @@ import { PgBoss, type Db, type Job, type JobResult } from "pg-boss";
 import { z } from "zod";
 import type { WorkflowConnection } from "./config";
 import { Halted, replayStep, Suspended } from "./replay";
-import { DEFAULT_WORKFLOWS_SCHEMA, EXECUTE_QUEUE, schemaDdl, TIMER_QUEUE } from "./schema";
+import {
+  DEFAULT_WORKFLOWS_SCHEMA,
+  EXECUTE_QUEUE,
+  schemaDdl,
+  SWEEP_QUEUE,
+  TIMER_QUEUE,
+} from "./schema";
 import { WorkflowStore, type Queryable, type RunKey, type RunRow } from "./store";
 import { realTime, timerPlan, type TenantTime } from "./tenant-time";
 
@@ -79,6 +85,8 @@ export interface WorkflowRunDetail extends WorkflowRunSummary {
 
 const DEFAULT_RETRIES = 3;
 const MAX_BACKOFF_SECONDS = 300;
+const ORPHAN_AFTER_MINUTES = 10;
+const SWEEP_BATCH = 500;
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -361,6 +369,25 @@ export class PostgresWorkflows implements Workflows {
     await this.boss.work(TIMER_QUEUE, workOptions, (jobs) =>
       this.settle(jobs, (key) => this.enqueue(this.store.pool, key)),
     );
+
+    if (await this.boss.getQueue(SWEEP_QUEUE)) {
+      await this.boss.schedule(SWEEP_QUEUE, "*/5 * * * *");
+      await this.boss.work(SWEEP_QUEUE, () => this.sweep());
+    }
+  }
+
+  // A worker that dies mid-run, or an outdated one that drops a job, leaves a run nothing will wake.
+  // Re-enqueueing is safe: the stately queue dedupes by run id and claim skips finished runs.
+  async sweep(): Promise<number> {
+    const orphans = await this.store.orphans(ORPHAN_AFTER_MINUTES, SWEEP_BATCH);
+
+    for (const key of orphans) await this.enqueue(this.store.pool, key);
+
+    if (orphans.length > 0) {
+      this.options.logger.warn({ count: orphans.length }, "re-enqueued orphaned workflow runs");
+    }
+
+    return orphans.length;
   }
 
   private async install(): Promise<void> {
@@ -383,6 +410,10 @@ export class PostgresWorkflows implements Workflows {
 
     if (!(await this.boss.getQueue(TIMER_QUEUE))) {
       await this.boss.createQueue(TIMER_QUEUE, { retryLimit: 5, retryBackoff: true });
+    }
+
+    if (!(await this.boss.getQueue(SWEEP_QUEUE))) {
+      await this.boss.createQueue(SWEEP_QUEUE, { policy: "singleton", retryLimit: 0 });
     }
   }
 
