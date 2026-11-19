@@ -285,10 +285,19 @@ export class PostgresWorkflows implements Workflows {
     await this.boss.send(TIMER_QUEUE, key, { startAfter, db: bossDb(db) });
   }
 
-  private async execute(key: RunKey): Promise<void> {
-    const run = await this.store.claim(key);
+  // Leave runs for workflows this process lacks (e.g. an older worker) for a current worker to retry.
+  private async rejectUnregistered(key: RunKey): Promise<void> {
+    const run = await this.store.find(this.store.pool, key);
 
-    if (!run) return;
+    if (run && !this.definitions.has(run.workflow_id)) {
+      throw new Error(`Workflow ${run.workflow_id} is not registered here`);
+    }
+  }
+
+  private async execute(key: RunKey): Promise<void> {
+    const run = await this.store.claim(key, [...this.definitions.keys()]);
+
+    if (!run) return this.rejectUnregistered(key);
 
     const definition = this.definitions.get(run.workflow_id);
 

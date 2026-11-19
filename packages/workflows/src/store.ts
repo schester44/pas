@@ -111,12 +111,15 @@ export class WorkflowStore {
     return rows[0];
   }
 
-  async claim({ runId, tenantId }: RunKey): Promise<RunRow | undefined> {
+  async claim(
+    { runId, tenantId }: RunKey,
+    workflowIds: readonly string[],
+  ): Promise<RunRow | undefined> {
     const { rows } = await this.pool.query<RunRow>(
       `UPDATE ${this.s}.runs SET status = 'running', version = version + 1, updated_at = now()
-       WHERE id = $1 AND tenant_id = $2 AND status IN ${LIVE}
+       WHERE id = $1 AND tenant_id = $2 AND status IN ${LIVE} AND workflow_id = ANY($3)
        RETURNING *`,
-      [runId, tenantId],
+      [runId, tenantId, workflowIds],
     );
 
     return rows[0];
