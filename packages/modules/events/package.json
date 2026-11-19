@@ -1,0 +1,20 @@
+{
+  "name": "@pas/events",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/public.ts",
+    "./infrastructure": "./src/infrastructure.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/db": "workspace:*",
+    "@pas/expressions": "workspace:*",
+    "@pas/kernel": "workspace:*",
+    "@pas/queues": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}

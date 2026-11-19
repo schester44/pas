@@ -34,10 +34,27 @@ export interface Dunning {
   delinquencySource: "pas" | "billing_system";
 }
 
+export const BILLING_METHODS = ["direct", "agency", "mortgagee"] as const;
+
+export type BillingMethodKey = (typeof BILLING_METHODS)[number];
+
+/**
+ * Mortgagee bill follow-ups, in days after the lender's invoice packet goes out (PLAN §13):
+ * reminders to the lender, the insured offered direct bill, then nonpayment.
+ */
+export interface MortgageeFollowUp {
+  dueDays: number;
+  reminderDays: number[];
+  offerDirectAfterDays: number;
+  nonpaymentAfterDays: number;
+}
+
 export interface BillingConfig {
   payPlans: PayPlan[];
   defaultPlan: string | null;
   dunning: Dunning;
+  methods: BillingMethodKey[];
+  mortgagee: MortgageeFollowUp;
 }
 
 export function emptyBillingConfig(): BillingConfig {
@@ -45,6 +62,13 @@ export function emptyBillingConfig(): BillingConfig {
     payPlans: [],
     defaultPlan: null,
     dunning: { retryAfterDays: 3, retries: 1, reminderAfterDays: 1, delinquencySource: "pas" },
+    methods: ["direct"],
+    mortgagee: {
+      dueDays: 30,
+      reminderDays: [15, 30],
+      offerDirectAfterDays: 30,
+      nonpaymentAfterDays: 45,
+    },
   };
 }
 
@@ -56,5 +80,7 @@ export function billingConfigOf(value: unknown): BillingConfig {
     payPlans: config.payPlans ?? empty.payPlans,
     defaultPlan: config.defaultPlan ?? null,
     dunning: { ...empty.dunning, ...config.dunning },
+    methods: config.methods?.length ? config.methods : empty.methods,
+    mortgagee: { ...empty.mortgagee, ...config.mortgagee },
   };
 }

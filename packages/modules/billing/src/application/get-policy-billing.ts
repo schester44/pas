@@ -1,6 +1,15 @@
-import { Money, type TenantContext, type Transaction, type UnitOfWork } from "@pas/kernel";
+import {
+  type ClockProvider,
+  Money,
+  type TenantContext,
+  type Transaction,
+  type UnitOfWork,
+} from "@pas/kernel";
 import type { Invoice } from "../domain/invoice";
+import type { AgencyStatementRepository } from "../ports/agency-statement-repository";
 import type { BillingScheduleRepository } from "../ports/billing-schedule-repository";
+import type { MortgageeBillRepository } from "../ports/mortgagee-bill-repository";
+import { type MortgageeStatusDto, toMortgageeStatusDto } from "./mortgagee-billing";
 import type { InvoiceRepository } from "../ports/invoice-repository";
 import { type InvoiceDto, type PaymentDto, toInvoiceDto, toPaymentDto } from "./dto";
 
@@ -10,6 +19,7 @@ export interface BillingScheduleDto {
   id: string;
   status: "active" | "closed";
   billingMethod: string;
+  payer: { kind: string; reference: string | null; name: string | null; address: unknown };
   plan: {
     key: string;
     label: string;
@@ -29,6 +39,14 @@ export interface PolicyBillingDto {
   schedule: BillingScheduleDto | null;
   pastDue: MoneyDto | null;
   nextDue: { invoiceId: string; number: string; dueOn: string; amount: MoneyDto } | null;
+  statements: {
+    invoiceId: string;
+    statementId: string;
+    number: string;
+    status: string;
+    dueOn: string;
+  }[];
+  mortgagee: MortgageeStatusDto | null;
 }
 
 export function pastDueOf(invoices: readonly Invoice[]): Money | null {
@@ -63,6 +81,12 @@ export async function scheduleDto(
     id: s.id,
     status: s.status,
     billingMethod: s.billingMethod,
+    payer: {
+      kind: s.payer.payer,
+      reference: s.payer.payerRef,
+      name: s.payer.payerName,
+      address: s.payer.payerAddress,
+    },
     plan: {
       key: s.plan.key,
       label: s.plan.label,
@@ -86,17 +110,27 @@ export function makeGetPolicyBilling(deps: {
   uow: UnitOfWork;
   invoices: InvoiceRepository;
   schedules: BillingScheduleRepository;
+  statements: AgencyStatementRepository;
+  mortgageeBills: MortgageeBillRepository;
+  clocks: ClockProvider;
 }) {
   return async function getPolicyBilling(
     ctx: TenantContext,
     input: { policyId: string },
   ): Promise<PolicyBillingDto> {
     return deps.uow.run(ctx, async (tx) => {
-      const [invoices, payments, schedule] = await Promise.all([
+      const [invoices, payments, schedule, mortgagee] = await Promise.all([
         deps.invoices.listByPolicy(tx, ctx, input.policyId),
         deps.invoices.listPayments(tx, ctx, input.policyId),
         scheduleDto(deps.schedules, tx, ctx, input.policyId),
+        deps.mortgageeBills.latestForPolicy(tx, ctx, input.policyId),
       ]);
+
+      const statements = await deps.statements.forInvoices(
+        tx,
+        ctx,
+        invoices.filter((i) => i.toSnapshot().payer === "agency").map((i) => i.id),
+      );
 
       const currency = invoices[0]?.toSnapshot().total.currency;
 
@@ -132,6 +166,16 @@ export function makeGetPolicyBilling(deps: {
               amount: next.balance.toJSON(),
             }
           : null,
+        statements: [...statements].map(([invoiceId, ref]) => ({
+          invoiceId,
+          statementId: ref.statementId,
+          number: ref.number,
+          status: ref.status,
+          dueOn: ref.dueOn.toString(),
+        })),
+        mortgagee:
+          mortgagee &&
+          toMortgageeStatusDto(mortgagee, deps.clocks.forTenant(ctx.tenantId).today("UTC")),
       };
     });
   };

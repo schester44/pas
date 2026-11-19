@@ -20,7 +20,11 @@ const AGENCIES = {
     tier: "preferred",
     agencyBillEligible: true,
     remittanceDays: 30,
-    creditLimit: "250000",
+    creditLimit: "50000",
+    remittanceBasis: "net",
+    statementDay: 25,
+    reminderDays: 10,
+    suspendAfterDays: 30,
   },
   "North Shore Brokers": {
     legalName: "North Shore Brokers, Inc.",

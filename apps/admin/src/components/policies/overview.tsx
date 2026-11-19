@@ -8,7 +8,9 @@ import { ArrowRight } from "lucide-react";
 import type * as React from "react";
 import { useState } from "react";
 import { humanize } from "@/components/decisions/jdm-edit";
+import { InspectionsPanel, SubjectivitiesPanel } from "@/components/underwriting/conditions";
 import { formatDate, formatPlainDate } from "@/lib/format";
+import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 import { PolicyClients } from "./clients";
 import { RescindDialog } from "./policy-actions";
@@ -31,6 +33,7 @@ export function PolicyOverview({ policy, billing }: { policy: Policy; billing?: 
       <div className="grid gap-6">
         <StatusPanel policy={policy} billing={billing} />
         <KeyCoverages policy={policy} />
+        <PolicyConditions policyId={policy.id} />
       </div>
       <div className="grid gap-6">
         <KeyDates policy={policy} billing={billing} />
@@ -38,6 +41,32 @@ export function PolicyOverview({ policy, billing }: { policy: Policy; billing?: 
         <PolicyClients policyId={policy.id} />
       </div>
     </div>
+  );
+}
+
+/** Post-bind subjectivities and inspections; hidden when underwriting left none. */
+function PolicyConditions({ policyId }: { policyId: string }) {
+  const trpc = useTRPC();
+  const access = useAccess();
+
+  const subjectivities = useQuery({
+    ...trpc.underwriting.subjectivities.forPolicy.queryOptions({ policyId }),
+    enabled: access.underwriting.read,
+  });
+
+  const first = subjectivities.data?.[0];
+
+  return (
+    <>
+      {first && (
+        <SubjectivitiesPanel
+          policyId={policyId}
+          submissionId={first.submissionId}
+          canDecide={access.underwriting.approve}
+        />
+      )}
+      {access.underwriting.read && <InspectionsPanel policyId={policyId} />}
+    </>
   );
 }
 

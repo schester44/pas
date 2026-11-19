@@ -8,7 +8,13 @@ import {
   type TenantContext,
   type Transaction,
 } from "@pas/kernel";
-import { type Agency, type AgencyAddress, type AgencyStatus, assertParent } from "../domain/agency";
+import {
+  type Agency,
+  type AgencyAddress,
+  type AgencyStatus,
+  assertParent,
+  type RemittanceBasis,
+} from "../domain/agency";
 import { coversAgency } from "../domain/book-scope";
 import type { DistributionDeps } from "./deps";
 import {
@@ -30,7 +36,16 @@ export interface SaveAgencyInput {
   email: string | null;
   status: AgencyStatus;
   tier: string;
-  billing: { eligible: boolean; remittanceDays: number | null; creditLimit: string | null };
+  billing: {
+    eligible: boolean;
+    remittanceDays: number | null;
+    creditLimit: string | null;
+    remittanceBasis: RemittanceBasis;
+    statementDay: number | null;
+    reminderDays: number | null;
+    suspendAfterDays: number | null;
+    nonpaymentCancels: boolean;
+  };
 }
 
 const forbidden = () => new DomainError("forbidden", "You can't manage this agency");
@@ -151,6 +166,12 @@ export function makeManageAgencies(deps: DistributionDeps) {
             creditLimit: input.billing.creditLimit
               ? Money.of(input.billing.creditLimit, currency)
               : null,
+            remittanceBasis: input.billing.remittanceBasis,
+            statementDay: input.billing.statementDay,
+            reminderDays: input.billing.reminderDays,
+            suspendAfterDays: input.billing.suspendAfterDays,
+            nonpaymentCancels: input.billing.nonpaymentCancels,
+            suspension: input.billing.eligible ? (existing?.billing.suspension ?? null) : null,
           },
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,

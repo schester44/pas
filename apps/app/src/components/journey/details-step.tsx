@@ -82,6 +82,10 @@ export function DetailsStep({ quote, submission, go }: StepProps) {
               licenseNumber: details.producer.licenseNumber.trim(),
             }),
           },
+          additionalInterests: details.additionalInterests.map((interest) => ({
+            ...interest,
+            address: interest.address?.line1?.trim() ? interest.address : null,
+          })),
           declinations: details.declinations.filter((d) => !declinationEmpty(d)),
           acknowledgements: [...accepted],
         },
@@ -289,6 +293,31 @@ export function DetailsStep({ quote, submission, go }: StepProps) {
                       })
                     }
                   />
+                  {interest.kind === "mortgagee" && (
+                    <div className="grid gap-3 sm:col-span-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
+                      <Field label="Lender mailing address" optional>
+                        {() => (
+                          <AddressFields
+                            value={interest.address ?? EMPTY_ADDRESS}
+                            onChange={(address) => updateInterest(index, { address })}
+                            errors={{}}
+                          />
+                        )}
+                      </Field>
+                      <Field label="Lender email" optional>
+                        {(id) => (
+                          <Input
+                            id={id}
+                            type="email"
+                            value={interest.email ?? ""}
+                            onChange={(e) =>
+                              updateInterest(index, { email: e.target.value || undefined })
+                            }
+                          />
+                        )}
+                      </Field>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

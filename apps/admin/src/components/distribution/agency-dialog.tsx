@@ -43,6 +43,11 @@ type Draft = {
   eligible: boolean;
   remittanceDays: string;
   creditLimit: string;
+  remittanceBasis: "gross" | "net";
+  statementDay: string;
+  reminderDays: string;
+  suspendAfterDays: string;
+  nonpaymentCancels: boolean;
 };
 
 const draftOf = (agency: Agency | undefined, parentId?: string): Draft => ({
@@ -61,7 +66,14 @@ const draftOf = (agency: Agency | undefined, parentId?: string): Draft => ({
   eligible: agency?.billing.eligible ?? false,
   remittanceDays: agency?.billing.remittanceDays?.toString() ?? "",
   creditLimit: agency?.billing.creditLimit?.amount ?? "",
+  remittanceBasis: agency?.billing.remittanceBasis ?? "gross",
+  statementDay: agency?.billing.statementDay?.toString() ?? "",
+  reminderDays: agency?.billing.reminderDays?.toString() ?? "",
+  suspendAfterDays: agency?.billing.suspendAfterDays?.toString() ?? "",
+  nonpaymentCancels: agency?.billing.nonpaymentCancels ?? false,
 });
+
+const days = (value: string) => (value ? Number(value) : null);
 
 /** Creates an agency or edits one, including its place in the hierarchy and agency-bill terms. */
 export function AgencyDialog({
@@ -128,6 +140,11 @@ export function AgencyDialog({
         eligible: draft.eligible,
         remittanceDays: draft.remittanceDays ? Number(draft.remittanceDays) : null,
         creditLimit: draft.creditLimit || null,
+        remittanceBasis: draft.remittanceBasis,
+        statementDay: days(draft.statementDay),
+        reminderDays: days(draft.reminderDays),
+        suspendAfterDays: days(draft.suspendAfterDays),
+        nonpaymentCancels: draft.nonpaymentCancels,
       },
     });
   }
@@ -298,6 +315,56 @@ export function AgencyDialog({
                     onChange={(e) => set({ creditLimit: e.target.value.replace(/[^\d.]/g, "") })}
                   />
                 </Field>
+                <Field label="Remittance" id="agency-basis">
+                  <Select
+                    value={draft.remittanceBasis}
+                    onValueChange={(value) =>
+                      set({ remittanceBasis: value as Draft["remittanceBasis"] })
+                    }
+                  >
+                    <SelectTrigger id="agency-basis">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gross">Gross</SelectItem>
+                      <SelectItem value="net">Net of commission</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Statement cut-off day" id="agency-cutoff" optional>
+                  <Input
+                    id="agency-cutoff"
+                    inputMode="numeric"
+                    placeholder="Month end"
+                    value={draft.statementDay}
+                    onChange={(e) =>
+                      set({ statementDay: e.target.value.replace(/\D/g, "").slice(0, 2) })
+                    }
+                  />
+                </Field>
+                <Field label="Reminder (days past due)" id="agency-remind" optional>
+                  <Input
+                    id="agency-remind"
+                    inputMode="numeric"
+                    value={draft.reminderDays}
+                    onChange={(e) => set({ reminderDays: e.target.value.replace(/\D/g, "") })}
+                  />
+                </Field>
+                <Field label="Suspend agency bill (days past due)" id="agency-suspend" optional>
+                  <Input
+                    id="agency-suspend"
+                    inputMode="numeric"
+                    value={draft.suspendAfterDays}
+                    onChange={(e) => set({ suspendAfterDays: e.target.value.replace(/\D/g, "") })}
+                  />
+                </Field>
+                <label className="flex items-center gap-2.5 text-sm sm:col-span-2">
+                  <Checkbox
+                    checked={draft.nonpaymentCancels}
+                    onCheckedChange={(checked) => set({ nonpaymentCancels: checked === true })}
+                  />
+                  Start nonpayment on unpaid items when agency bill is suspended
+                </label>
               </div>
             )}
           </div>

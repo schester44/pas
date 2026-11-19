@@ -8,6 +8,7 @@ import { formatMoney, formatPlainDate, formatPlainDateRange } from "@/lib/format
 import { useTRPC } from "@/lib/trpc";
 import type { StepProps } from "./journey";
 import { PolicyDocumentList } from "@/components/policy-documents";
+import { SubjectivitiesList } from "@/components/underwriting";
 
 export function BoundScreen({ quote }: StepProps) {
   const trpc = useTRPC();
@@ -66,6 +67,7 @@ export function BoundScreen({ quote }: StepProps) {
           </Button>
         </div>
       </Card>
+      <SubjectivitiesList policyId={policyId} title="Still to do after binding" />
     </div>
   );
 }

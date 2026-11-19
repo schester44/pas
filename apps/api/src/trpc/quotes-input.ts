@@ -57,6 +57,7 @@ export const bindDetailsInput = bySubmission.extend({
           name: text(200),
           address: address.nullable(),
           reference: text(100).optional(),
+          email: z.email().max(254).optional(),
         }),
       )
       .max(10),
@@ -98,10 +99,15 @@ export const bindQuoteInput = bySubmission
       .regex(/^pm_\w{4,200}$/)
       .optional(),
     autopay: z.boolean().optional(),
+    billingMethod: z.enum(["direct", "agency", "mortgagee"]).optional(),
   })
-  .refine((input) => Boolean(input.card) !== Boolean(input.paymentToken), {
-    message: "Send a card or a payment token",
-  });
+  .refine(
+    (input) =>
+      (input.billingMethod ?? "direct") === "direct"
+        ? Boolean(input.card) !== Boolean(input.paymentToken)
+        : !input.card && !input.paymentToken,
+    { message: "Send a card or a payment token, or bill the agency or mortgagee" },
+  );
 
 export const choosePayPlanInput = bySubmission.extend({ payPlan: z.string().min(1).max(40) });
 

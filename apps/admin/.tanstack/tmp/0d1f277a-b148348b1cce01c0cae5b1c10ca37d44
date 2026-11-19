@@ -32,19 +32,26 @@ import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settin
 import { Route as AuthedSettingsBrandingRouteImport } from './routes/_authed/settings/branding'
 import { Route as AuthedSettingsLicenseesRouteImport } from './routes/_authed/settings/licensees'
 import { Route as AuthedSettingsMembersRouteImport } from './routes/_authed/settings/members'
+import { Route as AuthedSettingsNotificationsRouteImport } from './routes/_authed/settings/notifications'
 import { Route as AuthedSettingsSandboxRouteImport } from './routes/_authed/settings/sandbox'
 import { Route as AuthedSubmissionsIndexRouteImport } from './routes/_authed/submissions/index'
 import { Route as AuthedSubmissionsSubmissionIdRouteImport } from './routes/_authed/submissions/$submissionId'
+import { Route as AuthedUnderwritingIndexRouteImport } from './routes/_authed/underwriting/index'
 import { Route as AuthedAgenciesProducersProducerIdRouteImport } from './routes/_authed/agencies/producers.$producerId'
+import { Route as AuthedBillingStatementsIndexRouteImport } from './routes/_authed/billing/statements.index'
+import { Route as AuthedBillingStatementsStatementIdRouteImport } from './routes/_authed/billing/statements.$statementId'
 import { Route as AuthedPoliciesPolicyIdCancelRouteImport } from './routes/_authed/policies/$policyId_.cancel'
 import { Route as AuthedPoliciesPolicyIdEndorseRouteImport } from './routes/_authed/policies/$policyId_.endorse'
 import { Route as AuthedProductsProductIdIndexRouteImport } from './routes/_authed/products/$productId/index'
+import { Route as AuthedSettingsDevelopersEventsRouteImport } from './routes/_authed/settings/developers/events'
 import { Route as AuthedSettingsIntegrationsIndexRouteImport } from './routes/_authed/settings/integrations/index'
 import { Route as AuthedSettingsIntegrationsProviderIdRouteImport } from './routes/_authed/settings/integrations/$providerId'
 import { Route as AuthedSettingsRolesIndexRouteImport } from './routes/_authed/settings/roles/index'
 import { Route as AuthedSettingsRolesRoleRouteImport } from './routes/_authed/settings/roles/$role'
 import { Route as AuthedSettingsRolesNewRouteImport } from './routes/_authed/settings/roles/new'
 import { Route as AuthedProductsProductIdVersionsVersionIdRouteImport } from './routes/_authed/products/$productId/versions/$versionId'
+import { Route as AuthedSettingsDevelopersWebhooksIndexRouteImport } from './routes/_authed/settings/developers/webhooks/index'
+import { Route as AuthedSettingsDevelopersWebhooksSubscriptionIdRouteImport } from './routes/_authed/settings/developers/webhooks/$subscriptionId'
 import { Route as AuthedProductsProductIdVersionsVersionIdIndexRouteImport } from './routes/_authed/products/$productId/versions/$versionId/index'
 import { Route as AuthedProductsProductIdVersionsVersionIdBillingRouteImport } from './routes/_authed/products/$productId/versions/$versionId/billing'
 import { Route as AuthedProductsProductIdVersionsVersionIdChecksRouteImport } from './routes/_authed/products/$productId/versions/$versionId/checks'
@@ -172,6 +179,12 @@ const AuthedSettingsMembersRoute = AuthedSettingsMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => AuthedSettingsRoute,
 } as any)
+const AuthedSettingsNotificationsRoute =
+  AuthedSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthedSettingsRoute,
+  } as any)
 const AuthedSettingsSandboxRoute = AuthedSettingsSandboxRouteImport.update({
   id: '/sandbox',
   path: '/sandbox',
@@ -188,10 +201,27 @@ const AuthedSubmissionsSubmissionIdRoute =
     path: '/submissions/$submissionId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedUnderwritingIndexRoute = AuthedUnderwritingIndexRouteImport.update({
+  id: '/underwriting/',
+  path: '/underwriting/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAgenciesProducersProducerIdRoute =
   AuthedAgenciesProducersProducerIdRouteImport.update({
     id: '/agencies/producers/$producerId',
     path: '/agencies/producers/$producerId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedBillingStatementsIndexRoute =
+  AuthedBillingStatementsIndexRouteImport.update({
+    id: '/billing/statements/',
+    path: '/billing/statements/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedBillingStatementsStatementIdRoute =
+  AuthedBillingStatementsStatementIdRouteImport.update({
+    id: '/billing/statements/$statementId',
+    path: '/billing/statements/$statementId',
     getParentRoute: () => AuthedRoute,
   } as any)
 const AuthedPoliciesPolicyIdCancelRoute =
@@ -211,6 +241,12 @@ const AuthedProductsProductIdIndexRoute =
     id: '/products/$productId/',
     path: '/products/$productId/',
     getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedSettingsDevelopersEventsRoute =
+  AuthedSettingsDevelopersEventsRouteImport.update({
+    id: '/developers/events',
+    path: '/developers/events',
+    getParentRoute: () => AuthedSettingsRoute,
   } as any)
 const AuthedSettingsIntegrationsIndexRoute =
   AuthedSettingsIntegrationsIndexRouteImport.update({
@@ -245,6 +281,18 @@ const AuthedProductsProductIdVersionsVersionIdRoute =
     id: '/products/$productId/versions/$versionId',
     path: '/products/$productId/versions/$versionId',
     getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedSettingsDevelopersWebhooksIndexRoute =
+  AuthedSettingsDevelopersWebhooksIndexRouteImport.update({
+    id: '/developers/webhooks/',
+    path: '/developers/webhooks/',
+    getParentRoute: () => AuthedSettingsRoute,
+  } as any)
+const AuthedSettingsDevelopersWebhooksSubscriptionIdRoute =
+  AuthedSettingsDevelopersWebhooksSubscriptionIdRouteImport.update({
+    id: '/developers/webhooks/$subscriptionId',
+    path: '/developers/webhooks/$subscriptionId',
+    getParentRoute: () => AuthedSettingsRoute,
   } as any)
 const AuthedProductsProductIdVersionsVersionIdIndexRoute =
   AuthedProductsProductIdVersionsVersionIdIndexRouteImport.update({
@@ -319,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/settings/branding': typeof AuthedSettingsBrandingRoute
   '/settings/licensees': typeof AuthedSettingsLicenseesRoute
   '/settings/members': typeof AuthedSettingsMembersRoute
+  '/settings/notifications': typeof AuthedSettingsNotificationsRoute
   '/settings/sandbox': typeof AuthedSettingsSandboxRoute
   '/submissions/$submissionId': typeof AuthedSubmissionsSubmissionIdRoute
   '/agencies/': typeof AuthedAgenciesIndexRoute
@@ -327,16 +376,22 @@ export interface FileRoutesByFullPath {
   '/products/': typeof AuthedProductsIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/submissions/': typeof AuthedSubmissionsIndexRoute
+  '/underwriting/': typeof AuthedUnderwritingIndexRoute
   '/agencies/producers/$producerId': typeof AuthedAgenciesProducersProducerIdRoute
+  '/billing/statements/$statementId': typeof AuthedBillingStatementsStatementIdRoute
   '/policies/$policyId/cancel': typeof AuthedPoliciesPolicyIdCancelRoute
   '/policies/$policyId/endorse': typeof AuthedPoliciesPolicyIdEndorseRoute
+  '/settings/developers/events': typeof AuthedSettingsDevelopersEventsRoute
   '/settings/integrations/$providerId': typeof AuthedSettingsIntegrationsProviderIdRoute
   '/settings/roles/$role': typeof AuthedSettingsRolesRoleRoute
   '/settings/roles/new': typeof AuthedSettingsRolesNewRoute
+  '/billing/statements/': typeof AuthedBillingStatementsIndexRoute
   '/products/$productId/': typeof AuthedProductsProductIdIndexRoute
   '/settings/integrations/': typeof AuthedSettingsIntegrationsIndexRoute
   '/settings/roles/': typeof AuthedSettingsRolesIndexRoute
   '/products/$productId/versions/$versionId': typeof AuthedProductsProductIdVersionsVersionIdRouteWithChildren
+  '/settings/developers/webhooks/$subscriptionId': typeof AuthedSettingsDevelopersWebhooksSubscriptionIdRoute
+  '/settings/developers/webhooks/': typeof AuthedSettingsDevelopersWebhooksIndexRoute
   '/products/$productId/versions/$versionId/billing': typeof AuthedProductsProductIdVersionsVersionIdBillingRoute
   '/products/$productId/versions/$versionId/checks': typeof AuthedProductsProductIdVersionsVersionIdChecksRoute
   '/products/$productId/versions/$versionId/coverages': typeof AuthedProductsProductIdVersionsVersionIdCoveragesRoute
@@ -364,6 +419,7 @@ export interface FileRoutesByTo {
   '/settings/branding': typeof AuthedSettingsBrandingRoute
   '/settings/licensees': typeof AuthedSettingsLicenseesRoute
   '/settings/members': typeof AuthedSettingsMembersRoute
+  '/settings/notifications': typeof AuthedSettingsNotificationsRoute
   '/settings/sandbox': typeof AuthedSettingsSandboxRoute
   '/submissions/$submissionId': typeof AuthedSubmissionsSubmissionIdRoute
   '/agencies': typeof AuthedAgenciesIndexRoute
@@ -372,15 +428,21 @@ export interface FileRoutesByTo {
   '/products': typeof AuthedProductsIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/submissions': typeof AuthedSubmissionsIndexRoute
+  '/underwriting': typeof AuthedUnderwritingIndexRoute
   '/agencies/producers/$producerId': typeof AuthedAgenciesProducersProducerIdRoute
+  '/billing/statements/$statementId': typeof AuthedBillingStatementsStatementIdRoute
   '/policies/$policyId/cancel': typeof AuthedPoliciesPolicyIdCancelRoute
   '/policies/$policyId/endorse': typeof AuthedPoliciesPolicyIdEndorseRoute
+  '/settings/developers/events': typeof AuthedSettingsDevelopersEventsRoute
   '/settings/integrations/$providerId': typeof AuthedSettingsIntegrationsProviderIdRoute
   '/settings/roles/$role': typeof AuthedSettingsRolesRoleRoute
   '/settings/roles/new': typeof AuthedSettingsRolesNewRoute
+  '/billing/statements': typeof AuthedBillingStatementsIndexRoute
   '/products/$productId': typeof AuthedProductsProductIdIndexRoute
   '/settings/integrations': typeof AuthedSettingsIntegrationsIndexRoute
   '/settings/roles': typeof AuthedSettingsRolesIndexRoute
+  '/settings/developers/webhooks/$subscriptionId': typeof AuthedSettingsDevelopersWebhooksSubscriptionIdRoute
+  '/settings/developers/webhooks': typeof AuthedSettingsDevelopersWebhooksIndexRoute
   '/products/$productId/versions/$versionId/billing': typeof AuthedProductsProductIdVersionsVersionIdBillingRoute
   '/products/$productId/versions/$versionId/checks': typeof AuthedProductsProductIdVersionsVersionIdChecksRoute
   '/products/$productId/versions/$versionId/coverages': typeof AuthedProductsProductIdVersionsVersionIdCoveragesRoute
@@ -411,6 +473,7 @@ export interface FileRoutesById {
   '/_authed/settings/branding': typeof AuthedSettingsBrandingRoute
   '/_authed/settings/licensees': typeof AuthedSettingsLicenseesRoute
   '/_authed/settings/members': typeof AuthedSettingsMembersRoute
+  '/_authed/settings/notifications': typeof AuthedSettingsNotificationsRoute
   '/_authed/settings/sandbox': typeof AuthedSettingsSandboxRoute
   '/_authed/submissions/$submissionId': typeof AuthedSubmissionsSubmissionIdRoute
   '/_authed/agencies/': typeof AuthedAgenciesIndexRoute
@@ -419,16 +482,22 @@ export interface FileRoutesById {
   '/_authed/products/': typeof AuthedProductsIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/submissions/': typeof AuthedSubmissionsIndexRoute
+  '/_authed/underwriting/': typeof AuthedUnderwritingIndexRoute
   '/_authed/agencies/producers/$producerId': typeof AuthedAgenciesProducersProducerIdRoute
+  '/_authed/billing/statements/$statementId': typeof AuthedBillingStatementsStatementIdRoute
   '/_authed/policies/$policyId_/cancel': typeof AuthedPoliciesPolicyIdCancelRoute
   '/_authed/policies/$policyId_/endorse': typeof AuthedPoliciesPolicyIdEndorseRoute
+  '/_authed/settings/developers/events': typeof AuthedSettingsDevelopersEventsRoute
   '/_authed/settings/integrations/$providerId': typeof AuthedSettingsIntegrationsProviderIdRoute
   '/_authed/settings/roles/$role': typeof AuthedSettingsRolesRoleRoute
   '/_authed/settings/roles/new': typeof AuthedSettingsRolesNewRoute
+  '/_authed/billing/statements/': typeof AuthedBillingStatementsIndexRoute
   '/_authed/products/$productId/': typeof AuthedProductsProductIdIndexRoute
   '/_authed/settings/integrations/': typeof AuthedSettingsIntegrationsIndexRoute
   '/_authed/settings/roles/': typeof AuthedSettingsRolesIndexRoute
   '/_authed/products/$productId/versions/$versionId': typeof AuthedProductsProductIdVersionsVersionIdRouteWithChildren
+  '/_authed/settings/developers/webhooks/$subscriptionId': typeof AuthedSettingsDevelopersWebhooksSubscriptionIdRoute
+  '/_authed/settings/developers/webhooks/': typeof AuthedSettingsDevelopersWebhooksIndexRoute
   '/_authed/products/$productId/versions/$versionId/billing': typeof AuthedProductsProductIdVersionsVersionIdBillingRoute
   '/_authed/products/$productId/versions/$versionId/checks': typeof AuthedProductsProductIdVersionsVersionIdChecksRoute
   '/_authed/products/$productId/versions/$versionId/coverages': typeof AuthedProductsProductIdVersionsVersionIdCoveragesRoute
@@ -459,6 +528,7 @@ export interface FileRouteTypes {
     | '/settings/branding'
     | '/settings/licensees'
     | '/settings/members'
+    | '/settings/notifications'
     | '/settings/sandbox'
     | '/submissions/$submissionId'
     | '/agencies/'
@@ -467,16 +537,22 @@ export interface FileRouteTypes {
     | '/products/'
     | '/settings/'
     | '/submissions/'
+    | '/underwriting/'
     | '/agencies/producers/$producerId'
+    | '/billing/statements/$statementId'
     | '/policies/$policyId/cancel'
     | '/policies/$policyId/endorse'
+    | '/settings/developers/events'
     | '/settings/integrations/$providerId'
     | '/settings/roles/$role'
     | '/settings/roles/new'
+    | '/billing/statements/'
     | '/products/$productId/'
     | '/settings/integrations/'
     | '/settings/roles/'
     | '/products/$productId/versions/$versionId'
+    | '/settings/developers/webhooks/$subscriptionId'
+    | '/settings/developers/webhooks/'
     | '/products/$productId/versions/$versionId/billing'
     | '/products/$productId/versions/$versionId/checks'
     | '/products/$productId/versions/$versionId/coverages'
@@ -504,6 +580,7 @@ export interface FileRouteTypes {
     | '/settings/branding'
     | '/settings/licensees'
     | '/settings/members'
+    | '/settings/notifications'
     | '/settings/sandbox'
     | '/submissions/$submissionId'
     | '/agencies'
@@ -512,15 +589,21 @@ export interface FileRouteTypes {
     | '/products'
     | '/settings'
     | '/submissions'
+    | '/underwriting'
     | '/agencies/producers/$producerId'
+    | '/billing/statements/$statementId'
     | '/policies/$policyId/cancel'
     | '/policies/$policyId/endorse'
+    | '/settings/developers/events'
     | '/settings/integrations/$providerId'
     | '/settings/roles/$role'
     | '/settings/roles/new'
+    | '/billing/statements'
     | '/products/$productId'
     | '/settings/integrations'
     | '/settings/roles'
+    | '/settings/developers/webhooks/$subscriptionId'
+    | '/settings/developers/webhooks'
     | '/products/$productId/versions/$versionId/billing'
     | '/products/$productId/versions/$versionId/checks'
     | '/products/$productId/versions/$versionId/coverages'
@@ -550,6 +633,7 @@ export interface FileRouteTypes {
     | '/_authed/settings/branding'
     | '/_authed/settings/licensees'
     | '/_authed/settings/members'
+    | '/_authed/settings/notifications'
     | '/_authed/settings/sandbox'
     | '/_authed/submissions/$submissionId'
     | '/_authed/agencies/'
@@ -558,16 +642,22 @@ export interface FileRouteTypes {
     | '/_authed/products/'
     | '/_authed/settings/'
     | '/_authed/submissions/'
+    | '/_authed/underwriting/'
     | '/_authed/agencies/producers/$producerId'
+    | '/_authed/billing/statements/$statementId'
     | '/_authed/policies/$policyId_/cancel'
     | '/_authed/policies/$policyId_/endorse'
+    | '/_authed/settings/developers/events'
     | '/_authed/settings/integrations/$providerId'
     | '/_authed/settings/roles/$role'
     | '/_authed/settings/roles/new'
+    | '/_authed/billing/statements/'
     | '/_authed/products/$productId/'
     | '/_authed/settings/integrations/'
     | '/_authed/settings/roles/'
     | '/_authed/products/$productId/versions/$versionId'
+    | '/_authed/settings/developers/webhooks/$subscriptionId'
+    | '/_authed/settings/developers/webhooks/'
     | '/_authed/products/$productId/versions/$versionId/billing'
     | '/_authed/products/$productId/versions/$versionId/checks'
     | '/_authed/products/$productId/versions/$versionId/coverages'
@@ -749,6 +839,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsMembersRouteImport
       parentRoute: typeof AuthedSettingsRoute
     }
+    '/_authed/settings/notifications': {
+      id: '/_authed/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AuthedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthedSettingsRoute
+    }
     '/_authed/settings/sandbox': {
       id: '/_authed/settings/sandbox'
       path: '/sandbox'
@@ -770,11 +867,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSubmissionsSubmissionIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/underwriting/': {
+      id: '/_authed/underwriting/'
+      path: '/underwriting'
+      fullPath: '/underwriting/'
+      preLoaderRoute: typeof AuthedUnderwritingIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/agencies/producers/$producerId': {
       id: '/_authed/agencies/producers/$producerId'
       path: '/agencies/producers/$producerId'
       fullPath: '/agencies/producers/$producerId'
       preLoaderRoute: typeof AuthedAgenciesProducersProducerIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/billing/statements/': {
+      id: '/_authed/billing/statements/'
+      path: '/billing/statements'
+      fullPath: '/billing/statements/'
+      preLoaderRoute: typeof AuthedBillingStatementsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/billing/statements/$statementId': {
+      id: '/_authed/billing/statements/$statementId'
+      path: '/billing/statements/$statementId'
+      fullPath: '/billing/statements/$statementId'
+      preLoaderRoute: typeof AuthedBillingStatementsStatementIdRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/policies/$policyId_/cancel': {
@@ -797,6 +915,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/products/$productId/'
       preLoaderRoute: typeof AuthedProductsProductIdIndexRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/_authed/settings/developers/events': {
+      id: '/_authed/settings/developers/events'
+      path: '/developers/events'
+      fullPath: '/settings/developers/events'
+      preLoaderRoute: typeof AuthedSettingsDevelopersEventsRouteImport
+      parentRoute: typeof AuthedSettingsRoute
     }
     '/_authed/settings/integrations/': {
       id: '/_authed/settings/integrations/'
@@ -839,6 +964,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/products/$productId/versions/$versionId'
       preLoaderRoute: typeof AuthedProductsProductIdVersionsVersionIdRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/_authed/settings/developers/webhooks/': {
+      id: '/_authed/settings/developers/webhooks/'
+      path: '/developers/webhooks'
+      fullPath: '/settings/developers/webhooks/'
+      preLoaderRoute: typeof AuthedSettingsDevelopersWebhooksIndexRouteImport
+      parentRoute: typeof AuthedSettingsRoute
+    }
+    '/_authed/settings/developers/webhooks/$subscriptionId': {
+      id: '/_authed/settings/developers/webhooks/$subscriptionId'
+      path: '/developers/webhooks/$subscriptionId'
+      fullPath: '/settings/developers/webhooks/$subscriptionId'
+      preLoaderRoute: typeof AuthedSettingsDevelopersWebhooksSubscriptionIdRouteImport
+      parentRoute: typeof AuthedSettingsRoute
     }
     '/_authed/products/$productId/versions/$versionId/': {
       id: '/_authed/products/$productId/versions/$versionId/'
@@ -910,27 +1049,37 @@ interface AuthedSettingsRouteChildren {
   AuthedSettingsBrandingRoute: typeof AuthedSettingsBrandingRoute
   AuthedSettingsLicenseesRoute: typeof AuthedSettingsLicenseesRoute
   AuthedSettingsMembersRoute: typeof AuthedSettingsMembersRoute
+  AuthedSettingsNotificationsRoute: typeof AuthedSettingsNotificationsRoute
   AuthedSettingsSandboxRoute: typeof AuthedSettingsSandboxRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
+  AuthedSettingsDevelopersEventsRoute: typeof AuthedSettingsDevelopersEventsRoute
   AuthedSettingsIntegrationsProviderIdRoute: typeof AuthedSettingsIntegrationsProviderIdRoute
   AuthedSettingsRolesRoleRoute: typeof AuthedSettingsRolesRoleRoute
   AuthedSettingsRolesNewRoute: typeof AuthedSettingsRolesNewRoute
   AuthedSettingsIntegrationsIndexRoute: typeof AuthedSettingsIntegrationsIndexRoute
   AuthedSettingsRolesIndexRoute: typeof AuthedSettingsRolesIndexRoute
+  AuthedSettingsDevelopersWebhooksSubscriptionIdRoute: typeof AuthedSettingsDevelopersWebhooksSubscriptionIdRoute
+  AuthedSettingsDevelopersWebhooksIndexRoute: typeof AuthedSettingsDevelopersWebhooksIndexRoute
 }
 
 const AuthedSettingsRouteChildren: AuthedSettingsRouteChildren = {
   AuthedSettingsBrandingRoute: AuthedSettingsBrandingRoute,
   AuthedSettingsLicenseesRoute: AuthedSettingsLicenseesRoute,
   AuthedSettingsMembersRoute: AuthedSettingsMembersRoute,
+  AuthedSettingsNotificationsRoute: AuthedSettingsNotificationsRoute,
   AuthedSettingsSandboxRoute: AuthedSettingsSandboxRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
+  AuthedSettingsDevelopersEventsRoute: AuthedSettingsDevelopersEventsRoute,
   AuthedSettingsIntegrationsProviderIdRoute:
     AuthedSettingsIntegrationsProviderIdRoute,
   AuthedSettingsRolesRoleRoute: AuthedSettingsRolesRoleRoute,
   AuthedSettingsRolesNewRoute: AuthedSettingsRolesNewRoute,
   AuthedSettingsIntegrationsIndexRoute: AuthedSettingsIntegrationsIndexRoute,
   AuthedSettingsRolesIndexRoute: AuthedSettingsRolesIndexRoute,
+  AuthedSettingsDevelopersWebhooksSubscriptionIdRoute:
+    AuthedSettingsDevelopersWebhooksSubscriptionIdRoute,
+  AuthedSettingsDevelopersWebhooksIndexRoute:
+    AuthedSettingsDevelopersWebhooksIndexRoute,
 }
 
 const AuthedSettingsRouteWithChildren = AuthedSettingsRoute._addFileChildren(
@@ -994,9 +1143,12 @@ interface AuthedRouteChildren {
   AuthedPoliciesIndexRoute: typeof AuthedPoliciesIndexRoute
   AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
   AuthedSubmissionsIndexRoute: typeof AuthedSubmissionsIndexRoute
+  AuthedUnderwritingIndexRoute: typeof AuthedUnderwritingIndexRoute
   AuthedAgenciesProducersProducerIdRoute: typeof AuthedAgenciesProducersProducerIdRoute
+  AuthedBillingStatementsStatementIdRoute: typeof AuthedBillingStatementsStatementIdRoute
   AuthedPoliciesPolicyIdCancelRoute: typeof AuthedPoliciesPolicyIdCancelRoute
   AuthedPoliciesPolicyIdEndorseRoute: typeof AuthedPoliciesPolicyIdEndorseRoute
+  AuthedBillingStatementsIndexRoute: typeof AuthedBillingStatementsIndexRoute
   AuthedProductsProductIdIndexRoute: typeof AuthedProductsProductIdIndexRoute
   AuthedProductsProductIdVersionsVersionIdRoute: typeof AuthedProductsProductIdVersionsVersionIdRouteWithChildren
 }
@@ -1019,10 +1171,14 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPoliciesIndexRoute: AuthedPoliciesIndexRoute,
   AuthedProductsIndexRoute: AuthedProductsIndexRoute,
   AuthedSubmissionsIndexRoute: AuthedSubmissionsIndexRoute,
+  AuthedUnderwritingIndexRoute: AuthedUnderwritingIndexRoute,
   AuthedAgenciesProducersProducerIdRoute:
     AuthedAgenciesProducersProducerIdRoute,
+  AuthedBillingStatementsStatementIdRoute:
+    AuthedBillingStatementsStatementIdRoute,
   AuthedPoliciesPolicyIdCancelRoute: AuthedPoliciesPolicyIdCancelRoute,
   AuthedPoliciesPolicyIdEndorseRoute: AuthedPoliciesPolicyIdEndorseRoute,
+  AuthedBillingStatementsIndexRoute: AuthedBillingStatementsIndexRoute,
   AuthedProductsProductIdIndexRoute: AuthedProductsProductIdIndexRoute,
   AuthedProductsProductIdVersionsVersionIdRoute:
     AuthedProductsProductIdVersionsVersionIdRouteWithChildren,

@@ -129,7 +129,9 @@ export function makeSandboxTime(deps: {
         const target = Temporal.Instant.compare(next.dueAt, current) > 0 ? next.dueAt : current;
         const batch = due.filter((t) => Temporal.Instant.compare(t.dueAt, target) <= 0);
 
-        await travelTo(ctx, target);
+        // An overdue timer only needs releasing; travelling to "now" races the wall clock.
+        if (target !== current) await travelTo(ctx, target);
+
         await deps.timers.release(ctx);
         await deps.timers.settle(ctx);
 

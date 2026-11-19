@@ -1,6 +1,6 @@
 import { Money } from "@pas/kernel";
 import { describe, expect, it } from "vitest";
-import { buildSchedule, netCredit, type PayPlan, spreadCharge } from "./index";
+import { buildSchedule, mortgageeFollowUps, netCredit, type PayPlan, spreadCharge } from "./index";
 
 const rounding = { places: 2, mode: "half_up" as const };
 const usd = (amount: string) => Money.of(amount, "USD");
@@ -159,5 +159,35 @@ describe("netCredit", () => {
     expect(netting.allocations[0]!.credited.toString()).toBe("100");
     expect(netting.allocations[0]!.settled).toBe(false);
     expect(netting.owed.toString()).toBe("815");
+  });
+});
+
+describe("mortgagee follow-ups", () => {
+  it("dates reminders, the direct-bill offer and nonpayment from the day the packet went out", () => {
+    const steps = mortgageeFollowUps(
+      {
+        dueDays: 30,
+        reminderDays: [30, 15, 15],
+        offerDirectAfterDays: 30,
+        nonpaymentAfterDays: 45,
+      },
+      date("2027-01-03"),
+    );
+
+    expect(steps.map((s) => [s.id, s.action, s.on.toString()])).toEqual([
+      ["remind-15", "remind_lender", "2027-01-18"],
+      ["remind-30", "remind_lender", "2027-02-02"],
+      ["offer-direct", "offer_direct", "2027-02-02"],
+      ["nonpayment", "nonpayment", "2027-02-17"],
+    ]);
+  });
+
+  it("drops reminders on or after the nonpayment date", () => {
+    const steps = mortgageeFollowUps(
+      { dueDays: 30, reminderDays: [10, 20], offerDirectAfterDays: 5, nonpaymentAfterDays: 20 },
+      date("2027-03-01"),
+    );
+
+    expect(steps.map((s) => s.id)).toEqual(["offer-direct", "remind-10", "nonpayment"]);
   });
 });

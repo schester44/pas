@@ -1,5 +1,5 @@
 import type { TenantContext, Transaction } from "@pas/kernel";
-import type { Dunning, PayPlan } from "@pas/pay-plans";
+import type { Dunning, MortgageeFollowUp, PayPlan } from "@pas/pay-plans";
 import type { BillingMethod } from "../domain/policy";
 
 type MoneyJson = { amount: string; currency: string };
@@ -11,6 +11,21 @@ export interface IssuedInvoice {
   total: MoneyJson;
   spread?: { installments: number; numbers: string[] };
   netted?: { credited: MoneyJson; installments: number };
+}
+
+/** Who the term is billed to when it isn't the insured: the agency, or the lender. */
+export interface BillingPayer {
+  payer: "insured" | "agency" | "mortgagee";
+  payerRef: string | null;
+  payerName: string | null;
+  payerAddress: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region: string;
+    postalCode: string;
+    country?: string;
+  } | null;
 }
 
 /** Billing, called inside the issuing transaction: no financial transaction goes unbilled. */
@@ -36,7 +51,13 @@ export interface InvoiceIssuer {
       }[];
       issuedOn: string;
       dueOn: string;
-      schedule?: { plan: PayPlan; dunning: Dunning; billingMethod: BillingMethod };
+      schedule?: {
+        plan: PayPlan;
+        dunning: Dunning;
+        billingMethod: BillingMethod;
+        payer?: BillingPayer;
+        mortgagee?: { followUp: MortgageeFollowUp; lenderEmail: string | null };
+      };
     },
   ): Promise<IssuedInvoice>;
 }

@@ -1,3 +1,4 @@
+import type { AppOutputs } from "@pas/api-client";
 import { Button } from "@pas/ui/components/button";
 import { Notice } from "@pas/ui/components/notice";
 import { Panel } from "@pas/ui/components/panel";
@@ -19,11 +20,13 @@ import {
 import { StripeProvider, useStripeCard } from "@/components/stripe-card";
 import { formatMoney } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
+import { type BillingMethod, BillingMethodChoice } from "./billing-method";
 import type { StepProps } from "./journey";
 import { scheduleSummary, selectedOffer } from "./pay-plans";
 import { PremiumSummary } from "./premium";
 
 type Payment = { card: ReturnType<typeof cardInput> } | { paymentToken: string };
+type BindResult = AppOutputs["quotes"]["bind"];
 
 export function PayStep(props: StepProps) {
   const trpc = useTRPC();
@@ -114,6 +117,13 @@ function PayLayout({
   const id = useId();
   const bind = useMutation(trpc.quotes.bind.mutationOptions());
   const licensing = useQuery(trpc.quoteLicensing.queryOptions({ submissionId: submission.id }));
+
+  const options = useQuery(
+    trpc.quotes.billingOptions.queryOptions({ submissionId: submission.id }),
+  );
+
+  const [billingMethod, setBillingMethod] = useState<BillingMethod>("direct");
+  const billed = billingMethod !== "direct";
   const offer = selectedOffer(quote);
   const installments = offer !== null && offer.installments > 1;
   const [autopay, setAutopay] = useState(true);
@@ -123,6 +133,13 @@ function PayLayout({
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setNotice(null);
+
+    if (billed) {
+      bind.mutate({ submissionId: submission.id, billingMethod }, { onSuccess: onBound });
+
+      return;
+    }
+
     setCollecting(true);
 
     let method: Payment;
@@ -139,56 +156,68 @@ function PayLayout({
 
     bind.mutate(
       { submissionId: submission.id, ...method, autopay: installments && autopay },
-      {
-        onSuccess: (result) => {
-          const key = trpc.quotes.get.queryKey({ submissionId: submission.id });
-
-          if (result.status === "payment_declined") {
-            setNotice(`${result.message} Try another card.`);
-
-            return;
-          }
-
-          queryClient.setQueryData(key, result.quote);
-          void queryClient.invalidateQueries({ queryKey: trpc.submissions.list.queryKey() });
-
-          if (result.status === "rechecked" && result.quote.status === "quoted") go("review");
-        },
-      },
+      { onSuccess: onBound },
     );
+  }
+
+  function onBound(result: BindResult) {
+    const key = trpc.quotes.get.queryKey({ submissionId: submission.id });
+
+    if (result.status === "payment_declined") {
+      setNotice(`${result.message} Try another card.`);
+
+      return;
+    }
+
+    queryClient.setQueryData(key, result.quote);
+    void queryClient.invalidateQueries({ queryKey: trpc.submissions.list.queryKey() });
+
+    if (result.status === "rechecked" && result.quote.status === "quoted") go("review");
   }
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <form onSubmit={onSubmit} className="grid gap-6">
-        <Panel
-          title={offer ? offer.label : "Pay in full"}
-          description={
-            offer ? (
-              <span className="tabular-nums">{scheduleSummary(offer)}</span>
-            ) : (
-              "Charged once the policy is bound."
-            )
-          }
-        >
-          <div className="grid gap-4">
-            {fields}
-            {installments && (
-              <div className="flex items-start gap-3 rounded-lg border px-3 py-3">
-                <Checkbox
-                  id={`${id}-autopay`}
-                  checked={autopay}
-                  onCheckedChange={(checked) => setAutopay(checked === true)}
-                  className="mt-0.5"
-                />
-                <Label htmlFor={`${id}-autopay`} className="grid gap-1 font-normal">
-                  <span className="font-medium">Pay installments automatically with this card</span>
-                  <span className="text-xs text-muted-foreground">{quote.autopayConsent}</span>
-                </Label>
-              </div>
-            )}
-          </div>
-        </Panel>
+        {options.data && options.data.length > 1 && (
+          <BillingMethodChoice
+            options={options.data}
+            value={billingMethod}
+            onChange={setBillingMethod}
+            quote={quote}
+          />
+        )}
+        {!billed && (
+          <Panel
+            title={offer ? offer.label : "Pay in full"}
+            description={
+              offer ? (
+                <span className="tabular-nums">{scheduleSummary(offer)}</span>
+              ) : (
+                "Charged once the policy is bound."
+              )
+            }
+          >
+            <div className="grid gap-4">
+              {fields}
+              {installments && (
+                <div className="flex items-start gap-3 rounded-lg border px-3 py-3">
+                  <Checkbox
+                    id={`${id}-autopay`}
+                    checked={autopay}
+                    onCheckedChange={(checked) => setAutopay(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor={`${id}-autopay`} className="grid gap-1 font-normal">
+                    <span className="font-medium">
+                      Pay installments automatically with this card
+                    </span>
+                    <span className="text-xs text-muted-foreground">{quote.autopayConsent}</span>
+                  </Label>
+                </div>
+              )}
+            </div>
+          </Panel>
+        )}
         {licensing.data?.message && !bind.error && (
           <Notice
             tone={licensing.data.blocks ? "error" : "warning"}
@@ -209,9 +238,11 @@ function PayLayout({
           <Button type="button" variant="outline" onClick={() => go("review")}>
             Back
           </Button>
-          <Button type="submit" disabled={!ready || busy}>
-            {busy ? <Spinner /> : <Lock />}
-            Pay {total} and bind
+          <Button type="submit" disabled={(!billed && !ready) || busy}>
+            {busy ? <Spinner /> : !billed && <Lock />}
+            {billed
+              ? `Bind on ${billingMethod === "agency" ? "agency" : "mortgagee"} bill`
+              : `Pay ${total} and bind`}
           </Button>
         </div>
       </form>

@@ -1,5 +1,5 @@
 import type { Permission } from "@pas/auth";
-import { AGENCY_STATUSES, PRODUCER_STATUSES } from "@pas/distribution";
+import { AGENCY_STATUSES, PRODUCER_STATUSES, REMITTANCE_BASES } from "@pas/distribution";
 import type { TenantContext } from "@pas/kernel";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -42,6 +42,11 @@ const agencyInput = z.object({
       .string()
       .regex(/^\d+(\.\d{1,2})?$/)
       .nullable(),
+    remittanceBasis: z.enum(REMITTANCE_BASES).default("gross"),
+    statementDay: z.number().int().min(1).max(31).nullable().default(null),
+    reminderDays: z.number().int().min(0).max(365).nullable().default(null),
+    suspendAfterDays: z.number().int().min(1).max(365).nullable().default(null),
+    nonpaymentCancels: z.boolean().default(false),
   }),
 });
 

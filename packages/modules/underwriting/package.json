@@ -1,0 +1,21 @@
+{
+  "name": "@pas/underwriting",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/public.ts",
+    "./infrastructure": "./src/infrastructure.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pas/addresses": "workspace:*",
+    "@pas/db": "workspace:*",
+    "@pas/decisions-engine": "workspace:*",
+    "@pas/kernel": "workspace:*",
+    "@pas/storage": "workspace:*",
+    "@pas/submissions": "workspace:*"
+  }
+}

@@ -16,7 +16,7 @@ export interface SubmissionSummaryDto {
   effectiveDate: string;
   channel: string;
   stage: string;
-  producer: { id: string; name: string };
+  producer: { id: string; name: string; agencyId: string | null };
   insuredName: string | null;
   createdAt: string;
   updatedAt: string;
@@ -58,7 +58,11 @@ export function toSummaryDto(
     effectiveDate: s.effectiveDate.toString(),
     channel: s.channel,
     stage: s.stage,
-    producer: { id: s.producer.userId, name: s.producer.name },
+    producer: {
+      id: s.producer.userId,
+      name: s.producer.name,
+      agencyId: s.producer.agencyId ?? null,
+    },
     insuredName: s.insuredName,
     createdAt: s.createdAt.toString(),
     updatedAt: s.updatedAt.toString(),

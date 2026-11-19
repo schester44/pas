@@ -33,9 +33,12 @@ import { listSubmissionsInput, submissionById } from "./submissions-input";
 import { policyChangesRouter, staffScope } from "./policy-changes";
 import { addressRouter } from "./addresses";
 import { complianceRouter } from "./compliance";
+import { underwritingRouter } from "./underwriting";
+import { eventsRouter, notificationsRouter } from "./events";
 import { integrationsRouter } from "./integrations";
 import { adminSearch } from "./search";
 import { bookScopeOf } from "./book-scope";
+import { billingRouter } from "./billing";
 import { distributionRouter } from "./distribution";
 
 const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ ctx, next }) => {
@@ -293,6 +296,14 @@ export const adminRouter = router({
 
       return { fileName: file.fileName, title: file.title, pdf: base64(file.body) };
     }),
+    switchToDirect: policyBilling
+      .input(z.object({ policyId: z.uuid() }))
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.policies.switchToDirect(ctx.tenant, ctx.scope, {
+          policyId: input.policyId,
+          actor: { type: "user", id: ctx.session.user.id, name: ctx.session.user.name },
+        }),
+      ),
     changes: policyChangesRouter(staffScope),
   }),
 
@@ -300,10 +311,14 @@ export const adminRouter = router({
   addresses: addressRouter(async (ctx) => (await staffScope(ctx)).tenant),
 
   integrations: integrationsRouter,
+  events: eventsRouter,
+  notifications: notificationsRouter(tenantProcedure),
 
   compliance: complianceRouter,
+  underwriting: underwritingRouter,
 
   distribution: distributionRouter,
+  billing: billingRouter,
 
   clients: router({
     list: clientsAdmin

@@ -1,5 +1,13 @@
 import { injectTraceContext, withExtractedContext, type Logger } from "@pas/observability";
-import { PgBoss, type ConstructorOptions, type Job, type SendOptions } from "pg-boss";
+import type { Transaction } from "@pas/kernel";
+import {
+  fromPrisma,
+  PgBoss,
+  type ConstructorOptions,
+  type Job,
+  type PrismaTransactionLike,
+  type SendOptions,
+} from "pg-boss";
 import type { QueueDefinition, QueuePayload } from "./define";
 
 const TRACE_KEY = "_trace";
@@ -52,6 +60,27 @@ export class QueueClient {
       queue.name,
       { ...payload, [TRACE_KEY]: injectTraceContext() },
       { ...queue.sendOptions, ...options },
+    );
+  }
+
+  /** Sends inside the caller's Prisma transaction, so the job exists only if the work commits. */
+  async sendWithin<Q extends QueueDefinition>(
+    tx: Transaction,
+    queue: Q,
+    data: QueuePayload<Q>,
+    options?: SendOptions,
+  ): Promise<string | null> {
+    await this.start();
+    const payload = queue.schema.parse(data) as Record<string, unknown>;
+
+    return this.boss.send(
+      queue.name,
+      { ...payload, [TRACE_KEY]: injectTraceContext() },
+      {
+        ...queue.sendOptions,
+        ...options,
+        db: fromPrisma(tx as unknown as PrismaTransactionLike),
+      },
     );
   }
 

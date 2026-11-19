@@ -222,6 +222,7 @@ function BillingTab() {
       )}
 
       <Collections billing={billing} readOnly={readOnly} onChange={(next) => save(next)} />
+      <BillingMethods billing={billing} readOnly={readOnly} onChange={(next) => save(next)} />
     </PageBody>
   );
 }
@@ -632,6 +633,122 @@ function Collections({
             onValueChange={(delinquencySource) => update({ delinquencySource })}
           />
         </Field>
+      </div>
+    </Panel>
+  );
+}
+
+const METHODS = [
+  { value: "direct", label: "Direct bill", hint: "The insured pays by card, in full or by plan." },
+  {
+    value: "agency",
+    label: "Agency bill",
+    hint: "Approved agencies bind without collecting and remit on a monthly account current.",
+  },
+  {
+    value: "mortgagee",
+    label: "Mortgagee bill",
+    hint: "The lender is invoiced on a pay-in-full plan offered when the mortgagee pays.",
+  },
+] as const;
+
+const dayList = (value: string) =>
+  value
+    .split(",")
+    .map((d) => Number(d.trim()))
+    .filter((d) => Number.isInteger(d) && d > 0);
+
+function BillingMethods({
+  billing,
+  readOnly,
+  onChange,
+}: {
+  billing: BillingConfig;
+  readOnly: boolean;
+  onChange: (next: BillingConfig) => void;
+}) {
+  const id = useId();
+  const mortgagee = billing.mortgagee;
+  const [reminders, setReminders] = useState(mortgagee.reminderDays.join(", "));
+
+  const toggle = (method: BillingConfig["methods"][number], on: boolean) =>
+    onChange({
+      ...billing,
+      methods: METHODS.map((m) => m.value).filter((m) =>
+        m === method ? on : billing.methods.includes(m),
+      ),
+    });
+
+  const update = (changes: Partial<BillingConfig["mortgagee"]>) =>
+    onChange({ ...billing, mortgagee: { ...mortgagee, ...changes } });
+
+  return (
+    <Panel title="Billing methods" description="Who can be billed when a quote is bound.">
+      <div className="grid gap-6">
+        <div className="grid gap-3">
+          {METHODS.map((m) => (
+            <label key={m.value} className="flex items-start gap-3">
+              <Checkbox
+                checked={billing.methods.includes(m.value)}
+                disabled={readOnly}
+                onCheckedChange={(checked) => toggle(m.value, checked === true)}
+                className="mt-0.5"
+              />
+              <span className="grid gap-0.5">
+                <span className="text-sm font-medium">{m.label}</span>
+                <span className="text-sm text-muted-foreground">{m.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {billing.methods.includes("mortgagee") && (
+          <div className="grid gap-4 border-t pt-6 sm:grid-cols-2 lg:grid-cols-4">
+            <Field id={`${id}-due`} label="Lender invoice due (days)">
+              <Input
+                id={`${id}-due`}
+                type="number"
+                min={0}
+                value={mortgagee.dueDays}
+                disabled={readOnly}
+                className="tabular-nums"
+                onChange={(e) => update({ dueDays: number(e.target.value) })}
+              />
+            </Field>
+            <Field id={`${id}-reminders`} label="Lender reminders (days)">
+              <Input
+                id={`${id}-reminders`}
+                value={reminders}
+                disabled={readOnly}
+                className="tabular-nums"
+                placeholder="15, 30"
+                onChange={(e) => setReminders(e.target.value)}
+                onBlur={() => update({ reminderDays: dayList(reminders) })}
+              />
+            </Field>
+            <Field id={`${id}-offer`} label="Offer direct bill after (days)">
+              <Input
+                id={`${id}-offer`}
+                type="number"
+                min={0}
+                value={mortgagee.offerDirectAfterDays}
+                disabled={readOnly}
+                className="tabular-nums"
+                onChange={(e) => update({ offerDirectAfterDays: number(e.target.value) })}
+              />
+            </Field>
+            <Field id={`${id}-nonpay`} label="Nonpayment after (days)">
+              <Input
+                id={`${id}-nonpay`}
+                type="number"
+                min={0}
+                value={mortgagee.nonpaymentAfterDays}
+                disabled={readOnly}
+                className="tabular-nums"
+                onChange={(e) => update({ nonpaymentAfterDays: number(e.target.value) })}
+              />
+            </Field>
+          </div>
+        )}
       </div>
     </Panel>
   );

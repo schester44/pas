@@ -1,7 +1,13 @@
 import { createCensusGeocoder, createFakeDataProvider, type DataProvider } from "@pas/enrichment";
 import { newId } from "@pas/kernel";
 import { z } from "zod";
-import type { CardPayments, EmailSender, ESignProvider, PrintMail } from "../../ports/adapters";
+import type {
+  CardPayments,
+  ChatChannel,
+  EmailSender,
+  ESignProvider,
+  PrintMail,
+} from "../../ports/adapters";
 import type { AnyProviderPackage, ProviderManifest } from "../../ports/provider-catalog";
 import { builtinAddressProvider } from "./addresses";
 
@@ -33,6 +39,11 @@ const testPrintMail: PrintMail = {
       expectedDeliveryDate: null,
     };
   },
+};
+
+/** Test chat: accepts every message and posts nothing, so chat destinations work without Slack. */
+const testChat: ChatChannel = {
+  post: async () => ({ status: 200, body: "ok" }),
 };
 
 /**
@@ -118,6 +129,21 @@ export function builtinProviders(adapters: {
         logo: { icon: "printer" },
       },
       create: () => testPrintMail,
+      check: ok,
+    },
+    {
+      manifest: {
+        ...builtin,
+        id: "test_chat",
+        name: "Test chat",
+        category: "chat",
+        summary: "Accepts chat messages and posts nothing.",
+        description:
+          "Chat destinations deliver to this until a chat provider is enabled, so their delivery log works in sandboxes and local development. Nothing is posted anywhere.",
+        capabilities: ["Delivery log only"],
+        logo: { icon: "message" },
+      },
+      create: () => testChat,
       check: ok,
     },
     {

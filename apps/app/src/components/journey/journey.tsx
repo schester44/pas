@@ -7,6 +7,7 @@ import { formatPlainDate } from "@/lib/format";
 import { furthestStep, type Quote, resumeStep, STEPS, type StepId } from "@/lib/quotes";
 import { useTRPC } from "@/lib/trpc";
 import { SubmissionHeading } from "@/components/submission-heading";
+import { SubjectivitiesList, UnderwriterMessages } from "@/components/underwriting";
 import { BoundScreen } from "./bound-screen";
 import { CustomizeStep } from "./customize-step";
 import { DetailsStep } from "./details-step";
@@ -113,6 +114,10 @@ export function Journey({
       />
       {q.approved && (current === "quote" || current === "details") && (
         <ApprovedCallout quote={q} />
+      )}
+      {q.approved && current === "quote" && <UnderwriterMessages submissionId={submission.id} />}
+      {(current === "quote" || current === "pay") && (
+        <SubjectivitiesList submissionId={submission.id} />
       )}
       {current === "quote" && <QuoteStep {...props} />}
       {current === "customize" && <CustomizeStep {...props} />}

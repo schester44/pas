@@ -13,6 +13,8 @@ export interface InvoiceDto {
   installment: number;
   installments: number;
   payer: string;
+  payerRef: string | null;
+  payerName: string | null;
   status: string;
   issuedOn: string;
   dueOn: string;
@@ -56,6 +58,8 @@ export function toInvoiceDto(invoice: Invoice): InvoiceDto {
     installment: i.installment,
     installments: i.installments,
     payer: i.payer,
+    payerRef: i.payerRef,
+    payerName: i.payerName,
     status: i.status,
     issuedOn: i.issuedOn.toString(),
     dueOn: i.dueOn.toString(),

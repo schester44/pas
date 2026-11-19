@@ -45,6 +45,8 @@ export interface QuoteEvaluation {
   diligentSearch: DiligentSearch | null;
   attestations: Attestation[];
   payPlans: PayPlanOffer[];
+  /** An underwriter's loading or credit, already in the premium lines. */
+  adjustment?: { percent: string; reason: string; amount: Money };
   evaluatedAt: Instant;
   durationMs: number;
 }

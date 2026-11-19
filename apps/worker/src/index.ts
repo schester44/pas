@@ -13,9 +13,11 @@ import {
   pastDueOf,
 } from "@pas/billing";
 import {
+  PrismaAgencyStatementRepository,
   PrismaBillingEventLog,
   PrismaBillingScheduleRepository,
   PrismaInvoiceRepository,
+  PrismaMortgageeBillRepository,
 } from "@pas/billing/infrastructure";
 import {
   makeCureNonpayment,
@@ -37,6 +39,7 @@ import {
 import {
   allQueues,
   domainEventsQueue,
+  eventDeliveriesQueue,
   PgBossOutbox,
   QueueClient,
   queueConnectionFromEnv,
@@ -47,6 +50,7 @@ import { composeCompliance } from "@pas/compliance/infrastructure";
 import {
   builtinProviders,
   composeIntegrations,
+  inspectionProviders,
   filingChannelsFrom,
 } from "@pas/integrations/infrastructure";
 import { makeSendPortalInvite } from "@pas/parties";
@@ -60,6 +64,8 @@ import {
 import { AppHosts, makeGetProfile } from "@pas/tenants";
 import { PrismaTenantProfileRepository, TenantClocks } from "@pas/tenants/infrastructure";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
+import { composeWorkerBillingMethods, withHandlers } from "./billing-methods";
+import { composeWorkerEvents } from "./events";
 import { createDomainEventDispatcher } from "./handlers/domain-events";
 import { composePolicyServices } from "./policy-services";
 import { makeApprovalDemoWorkflow } from "./workflows/approval-demo";
@@ -68,6 +74,7 @@ import { makeInstallmentWorkflow } from "./workflows/billing-installment";
 import { makePolicyCancellationWorkflow } from "./workflows/policy-cancellation";
 import { makePolicyTermWorkflow } from "./workflows/policy-term";
 import { makeQuoteJourneyWorkflow } from "./workflows/quote-journey";
+import { composeWorkerUnderwriting } from "./underwriting";
 
 const logger = createLogger("worker");
 const prisma = getPrismaClient();
@@ -94,7 +101,9 @@ const recordCommissions = makeRecordCommissions({
 
 const invoices = new PrismaInvoiceRepository();
 const schedules = new PrismaBillingScheduleRepository();
-const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks });
+const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks, outbox });
+
+const mortgageeBills = new PrismaMortgageeBillRepository();
 
 const billingEvents = {
   invoices,
@@ -102,10 +111,12 @@ const billingEvents = {
   timeline: { record: recordPolicyEvent },
   outbox,
   clocks,
+  statements: new PrismaAgencyStatementRepository(),
+  mortgageeBills,
 };
 
 const applyBillingEvent = makeApplyBillingEvent({ ...billingEvents, uow });
-const issueInvoice = makeIssueInvoice({ ...billingEvents, schedules });
+const issueInvoice = makeIssueInvoice({ ...billingEvents, schedules, mortgageeBills });
 
 const termTimers = makeTermTimers({
   uow,
@@ -127,11 +138,14 @@ const integrations = composeIntegrations({
       return clocks.isSandbox(tenantId);
     },
   },
-  builtins: builtinProviders({
-    payments: new FakeCardGateway(clocks),
-    esign: new ClickToSignGateway(),
-    email: new ConsoleMailer(logger),
-  }),
+  builtins: [
+    ...builtinProviders({
+      payments: new FakeCardGateway(clocks),
+      esign: new ClickToSignGateway(),
+      email: new ConsoleMailer(logger),
+    }),
+    ...inspectionProviders(clocks),
+  ],
   notices: {
     record: (tx, ctx, input) =>
       recordPolicyEvent(tx, ctx, {
@@ -216,6 +230,21 @@ const compliance = composeCompliance({
   tenantName: async (ctx) => (await getProfile(ctx)).displayName,
 });
 
+const events = composeWorkerEvents({
+  prisma,
+  uow,
+  outbox,
+  clocks,
+  queues,
+  integrations,
+  mailers,
+  policies,
+  invoices,
+  compliance,
+  catalog: policyServices.catalog,
+  storage: createStorageFromEnv(),
+});
+
 const startNonpayment = makeStartNonpayment(policyServices.changes);
 const cureNonpayment = makeCureNonpayment(policyServices.changes);
 
@@ -245,9 +274,62 @@ const installmentTimers = makeInstallmentTimers({
   clocks,
 });
 
+const billingMethods = composeWorkerBillingMethods({
+  uow,
+  clocks,
+  storage: createStorageFromEnv(),
+  logger,
+  policies,
+  billingEvents,
+  applyEvent: applyBillingEvent,
+  schedules,
+  mortgageeBills,
+  installmentTimers,
+  branding: async (ctx) => {
+    const profile = await getProfile(ctx);
+
+    return {
+      name: profile.displayName,
+      primaryColor: profile.primaryColor,
+      ...(profile.supportEmail && { supportEmail: profile.supportEmail }),
+      ...(profile.supportPhone && { supportPhone: profile.supportPhone }),
+    };
+  },
+  mail: {
+    sendEmail: async (ctx, message) => {
+      await (await mailers.for(ctx)).send(message);
+    },
+    sendLetter: integrations.sendLetter,
+    // Tenant profiles have no postal address yet; real print & mail needs one (TODO.md).
+    returnAddress: async (ctx) => ({
+      name: (await getProfile(ctx)).displayName,
+      line1: "",
+      city: "",
+      region: "",
+      postalCode: "",
+      country: "US",
+    }),
+    insuredEmails: policyServices.emails,
+    appUrl: async (ctx) => (await getProfile(ctx)).appUrls[0]!,
+  },
+  workflows: () => workflows,
+});
+
 const systemContext = (tenantId: string) => ({
   tenantId: asId<"Tenant">(tenantId),
   actor: { type: "system" as const, process: "worker" },
+});
+
+const underwriting = composeWorkerUnderwriting({
+  prisma,
+  uow,
+  outbox,
+  clocks,
+  storage: createStorageFromEnv(),
+  catalog: policyServices.catalog,
+  recordPolicyEvent,
+  inspectors: integrations.resolver.port("inspections"),
+  logger,
 });
 
 const workflows = new PostgresWorkflows({
@@ -262,6 +344,8 @@ const workflows = new PostgresWorkflows({
     makeInstallmentWorkflow({ timers: installmentTimers }),
     makeObligationWorkflow({ timers: compliance.timers }),
     makeFilingWorkflow({ timers: compliance.timers }),
+    ...underwriting.workflows,
+    ...billingMethods.workflows,
   ],
 });
 
@@ -271,195 +355,235 @@ const workerContext = (tenantId: string) => ({
 });
 
 const dispatch = createDomainEventDispatcher(
-  {
-    "policy.cancellation_scheduled": [
-      async (event) => {
-        const { termId, transactionId } = event.payload as {
-          termId: string;
-          transactionId: string;
-        };
+  withHandlers(
+    {
+      ...underwriting.handlers(workflows),
+      "*": [
+        async (event) => {
+          const result = await events.publish(event);
 
-        await workflows.start(
-          workerContext(event.tenantId),
-          policyCancellationWorkflow,
-          { termId, transactionId },
-          { idempotencyKey: `policy.cancellation:${transactionId}` },
-        );
-      },
-    ],
-    "policy.credit_note_issued": [
-      async (event) => {
-        const { invoiceId } = event.payload as { invoiceId: string };
+          if (result.published > 0)
+            logger.info({ type: event.type, ...result }, "events published");
+        },
+      ],
+      "events.subscription_disabled": [
+        async (event) => {
+          const { subscriptionId, name, kind } = event.payload as {
+            subscriptionId: string;
+            name: string;
+            kind: string;
+          };
 
-        await refundCreditNote(workerContext(event.tenantId), { invoiceId });
-      },
-    ],
-    "policy.transaction_issued": [
-      async (event) => {
-        const { policyId, transactionId } = event.payload as {
-          policyId: string;
-          transactionId: string;
-        };
+          const to = await events.notifyDisabled({
+            tenantId: event.tenantId,
+            subscriptionId,
+            name,
+            kind,
+          });
 
-        const result = await recordCommissions(workerContext(event.tenantId), {
-          policyId,
-          transactionId,
-        });
+          logger.warn(
+            { subscriptionId, to },
+            "event subscription disabled after sustained failure",
+          );
+        },
+      ],
+      "policy.cancellation_scheduled": [
+        async (event) => {
+          const { termId, transactionId } = event.payload as {
+            termId: string;
+            transactionId: string;
+          };
 
-        logger.info({ transactionId, ...result }, "commissions recorded");
-      },
-      async (event) => {
-        const { type, termId, transactionId, status } = event.payload as {
-          type: string;
-          termId: string;
-          transactionId: string;
-          status: string;
-        };
+          await workflows.start(
+            workerContext(event.tenantId),
+            policyCancellationWorkflow,
+            { termId, transactionId },
+            { idempotencyKey: `policy.cancellation:${transactionId}` },
+          );
+        },
+      ],
+      "policy.credit_note_issued": [
+        async (event) => {
+          const { invoiceId } = event.payload as { invoiceId: string };
 
-        if (status !== "pending_effective" || type === "NEW_BUSINESS") return;
+          await refundCreditNote(workerContext(event.tenantId), { invoiceId });
+        },
+      ],
+      "policy.transaction_issued": [
+        async (event) => {
+          const { policyId, transactionId } = event.payload as {
+            policyId: string;
+            transactionId: string;
+          };
 
-        await workflows.start(
-          workerContext(event.tenantId),
-          policyTermWorkflow,
-          { termId },
-          {
-            idempotencyKey: `policy.term:${termId}:${transactionId}`,
-          },
-        );
-      },
-      async (event) => {
-        const { policyId, transactionId } = event.payload as {
-          policyId: string;
-          transactionId: string;
-        };
+          const result = await recordCommissions(workerContext(event.tenantId), {
+            policyId,
+            transactionId,
+          });
 
-        const result = await compliance.createForTransaction(workerContext(event.tenantId), {
-          policyId,
-          transactionId,
-        });
+          logger.info({ transactionId, ...result }, "commissions recorded");
+        },
+        async (event) => {
+          const { type, termId, transactionId, status } = event.payload as {
+            type: string;
+            termId: string;
+            transactionId: string;
+            status: string;
+          };
 
-        if (result.created > 0)
-          logger.info({ policyId, transactionId, ...result }, "compliance obligations created");
-      },
-    ],
-    "compliance.obligation_created": [
-      async (event) => {
-        const { obligationId } = event.payload as { obligationId: string };
+          if (status !== "pending_effective" || type === "NEW_BUSINESS") return;
 
-        await workflows.start(
-          workerContext(event.tenantId),
-          obligationWorkflow,
-          { obligationId },
-          { idempotencyKey: `compliance.obligation:${obligationId}` },
-        );
-      },
-    ],
-    "compliance.filing_submitted": [
-      async (event) => {
-        const { obligationId, filingId, manual } = event.payload as {
-          obligationId: string;
-          filingId: string;
-          manual?: boolean;
-        };
+          await workflows.start(
+            workerContext(event.tenantId),
+            policyTermWorkflow,
+            { termId },
+            {
+              idempotencyKey: `policy.term:${termId}:${transactionId}`,
+            },
+          );
+        },
+        async (event) => {
+          const { policyId, transactionId } = event.payload as {
+            policyId: string;
+            transactionId: string;
+          };
 
-        if (manual) return;
+          const result = await compliance.createForTransaction(workerContext(event.tenantId), {
+            policyId,
+            transactionId,
+          });
 
-        await workflows.start(
-          workerContext(event.tenantId),
-          filingWorkflow,
-          { obligationId, filingId },
-          { idempotencyKey: `compliance.filing:${filingId}` },
-        );
-      },
-    ],
-    "compliance.obligation_escalated": [
-      async (event) => logger.warn({ event }, "compliance obligation escalated to the manager"),
-    ],
-    "billing.installment_scheduled": [
-      async (event) => {
-        const { invoiceId } = event.payload as { invoiceId: string };
+          if (result.created > 0)
+            logger.info({ policyId, transactionId, ...result }, "compliance obligations created");
+        },
+      ],
+      "compliance.obligation_created": [
+        async (event) => {
+          const { obligationId } = event.payload as { obligationId: string };
 
-        await workflows.start(
-          workerContext(event.tenantId),
-          installmentWorkflow,
-          { invoiceId },
-          { idempotencyKey: `billing.installment:${invoiceId}` },
-        );
-      },
-    ],
-    "billing.account_delinquent": [
-      async (event) => {
-        const { policyId } = event.payload as { policyId: string };
-        const result = await startNonpayment(workerContext(event.tenantId), { policyId });
+          await workflows.start(
+            workerContext(event.tenantId),
+            obligationWorkflow,
+            { obligationId },
+            { idempotencyKey: `compliance.obligation:${obligationId}` },
+          );
+        },
+      ],
+      "compliance.filing_submitted": [
+        async (event) => {
+          const { obligationId, filingId, manual } = event.payload as {
+            obligationId: string;
+            filingId: string;
+            manual?: boolean;
+          };
 
-        logger.info({ policyId, result }, "nonpayment");
-      },
-    ],
-    "billing.balance_changed": [
-      async (event) => {
-        const { policyId } = event.payload as { policyId: string };
+          if (manual) return;
 
-        await cureNonpayment(workerContext(event.tenantId), { policyId });
-      },
-    ],
-    "billing.account_current": [
-      async (event) => {
-        const { policyId } = event.payload as { policyId: string };
+          await workflows.start(
+            workerContext(event.tenantId),
+            filingWorkflow,
+            { obligationId, filingId },
+            { idempotencyKey: `compliance.filing:${filingId}` },
+          );
+        },
+      ],
+      "compliance.obligation_escalated": [
+        async (event) => logger.warn({ event }, "compliance obligation escalated to the manager"),
+      ],
+      "billing.installment_scheduled": [
+        async (event) => {
+          const { invoiceId } = event.payload as { invoiceId: string };
 
-        await cureNonpayment(workerContext(event.tenantId), { policyId });
-      },
-    ],
-    "policy.cancellation_held": [
-      async (event) =>
-        logger.warn(
-          { event },
-          "cancellation held without proof of mailing; compliance follow-up needed",
-        ),
-    ],
-    "integrations.billing_event_received": [
-      async (event) => {
-        const { installId, event: inbound } = event.payload as {
-          installId: string;
-          event: InboundBillingEvent;
-        };
+          await workflows.start(
+            workerContext(event.tenantId),
+            installmentWorkflow,
+            { invoiceId },
+            { idempotencyKey: `billing.installment:${invoiceId}` },
+          );
+        },
+      ],
+      "billing.account_delinquent": [
+        async (event) => {
+          const { policyId } = event.payload as { policyId: string };
+          const result = await startNonpayment(workerContext(event.tenantId), { policyId });
 
-        await applyBillingEvent(
-          workerContext(event.tenantId),
-          billingEventFrom(installId, inbound),
-        );
-      },
-    ],
-    "integrations.install_changed": [
-      async (event) => integrations.resolver.invalidate(event.tenantId),
-    ],
-    "catalog.product_created": [async (event) => logger.info({ event }, "product created")],
-    "parties.client_invited": [
-      async (event) => {
-        const invite = event.payload as { email: string; name: string; policyNumber: string };
+          logger.info({ policyId, result }, "nonpayment");
+        },
+      ],
+      "billing.balance_changed": [
+        async (event) => {
+          const { policyId } = event.payload as { policyId: string };
 
-        await sendPortalInvite(systemContext(event.tenantId), invite);
-      },
-    ],
-    "policy.change_requested": [
-      async (event) => logger.info({ event }, "change requested; route to the producer"),
-    ],
-    "policy.term_bound": [
-      async (event) => {
-        const { termId } = event.payload as { termId: string };
+          await cureNonpayment(workerContext(event.tenantId), { policyId });
+        },
+      ],
+      "billing.account_current": [
+        async (event) => {
+          const { policyId } = event.payload as { policyId: string };
 
-        await workflows.start(
-          { tenantId: asId(event.tenantId), actor: { type: "system", process: "worker" } },
-          policyTermWorkflow,
-          { termId },
-          { idempotencyKey: `policy.term:${termId}` },
-        );
-      },
-    ],
-  },
+          await cureNonpayment(workerContext(event.tenantId), { policyId });
+        },
+      ],
+      "policy.cancellation_held": [
+        async (event) =>
+          logger.warn(
+            { event },
+            "cancellation held without proof of mailing; compliance follow-up needed",
+          ),
+      ],
+      "integrations.billing_event_received": [
+        async (event) => {
+          const { installId, event: inbound } = event.payload as {
+            installId: string;
+            event: InboundBillingEvent;
+          };
+
+          await applyBillingEvent(
+            workerContext(event.tenantId),
+            billingEventFrom(installId, inbound),
+          );
+        },
+      ],
+      "integrations.install_changed": [
+        async (event) => integrations.resolver.invalidate(event.tenantId),
+      ],
+      "catalog.product_created": [async (event) => logger.info({ event }, "product created")],
+      "parties.client_invited": [
+        async (event) => {
+          const invite = event.payload as { email: string; name: string; policyNumber: string };
+
+          await sendPortalInvite(systemContext(event.tenantId), invite);
+        },
+      ],
+      "policy.change_requested": [
+        async (event) => logger.info({ event }, "change requested; route to the producer"),
+      ],
+      "policy.term_bound": [
+        async (event) => {
+          const { termId } = event.payload as { termId: string };
+
+          await workflows.start(
+            { tenantId: asId(event.tenantId), actor: { type: "system", process: "worker" } },
+            policyTermWorkflow,
+            { termId },
+            { idempotencyKey: `policy.term:${termId}` },
+          );
+        },
+      ],
+    },
+    billingMethods.handlers,
+  ),
   logger,
 );
 
 await queues.work(domainEventsQueue, dispatch);
+
+await queues.work(eventDeliveriesQueue, async (job) => {
+  const result = await events.deliver(job);
+
+  logger.info({ deliveryId: job.deliveryId, trigger: job.trigger, ...result }, "event delivery");
+});
+
 await workflows.open();
 
 logger.info("worker started");

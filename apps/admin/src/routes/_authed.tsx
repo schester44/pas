@@ -16,6 +16,7 @@ import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/re
 import {
   BadgeCheck,
   Building,
+  ClipboardCheck,
   Building2,
   Check,
   ChevronsUpDown,
@@ -26,6 +27,7 @@ import {
   LogOut,
   Percent,
   Plus,
+  ReceiptText,
   ScrollText,
   ShieldCheck,
   Search,
@@ -34,6 +36,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { CommandPalette, modKey, useCommandPaletteShortcut } from "@/components/command-palette";
+import { NotificationsBell } from "@/components/notifications-bell";
 import { authClient } from "@/lib/auth";
 import { formatDateTime, isSandboxOrganization, useEnvironment } from "@/lib/environment";
 import { initials } from "@/lib/format";
@@ -129,6 +132,7 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span className="flex-1 text-left">Search</span>
           <Kbd>{modKey}K</Kbd>
         </button>
+        <NotificationsBell />
       </div>
       <div className="grid gap-6">
         <NavSection>
@@ -141,6 +145,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             {access.submissions.read && (
               <Link to="/submissions" className={navItemClassName}>
                 <Inbox /> Submissions
+              </Link>
+            )}
+            {access.underwriting.read && (
+              <Link to="/underwriting" className={navItemClassName}>
+                <ClipboardCheck /> Underwriting
               </Link>
             )}
             {access.policies.read && (
@@ -156,6 +165,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             {access.compliance.read && (
               <Link to="/compliance" className={navItemClassName}>
                 <ShieldCheck /> Compliance
+              </Link>
+            )}
+            {access.billing.read && (
+              <Link to="/billing/statements" className={navItemClassName}>
+                <ReceiptText /> Agency statements
               </Link>
             )}
           </NavSection>

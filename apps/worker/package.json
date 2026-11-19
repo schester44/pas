@@ -11,11 +11,13 @@
     "commissions:backfill": "tsx --env-file=../../.env src/scripts/backfill-commissions.ts"
   },
   "dependencies": {
+    "@pas/auth": "workspace:*",
     "@pas/billing": "workspace:*",
     "@pas/catalog": "workspace:*",
     "@pas/compliance": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/distribution": "workspace:*",
+    "@pas/events": "workspace:*",
     "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
@@ -27,6 +29,7 @@
     "@pas/submissions": "workspace:*",
     "@pas/tenants": "workspace:*",
     "@pas/ui": "workspace:*",
+    "@pas/underwriting": "workspace:*",
     "@pas/workflows": "workspace:*",
     "zod": "^4.6.7"
   },

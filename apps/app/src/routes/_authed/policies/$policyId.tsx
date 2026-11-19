@@ -1,6 +1,7 @@
 import type { AppOutputs } from "@pas/api-client";
 import { Notice } from "@pas/ui/components/notice";
 import { Panel } from "@pas/ui/components/panel";
+import { SubjectivitiesList } from "@/components/underwriting";
 import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
@@ -87,6 +88,7 @@ function PolicyPage() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline policy={p} />
         <div className="grid gap-6">
+          <SubjectivitiesList policyId={p.id} />
           <Panel title="Documents" flush>
             <PolicyDocumentList policyId={p.id} documents={p.documents} />
           </Panel>

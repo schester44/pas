@@ -2,8 +2,9 @@ import type { AddressProvider } from "@pas/addressing";
 import type { FilingChannel } from "@pas/compliance";
 import type { DataProvider } from "@pas/enrichment";
 import type { Instant, Money, TenantContext } from "@pas/kernel";
+import type { InspectionProvider } from "@pas/underwriting";
 
-export type { AddressProvider, DataProvider, FilingChannel };
+export type { AddressProvider, DataProvider, FilingChannel, InspectionProvider };
 
 /** The published adapter contracts (PLAN §16): what a provider package implements per category. */
 
@@ -173,16 +174,30 @@ export interface ProducerLicenseLookup {
   ): Promise<ProducerLicenseRecord[]>;
 }
 
+/** A message for a team channel, already formatted per event type (PLAN §15.8). */
+export interface ChatPost {
+  title: string;
+  body: string;
+  link: string | null;
+  test: boolean;
+}
+
+export interface ChatChannel {
+  post(message: ChatPost): Promise<{ status: number; body: string }>;
+}
+
 export interface CategoryAdapters {
   billing: BillingSystem;
   payments: CardPayments;
   esign: ESignProvider;
   email: EmailSender;
+  chat: ChatChannel;
   print_mail: PrintMail;
   data: DataProvider;
   address: AddressProvider;
   licensing: ProducerLicenseLookup;
   filing: FilingChannel;
+  inspections: InspectionProvider;
 }
 
 export type AdapterCategory = keyof CategoryAdapters;

@@ -94,6 +94,35 @@ function KindResult({ kind, result }: { kind: DecisionKind; result: unknown }) {
           }))}
         />
       );
+    case "subjectivities":
+      return (
+        <Rows
+          empty="No subjectivities."
+          items={(result as DecisionResult<"subjectivities">).subjectivities.map((item) => ({
+            key: item.code,
+            title: item.title,
+            meta: [
+              item.code,
+              humanize(item.timing),
+              item.dueDays !== undefined && `${item.dueDays} days`,
+              item.owner && humanize(item.owner),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          }))}
+        />
+      );
+    case "inspection_requirements":
+      return (
+        <Rows
+          empty="No inspection required."
+          items={(result as DecisionResult<"inspection_requirements">).inspections.map((item) => ({
+            key: item.type,
+            title: humanize(item.type),
+            meta: `${item.reason} · ${humanize(item.timing)}`,
+          }))}
+        />
+      );
     case "filing_obligations":
     case "reporting_obligations":
       return (

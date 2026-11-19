@@ -25,6 +25,7 @@ import type { PayPlanOffer } from "./pay-plan-offers";
 import type { QuoteEvaluation } from "./quote-evaluation";
 import type { SubmissionId } from "./submission";
 import { outcomeOf, type UnderwritingReason } from "./underwriting";
+import { NO_MODIFICATIONS, type ReferralModifications } from "./underwriter-terms";
 
 export type QuoteId = Id<"Quote">;
 export type QuoteStatus = "quoted" | "referred" | "declined" | "expired" | "bound";
@@ -39,7 +40,24 @@ export interface ReferralDecision {
   by: Underwriter;
   note?: string;
   conditions: string[];
+  modifications?: ReferralModifications;
+  declineReasons?: { code: string; message: string }[];
+  adverseActionNotice?: string;
   decidedAt: Instant;
+}
+
+export interface ApprovalInput {
+  by: Underwriter;
+  note?: string;
+  conditions: string[];
+  modifications?: ReferralModifications;
+}
+
+export interface DeclineInput {
+  by: Underwriter;
+  note?: string;
+  declineReasons?: { code: string; message: string }[];
+  adverseActionNotice?: string;
 }
 
 export interface Referral {
@@ -190,6 +208,15 @@ export class Quote extends AggregateRoot {
     return this.props.status;
   }
 
+  /** The underwriter's terms from the last approval; they stay on every requote. */
+  modifications(): ReferralModifications {
+    const decision = this.props.referral?.decision;
+
+    return decision?.outcome === "approved"
+      ? (decision.modifications ?? NO_MODIFICATIONS)
+      : NO_MODIFICATIONS;
+  }
+
   isExpiredAt(now: Instant): boolean {
     return Temporal.Instant.compare(now, this.props.expiresAt) >= 0;
   }
@@ -250,6 +277,7 @@ export class Quote extends AggregateRoot {
     };
 
     this.settle(evaluation, reviewWithin, now, actor, "Requoted");
+    this.recordEvent("submissions.quote_requoted", now, { status: this.props.status });
   }
 
   /** Bind-time re-check against current data and date. False when it no longer binds as quoted. */
@@ -271,11 +299,20 @@ export class Quote extends AggregateRoot {
     };
 
     this.settle(evaluation, reviewWithin, now, RULES_ACTOR, "Repriced at the bind check");
+    this.recordEvent("submissions.quote_requoted", now, { status: this.props.status });
 
     return false;
   }
 
-  approve(decision: { by: Underwriter; note?: string; conditions: string[] }, clock: Clock): void {
+  /**
+   * The underwriter's approval. With modifications the caller re-rated the quote on them, so the
+   * new evaluation replaces the old one and the producer signs again.
+   */
+  approve(
+    decision: ApprovalInput,
+    clock: Clock,
+    rerated?: { selection: CoverageChoice[]; evaluation: QuoteEvaluation },
+  ): void {
     this.guard("underwrite", clock);
     const now = clock.now();
     const referral = this.props.referral!;
@@ -283,6 +320,12 @@ export class Quote extends AggregateRoot {
 
     this.props = {
       ...this.props,
+      ...(rerated && {
+        revision: this.props.revision + 1,
+        selection: rerated.selection,
+        evaluation: rerated.evaluation,
+        signature: null,
+      }),
       status: "quoted",
       approvedReasonCodes: [...new Set([...this.props.approvedReasonCodes, ...codes])],
       referral: { ...referral, decision: { outcome: "approved", ...decision, decidedAt: now } },
@@ -292,16 +335,19 @@ export class Quote extends AggregateRoot {
     this.recordEvent("submissions.quote_approved", now, {
       reasonCodes: codes,
       conditions: decision.conditions,
+      modified: rerated !== undefined,
     });
 
     this.log("uw_approved", now, actorOf(decision.by), `Approved by ${decision.by.name}`, {
       reasonCodes: codes,
       conditions: decision.conditions,
       ...(decision.note && { note: decision.note }),
+      ...(decision.modifications && { modifications: decision.modifications }),
+      ...(rerated && { total: rerated.evaluation.total.toJSON() }),
     });
   }
 
-  decline(decision: { by: Underwriter; note?: string }, clock: Clock): void {
+  decline(decision: DeclineInput, clock: Clock): void {
     this.guard("underwrite", clock);
     const now = clock.now();
     const referral = this.props.referral!;
@@ -320,6 +366,7 @@ export class Quote extends AggregateRoot {
 
     this.log("uw_declined", now, actorOf(decision.by), `Declined by ${decision.by.name}`, {
       ...(decision.note && { note: decision.note }),
+      ...(decision.declineReasons && { reasons: decision.declineReasons }),
     });
   }
 
@@ -377,6 +424,17 @@ export class Quote extends AggregateRoot {
     });
   }
 
+  /** Pre-bind history recorded by another context, e.g. an underwriter's request for information. */
+  note(
+    type: QuoteActivityType,
+    actor: ActivityActor,
+    summary: string,
+    data: Record<string, unknown>,
+    clock: Clock,
+  ): void {
+    this.log(type, clock.now(), actor, summary, data);
+  }
+
   pullActivity(): QuoteActivity[] {
     const activity = this.pendingActivity;
     this.pendingActivity = [];
@@ -385,7 +443,7 @@ export class Quote extends AggregateRoot {
   }
 
   markBound(
-    input: { policy: { id: string; number: string }; payment: PaymentRecord },
+    input: { policy: { id: string; number: string }; payment: PaymentRecord | null },
     clock: Clock,
   ): void {
     this.guard("bind", clock);

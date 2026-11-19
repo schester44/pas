@@ -35,6 +35,7 @@ export const inboundBillingEvent = z
     ]),
     occurredAt: z.iso.datetime({ offset: true }),
     invoiceId: z.uuid().optional(),
+    statementId: z.uuid().optional(),
     policyNumber: z.string().max(60).optional(),
     amount: money.optional(),
     reference: z.string().max(200).optional(),
@@ -48,7 +49,9 @@ export const inboundBillingEvent = z
       .optional(),
     reason: z.string().max(500).optional(),
   })
-  .refine((e) => e.invoiceId || e.policyNumber, { message: "Name an invoiceId or a policyNumber" });
+  .refine((e) => e.invoiceId || e.statementId || e.policyNumber, {
+    message: "Name an invoiceId, a statementId or a policyNumber",
+  });
 
 class SignedBillingSystem implements BillingSystem {
   constructor(

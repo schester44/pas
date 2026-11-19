@@ -1,8 +1,8 @@
 import { prismaTx } from "@pas/db";
-import type {
-  InvoiceStatus as DbInvoiceStatus,
-  Invoice as InvoiceRow,
-  InvoiceLine as LineRow,
+import {
+  type InvoiceStatus as DbInvoiceStatus,
+  type Invoice as InvoiceRow,
+  type InvoiceLine as LineRow,
   Prisma,
 } from "@pas/db/client";
 import { asId, Money, newId, type TenantContext, type Transaction } from "@pas/kernel";
@@ -35,6 +35,12 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
       status: i.status.toUpperCase() as DbInvoiceStatus,
       issuedOn: dateToDb(i.issuedOn),
       dueOn: dateToDb(i.dueOn),
+      payer: i.payer,
+      payerRef: i.payerRef,
+      payerName: i.payerName,
+      payerAddress: i.payerAddress
+        ? (i.payerAddress as unknown as Prisma.InputJsonValue)
+        : Prisma.DbNull,
       updatedAt: toDate(i.updatedAt),
     };
 
@@ -65,8 +71,6 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
         scheduleId: i.scheduleId,
         installment: i.installment,
         installments: i.installments,
-        payer: i.payer,
-        payerRef: i.payerRef,
         currency: i.total.currency,
         createdAt: toDate(i.createdAt),
       },
@@ -228,6 +232,8 @@ function toInvoice(row: InvoiceRow, lines: LineRow[]): Invoice {
     installments: row.installments,
     payer: row.payer as InvoiceProps["payer"],
     payerRef: row.payerRef,
+    payerName: row.payerName,
+    payerAddress: row.payerAddress as InvoiceProps["payerAddress"],
     lines: lines.map((l) => ({
       kind: l.kind as ChargeKind,
       ...(l.transactionId && { transactionId: l.transactionId }),

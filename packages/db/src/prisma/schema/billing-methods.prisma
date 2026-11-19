@@ -1,0 +1,85 @@
+/// An agency's monthly account current statement (PLAN §13): its agency-billed items for the period.
+model AgencyStatement {
+  id              String    @id @db.Uuid
+  tenantId        String    @map("tenant_id")
+  agencyId        String    @map("agency_id") @db.Uuid
+  agencyName      String    @map("agency_name")
+  number          String
+  periodStart     DateTime  @map("period_start") @db.Date
+  periodEnd       DateTime  @map("period_end") @db.Date
+  issuedOn        DateTime  @map("issued_on") @db.Date
+  dueOn           DateTime  @map("due_on") @db.Date
+  remittanceBasis String    @map("remittance_basis")
+  currency        String    @db.Char(3)
+  status          String
+  remindedOn      DateTime? @map("reminded_on") @db.Date
+  suspendedOn     DateTime? @map("suspended_on") @db.Date
+  documentKey     String?   @map("document_key")
+  emailedTo       String[]  @default([]) @map("emailed_to")
+  createdAt       DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, agencyId, periodEnd])
+  @@index([tenantId, status, dueOn])
+  @@map("agency_statements")
+}
+
+/// One agency-billed invoice or credit note on a statement, with what was applied to it.
+model AgencyStatementItem {
+  id               String   @id @db.Uuid
+  tenantId         String   @map("tenant_id")
+  statementId      String   @map("statement_id") @db.Uuid
+  position         Int
+  invoiceId        String   @map("invoice_id") @db.Uuid
+  invoiceNumber    String   @map("invoice_number")
+  invoiceKind      String   @map("invoice_kind")
+  policyId         String   @map("policy_id") @db.Uuid
+  policyNumber     String   @map("policy_number")
+  insuredName      String   @map("insured_name")
+  transactionId    String   @map("transaction_id") @db.Uuid
+  transactionType  String   @map("transaction_type")
+  effectiveDate    DateTime @map("effective_date") @db.Date
+  gross            Decimal  @db.Decimal(18, 2)
+  commission       Decimal  @db.Decimal(18, 2)
+  net              Decimal  @db.Decimal(18, 2)
+  due              Decimal  @db.Decimal(18, 2)
+  credited         Decimal  @db.Decimal(18, 2)
+  paid             Decimal  @db.Decimal(18, 2)
+  settlementCredit Decimal  @default(0) @map("settlement_credit") @db.Decimal(18, 2)
+
+  @@unique([tenantId, invoiceId])
+  @@index([tenantId, statementId, position])
+  @@map("agency_statement_items")
+}
+
+model AgencyStatementSequence {
+  tenantId  String @id @map("tenant_id")
+  lastValue Int    @map("last_value")
+
+  @@map("agency_statement_sequences")
+}
+
+/// A term billed to its mortgagee: the lender, the invoice packet and the follow-ups (PLAN §13).
+model MortgageeBill {
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id")
+  policyId      String    @map("policy_id") @db.Uuid
+  policyNumber  String    @map("policy_number")
+  termId        String    @map("term_id") @db.Uuid
+  invoiceId     String    @map("invoice_id") @db.Uuid
+  lenderName    String    @map("lender_name")
+  loanNumber    String?   @map("loan_number")
+  lenderAddress Json?     @map("lender_address")
+  lenderEmail   String?   @map("lender_email")
+  followUp      Json      @map("follow_up")
+  status        String
+  sentOn        DateTime? @map("sent_on") @db.Date
+  history       Json      @default("[]")
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, invoiceId])
+  @@index([tenantId, policyId])
+  @@map("mortgagee_bills")
+}

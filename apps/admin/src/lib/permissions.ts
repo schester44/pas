@@ -125,6 +125,8 @@ export function useAccess() {
   const agencyRead = usePermission({ agency: ["read"] });
   const agencyWrite = usePermission({ agency: ["write"] });
   const uwApprove = usePermission({ uw: ["approve"] });
+  const uwRead = usePermission({ uw: ["read"] });
+  const uwOverride = usePermission({ uw: ["override"] });
   const documentRead = usePermission({ document: ["read"] });
   const documentWrite = usePermission({ document: ["write"] });
   const decisionRead = usePermission({ decision: ["read"] });
@@ -141,6 +143,8 @@ export function useAccess() {
   const updateOrganization = usePermission({ organization: ["update"] });
   const complianceRead = usePermission({ compliance: ["read"] });
   const complianceWrite = usePermission({ compliance: ["write"] });
+  const billingRead = usePermission({ billing: ["read"] });
+  const billingWrite = usePermission({ billing: ["write"] });
 
   const members = invite || updateMember || removeMember;
   const roles = createRole || updateRole || deleteRole;
@@ -150,8 +154,9 @@ export function useAccess() {
     submissions: { read: !!submissionRead },
     policies: { read: !!policyRead, update: !!policyUpdate },
     compliance: { read: !!complianceRead, write: !!complianceWrite },
+    billing: { read: !!billingRead, write: !!billingWrite },
     agencies: { read: !!agencyRead, write: !!agencyWrite },
-    underwriting: { approve: !!uwApprove },
+    underwriting: { read: !!uwRead, approve: !!uwApprove, configure: !!uwOverride },
     documents: { read: !!documentRead, write: !!documentWrite },
     decisions: { read: !!decisionRead, write: !!decisionWrite },
     rating: { read: !!ratingRead, write: !!ratingWrite },

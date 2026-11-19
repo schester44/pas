@@ -27,6 +27,7 @@ import { Textarea } from "@pas/ui/components/textarea";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Check, Circle } from "lucide-react";
 import type * as React from "react";
 import { useMemo, useState } from "react";
@@ -146,11 +147,13 @@ export function ReferralPanel({
   schema,
   submissionId,
   canDecide,
+  referralId,
 }: {
   quote: StaffQuote;
   schema: RiskSchema;
   submissionId: string;
   canDecide: boolean;
+  referralId?: string;
 }) {
   const [why, setWhy] = useState(false);
   const [deciding, setDeciding] = useState<"approve" | "decline" | null>(null);
@@ -176,14 +179,24 @@ export function ReferralPanel({
         </Button>
       }
       footer={
-        open &&
-        canDecide && (
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeciding("decline")}>
-              Decline
+        referralId ? (
+          <div className="flex justify-end">
+            <Button variant={open ? "default" : "outline"} asChild>
+              <Link to="/underwriting/referrals/$referralId" params={{ referralId }}>
+                {open ? "Review in underwriting" : "Open in underwriting"}
+              </Link>
             </Button>
-            <Button onClick={() => setDeciding("approve")}>Approve</Button>
           </div>
+        ) : (
+          open &&
+          canDecide && (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeciding("decline")}>
+                Decline
+              </Button>
+              <Button onClick={() => setDeciding("approve")}>Approve</Button>
+            </div>
+          )
         )
       }
     >
@@ -210,7 +223,7 @@ export function ReferralPanel({
   );
 }
 
-function Reasons({ reasons }: { reasons: Reason[] }) {
+export function Reasons({ reasons }: { reasons: Reason[] }) {
   return (
     <ul className="m-0 grid list-none gap-3 p-0">
       {reasons.map((reason) => (
@@ -272,7 +285,7 @@ function ruleInputs(rule: MatchedRule) {
 }
 
 /** The decision trace behind the outcome: which rules fired and on what values. */
-function WhySheet({
+export function WhySheet({
   quote,
   schema,
   open,
@@ -287,7 +300,7 @@ function WhySheet({
   const label = useMemo(() => inputLabeler(schema), [schema]);
 
   const decisions = quote.evaluation.decisions.filter(
-    (d) => d.kind === "underwriting" || d.kind === "eligibility",
+    (d) => d.kind === "underwriting" || d.kind === "eligibility" || d.kind === "referral_triggers",
   );
 
   return (

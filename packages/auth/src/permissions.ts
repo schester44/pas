@@ -129,6 +129,24 @@ export function bookReach(role: string): BookReach {
   return names.some((name) => AGENCY_ROLES.has(name)) ? "agency" : "own";
 }
 
+const ADMIN_ROLES: ReadonlySet<string> = new Set(["owner", "tenant_admin"]);
+
+/**
+ * Who a member is to event notifications (PLAN §15.8): staff hear about the whole book,
+ * producers only about their own, customers get none. Admins also get operational email.
+ */
+export function eventAudience(role: string): {
+  audience: "staff" | "producer" | null;
+  admin: boolean;
+} {
+  const names = role.split(",").map((name) => name.trim());
+  const admin = names.some((name) => ADMIN_ROLES.has(name));
+
+  if (bookReach(role) === "tenant") return { audience: "staff", admin };
+
+  return { audience: names.every((name) => name === "customer") ? null : "producer", admin };
+}
+
 export type Statements = typeof statements;
 export type Permission = { [R in keyof Statements]?: Statements[R][number][] };
 

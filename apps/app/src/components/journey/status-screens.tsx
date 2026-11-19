@@ -7,6 +7,7 @@ import { CalendarX, CircleSlash, Clock } from "lucide-react";
 import type * as React from "react";
 import { formatDate, formatDateTime, formatMoney, formatPlainDate } from "@/lib/format";
 import type { Quote } from "@/lib/quotes";
+import { approvalChanges, UnderwriterMessages } from "@/components/underwriting";
 import type { StepProps } from "./journey";
 
 type ScreenProps = StepProps & { heading: React.ReactNode };
@@ -95,7 +96,7 @@ const HomeButton = () => (
   </Button>
 );
 
-export function ReferredScreen({ quote, heading }: ScreenProps) {
+export function ReferredScreen({ quote, submission, heading }: ScreenProps) {
   const referral = quote.referral!;
 
   return (
@@ -113,6 +114,7 @@ export function ReferredScreen({ quote, heading }: ScreenProps) {
       actions={<HomeButton />}
     >
       <Reasons title="Why it needs a review" reasons={referral.reasons} tone="warning" />
+      <UnderwriterMessages submissionId={submission.id} />
       <Facts
         facts={[
           ["Indicative total", formatMoney(quote.premium.total, { cents: true })],
@@ -149,6 +151,11 @@ export function DeclinedScreen({ quote, heading }: ScreenProps) {
       <Reasons title="Why" reasons={quote.declineReasons} tone="danger" />
       {quote.referral?.decision?.note && (
         <p className="m-0 text-sm text-muted-foreground">{quote.referral.decision.note}</p>
+      )}
+      {quote.referral?.decision?.adverseActionNotice && (
+        <p className="m-0 text-xs whitespace-pre-wrap text-muted-foreground">
+          {quote.referral.decision.adverseActionNotice}
+        </p>
       )}
     </Screen>
   );
@@ -187,6 +194,13 @@ export function ApprovedCallout({ quote }: { quote: Quote }) {
           <span className="text-muted-foreground">You can continue to bind.</span>
         </span>
       </p>
+      {approvalChanges(quote).length > 0 && (
+        <ul className="m-0 grid list-none gap-0.5 pl-4 text-muted-foreground">
+          {approvalChanges(quote).map((change) => (
+            <li key={change}>Changed: {change}</li>
+          ))}
+        </ul>
+      )}
       {decision.conditions.length > 0 && (
         <ul className="m-0 grid list-none gap-0.5 pl-4 text-muted-foreground">
           {decision.conditions.map((condition) => (

@@ -35,7 +35,7 @@ export interface AdjustmentLine {
 
 /**
  * One billing event, from PAS's own flows (`source: "pas"`) or a billing system install. It names
- * the invoice, or the policy by number for account-level events.
+ * the invoice, an agency statement, or the policy by number for account-level events.
  */
 export interface BillingEvent {
   eventId: string;
@@ -43,6 +43,8 @@ export interface BillingEvent {
   type: BillingEventType;
   occurredAt: Instant;
   invoiceId?: string;
+  /** An agency's account current: the amount is applied across its items (PLAN §13). */
+  statementId?: string;
   policyNumber?: string;
   amount?: Money;
   provider?: string;

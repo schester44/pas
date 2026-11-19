@@ -21,6 +21,12 @@ import type { DecisionRecord, QuoteEvaluation, RatingRecord } from "../domain/qu
 import { payPlanOffers } from "../domain/pay-plan-offers";
 import { computeTaxesAndFees, totalOf } from "../domain/taxes-fees";
 import { outcomeOf, reasonsFrom, type UnderwritingReason } from "../domain/underwriting";
+import {
+  adjustPremium,
+  insuredValueOf,
+  type ReferralModifications,
+  withUnderwriterCoverages,
+} from "../domain/underwriter-terms";
 import type { CatalogRelease, ReleaseDecision } from "../ports/product-catalog";
 import type { QuoteRater } from "../ports/quote-rater";
 import type { RiskEnricher } from "../ports/risk-enricher";
@@ -40,6 +46,7 @@ export interface EvaluationInput {
   selection: readonly CoverageChoice[] | null;
   channel?: string;
   transaction?: { type: RatingInput["transaction"]["type"]; effective: PlainDate };
+  modifications?: ReferralModifications;
 }
 
 export interface EvaluationOutput {
@@ -64,13 +71,16 @@ export async function evaluateQuote(
   const data = { ...risk, jurisdiction: input.jurisdiction, market: release.market };
   const records: DecisionRecord[] = [];
 
-  const run = <K extends DecisionKind>(kind: K): DecisionResult<K>[] =>
+  const run = <K extends DecisionKind>(
+    kind: K,
+    context: Record<string, unknown> = data,
+  ): DecisionResult<K>[] =>
     release.rules
       .filter((rule): rule is ReleaseDecision & { kind: K } => rule.kind === kind)
       .map((rule) => {
         const ref = `${rule.kind}.${rule.key}`;
 
-        const evaluation = evaluateDecision(kind, rule.decision, data, {
+        const evaluation = evaluateDecision(kind, rule.decision, context, {
           trace: true,
           cacheKey: `${release.id}:${ref}`,
         });
@@ -99,16 +109,17 @@ export async function evaluateQuote(
   const decided = Object.assign({}, ...run("coverage_options").map((r) => r.coverages));
   const offers = coverageOffers(release.coverages, decided);
 
+  const overrides = input.modifications?.coverages ?? [];
+
   const selection = input.selection
-    ? normalizeSelection(offers, input.selection, risk)
+    ? normalizeSelection(offers, withUnderwriterCoverages(input.selection, overrides), risk)
     : defaultSelection(offers, risk);
 
   const diligentSearch: DiligentSearch | null = run("dea").find((r) => r !== null) ?? null;
   const attestations: Attestation[] = run("attestations").flatMap((r) => r.attestations);
-  const outcome = outcomeOf(reasons);
 
   const priced =
-    outcome === "declined"
+    outcomeOf(reasons) === "declined"
       ? null
       : await price(
           deps,
@@ -120,6 +131,36 @@ export async function evaluateQuote(
         );
 
   const currency = priced?.currency ?? currencyOf(release);
+  const insuredValue = insuredValueOf(offers, selection, currency);
+
+  const quoted = {
+    ...data,
+    quote: {
+      tiv: Number(insuredValue.toString()),
+      writtenPremium: Number((priced?.writtenPremium ?? Money.zero(currency)).toString()),
+    },
+  };
+
+  if (priced) {
+    reasons.push(
+      ...run("referral_triggers", quoted).flatMap((result, index) =>
+        result.triggers.map((trigger): UnderwritingReason => ({
+          source: "referral_triggers",
+          decision: decisionName(release, "referral_triggers", index),
+          rule: trigger.code,
+          outcome: "refer",
+          reasonCode: trigger.code,
+          message: trigger.message,
+          ...(trigger.authority && { authority: trigger.authority }),
+        })),
+      ),
+    );
+
+    run("subjectivities", quoted);
+    run("inspection_requirements", quoted);
+  }
+
+  const outcome = outcomeOf(reasons);
   const clock = deps.clocks.forTenant(ctx.tenantId);
 
   const payPlans =
@@ -145,6 +186,7 @@ export async function evaluateQuote(
       taxesFees: priced?.taxesFees ?? [],
       total: priced?.total ?? Money.zero(currency),
       rating: priced?.rating ?? null,
+      ...(priced?.adjustment && { adjustment: priced.adjustment }),
       decisions: records,
       diligentSearch,
       attestations,
@@ -199,22 +241,28 @@ async function price(
     durationMs: performance.now() - started,
   };
 
-  const taxesFees = computeTaxesAndFees(taxRules, result.total, {
-    mode: "half_up",
-    places: currencyDecimals(result.currency),
-  });
+  const rounding = { mode: "half_up" as const, places: currencyDecimals(result.currency) };
+
+  const rated = result.coverages.map((line) => ({
+    coverage: line.coverage,
+    ...(line.exposure !== undefined && { exposure: line.exposure }),
+    premium: line.premium,
+  }));
+
+  const loading = input.modifications?.adjustment ?? null;
+  const adjusted = loading ? adjustPremium(rated, loading.percent, rounding) : null;
+  const premium = adjusted?.lines ?? rated;
+  const writtenPremium = adjusted ? result.total.plus(adjusted.amount) : result.total;
+  const taxesFees = computeTaxesAndFees(taxRules, writtenPremium, rounding);
 
   return {
     currency: result.currency,
-    premium: result.coverages.map((line) => ({
-      coverage: line.coverage,
-      ...(line.exposure !== undefined && { exposure: line.exposure }),
-      premium: line.premium,
-    })),
-    writtenPremium: result.total,
+    premium,
+    writtenPremium,
     taxesFees,
-    total: result.total.plus(totalOf(taxesFees, result.currency)),
+    total: writtenPremium.plus(totalOf(taxesFees, result.currency)),
     rating,
+    adjustment: adjusted && loading && { ...loading, amount: adjusted.amount },
   };
 }
 

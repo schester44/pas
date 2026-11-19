@@ -6,6 +6,7 @@ export { StaticProviderCatalog } from "./infrastructure/provider-catalog";
 export { builtinProviders, censusGeocoderProvider } from "./infrastructure/providers/builtin";
 export { lobProvider } from "./infrastructure/providers/lob";
 export { licensingProviders, niprProvider } from "./infrastructure/providers/licensing";
+export { inspectionProviders, mockReport } from "./infrastructure/providers/inspections";
 export {
   builtinAddressProvider,
   geoapifyProvider,
@@ -15,6 +16,7 @@ export { e2valueProvider, hazardhubProvider } from "./infrastructure/providers/d
 export { resendProvider } from "./infrastructure/providers/resend";
 export { postmarkProvider } from "./infrastructure/providers/postmark";
 export { smtpProvider } from "./infrastructure/providers/smtp";
+export { slackMessage, slackProvider } from "./infrastructure/providers/slack";
 export { stripeProvider } from "./infrastructure/providers/stripe";
 export { webhookEmailProvider, webhookPrintMailProvider } from "./infrastructure/providers/webhook";
 export { signPayload, verifySignature } from "./infrastructure/providers/signing";

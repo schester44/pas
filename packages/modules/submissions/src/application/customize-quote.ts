@@ -42,6 +42,7 @@ export function makeCustomizeQuote(
       termEnd: q.termEnd,
       selection: input.selection,
       channel: current.submission.toSnapshot().channel,
+      modifications: current.quote.modifications(),
     });
 
     const updated = await deps.uow.run(ctx, async (tx) => {

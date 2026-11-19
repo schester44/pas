@@ -1,4 +1,4 @@
-import { createAuth } from "@pas/auth";
+import { createAuth, eventAudience } from "@pas/auth";
 import {
   makeCheckProductVersion,
   makeCreateProduct,
@@ -50,9 +50,11 @@ import {
   pastDueOf,
 } from "@pas/billing";
 import {
+  PrismaAgencyStatementRepository,
   PrismaBillingEventLog,
   PrismaBillingScheduleRepository,
   PrismaInvoiceRepository,
+  PrismaMortgageeBillRepository,
 } from "@pas/billing/infrastructure";
 import {
   makeAttachPolicyDocuments,
@@ -123,13 +125,17 @@ import {
   PrismaRaterWorkbookRepository,
 } from "@pas/rating/infrastructure";
 import { composeAddresses } from "@pas/addresses/infrastructure";
+import { composeEvents } from "@pas/events/infrastructure";
 import {
+  AesSecretBox,
   builtinProviders,
   composeIntegrations,
   filingChannelsFrom,
+  inspectionProviders,
   licensingProviders,
 } from "@pas/integrations/infrastructure";
 import {
+  makeAgencyBilling,
   makeAgencyStatement,
   makeCheckProducerLicense,
   makeManageAgencies,
@@ -140,6 +146,7 @@ import {
 } from "@pas/distribution";
 import {
   OnFileLicensing,
+  PrismaDistributionCloner,
   PrismaAgencyRepository,
   PrismaCommissionRepository,
   PrismaMemberDirectory,
@@ -165,12 +172,15 @@ import {
   TenantClocks,
 } from "@pas/tenants/infrastructure";
 import {
+  makeBillingOptions,
   makeBindQuote,
   makeCheckSubmissionClearance,
   makeChoosePayPlan,
   makeCustomizeQuote,
   makeDecideReferral,
   makeGetQuote,
+  makePreviewReferralApproval,
+  makeRecordQuoteActivity,
   makeRateTerm,
   makeGetSubmission,
   makeListSubmissions,
@@ -198,6 +208,12 @@ import { PgBossOutbox, QueueClient, queueConnectionFromEnv } from "@pas/queues";
 import { createStorageFromEnv } from "@pas/storage";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
+import {
+  composeUnderwriting,
+  PrismaUnderwritingSettingsCloner,
+  SubmissionsQuoteDesk,
+} from "@pas/underwriting/infrastructure";
+import { composeApiBillingMethods } from "./billing-methods";
 import { env } from "./env";
 import { sandboxAccess } from "./sandbox-access";
 import { makeSandboxTimers } from "./sandbox-timers";
@@ -284,7 +300,9 @@ export function compose() {
 
   const invoices = new PrismaInvoiceRepository();
   const schedules = new PrismaBillingScheduleRepository();
-  const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks });
+  const recordPolicyEvent = makeRecordPolicyEvent({ policies, clocks, outbox });
+
+  const mortgageeBills = new PrismaMortgageeBillRepository();
 
   const billingEvents = {
     invoices,
@@ -292,11 +310,21 @@ export function compose() {
     timeline: { record: recordPolicyEvent },
     outbox,
     clocks,
+    statements: new PrismaAgencyStatementRepository(),
+    mortgageeBills,
   };
 
   const applyBillingEvent = makeApplyBillingEvent({ ...billingEvents, uow });
-  const issueInvoice = makeIssueInvoice({ ...billingEvents, schedules });
-  const getPolicyBilling = makeGetPolicyBilling({ uow, invoices, schedules });
+  const issueInvoice = makeIssueInvoice({ ...billingEvents, schedules, mortgageeBills });
+
+  const getPolicyBilling = makeGetPolicyBilling({
+    uow,
+    invoices,
+    schedules,
+    statements: billingEvents.statements,
+    mortgageeBills,
+    clocks,
+  });
 
   const enrollAutopay = makeEnrollAutopay({
     uow,
@@ -346,6 +374,7 @@ export function compose() {
         email: mailer,
       }),
       ...licensingProviders(new OnFileLicensing(distributionDeps)),
+      ...inspectionProviders(clocks),
     ],
     notices: {
       record: (tx, ctx, input) =>
@@ -357,6 +386,31 @@ export function compose() {
     },
     secretKey: process.env.INTEGRATIONS_SECRET_KEY,
     publicUrl: env.BETTER_AUTH_URL,
+  });
+
+  const events = composeEvents({
+    prisma,
+    uow,
+    outbox,
+    clocks,
+    queues,
+    secretBox: new AesSecretBox(process.env.INTEGRATIONS_SECRET_KEY),
+    isSandbox: async (tenantId) => {
+      await clocks.refresh(tenantId);
+
+      return clocks.isSandbox(tenantId);
+    },
+    allowPrivateUrls: env.NODE_ENV === "development",
+    chat: async (ctx) => {
+      const chosen = await integrations.resolver.primary(ctx, "chat");
+
+      return {
+        provider: integrations.catalog.get(chosen.providerId)?.manifest.name ?? chosen.providerId,
+        post: (message) => chosen.adapter.post(message),
+      };
+    },
+    classify: eventAudience,
+    adminOrigin: env.ADMIN_ORIGIN,
   });
 
   const addresses = composeAddresses({
@@ -526,6 +580,31 @@ export function compose() {
   });
 
   const quoting = { uow, outbox, submissions, quotes, catalog: productCatalog, journey, clocks };
+  const getSubmission = makeGetSubmission({ uow, submissions, quotes, catalog: productCatalog });
+  const getQuote = makeGetQuote({ uow, submissions, quotes });
+  const decideReferral = makeDecideReferral({ ...quoting, ...evaluation });
+  const recordQuoteActivity = makeRecordQuoteActivity({ quotes, clocks });
+
+  const underwriting = composeUnderwriting({
+    prisma,
+    uow,
+    outbox,
+    clocks,
+    storage,
+    quotes: new SubmissionsQuoteDesk({
+      get: getSubmission,
+      quote: getQuote,
+      preview: makePreviewReferralApproval({ ...quoting, ...evaluation }),
+      decide: decideReferral,
+    }),
+    timeline: {
+      record: (tx, ctx, { quoteId, policyId, ...entry }) =>
+        policyId
+          ? recordPolicyEvent(tx, ctx, { policyId, ...entry })
+          : recordQuoteActivity(tx, ctx, { quoteId, ...entry }),
+    },
+    inspectors: integrations.resolver.port("inspections"),
+  });
 
   const policyRelease = async (ctx: TenantContext, id: string): Promise<PolicyRelease> => {
     const r = await productCatalog.getRelease(ctx, id);
@@ -579,6 +658,41 @@ export function compose() {
       postalCode: "",
       country: "US",
     }),
+  });
+
+  const billingMethods = composeApiBillingMethods({
+    uow,
+    clocks,
+    storage,
+    policies,
+    billingEvents,
+    applyEvent: applyBillingEvent,
+    schedules,
+    mortgageeBills,
+    agencyBilling: makeAgencyBilling(distributionDeps),
+    producerOfRecord,
+    branding: documentBranding,
+    mail: {
+      sendEmail: async (ctx, message) => {
+        await (await emailFor.for(ctx)).send(message);
+      },
+      sendLetter: integrations.sendLetter,
+      // Tenant profiles have no postal address yet; real print & mail needs one (TODO.md).
+      returnAddress: async (ctx) => ({
+        name: (await getProfile(ctx)).displayName,
+        line1: "",
+        city: "",
+        region: "",
+        postalCode: "",
+        country: "US",
+      }),
+      insuredEmails: async (ctx, policyId) =>
+        (await parties.policyClients(ctx, { policyId })).flatMap((c) =>
+          c.emails.map((e) => e.address),
+        ),
+      appUrl: async (ctx) => (await getProfile(ctx)).appUrls[0]!,
+    },
+    resolver: integrations.resolver,
   });
 
   const billingStatus = {
@@ -635,6 +749,10 @@ export function compose() {
       clocks,
     }),
     quotes: makeQuoteTimers({ uow, outbox, quotes, clocks }),
+    inspections: underwriting.inspectionTimers,
+    subjectivities: underwriting.subjectivityTimers,
+    agencyStatements: billingMethods.statements,
+    mortgagee: billingMethods.mortgagee,
   });
 
   const auth = createAuth({
@@ -681,6 +799,7 @@ export function compose() {
     workflows,
     clocks,
     integrations,
+    events,
     useCases: {
       catalog: {
         createProduct: makeCreateProduct({ uow, outbox, products, clocks }),
@@ -721,7 +840,7 @@ export function compose() {
           catalog: productCatalog,
           clocks,
         }),
-        get: makeGetSubmission({ uow, submissions, quotes, catalog: productCatalog }),
+        get: getSubmission,
         saveDraft: makeSaveDraft({ uow, submissions, clocks }),
         submit: makeSubmitSubmission({ ...quoting, ...evaluation, addresses }),
         clearance: makeCheckSubmissionClearance({
@@ -733,7 +852,7 @@ export function compose() {
         list: makeListSubmissions({ uow, submissions, quotes, catalog: productCatalog }),
       },
       quotes: {
-        get: makeGetQuote({ uow, submissions, quotes }),
+        get: getQuote,
         customize: makeCustomizeQuote({ ...quoting, ...evaluation }),
         saveDetails: makeSaveBindDetails({ uow, submissions, quotes, clocks, addresses }),
         packet: renderQuotePacket,
@@ -776,15 +895,31 @@ export function compose() {
           },
           documents: quoteDocuments,
           storage,
+          conditions: { outstanding: underwriting.outstanding },
+          agencyBilling: billingMethods.agencyBillCheck,
         }),
-        decideReferral: makeDecideReferral(quoting),
+        decideReferral,
         choosePayPlan: makeChoosePayPlan({ uow, submissions, quotes, clocks }),
+        billingOptions: makeBillingOptions({
+          uow,
+          submissions,
+          quotes,
+          catalog: productCatalog,
+          agencyBilling: billingMethods.agencyBillCheck,
+        }),
         checkout: async (ctx: TenantContext) => (await cardGateway.for(ctx)).checkout,
       },
       parties,
       compliance,
+      underwriting,
       addresses,
       distribution,
+      billing: {
+        statements: billingMethods.statements,
+        mortgagee: billingMethods.mortgagee,
+        simulationAvailable: billingMethods.simulationAvailable,
+        applyEvent: applyBillingEvent,
+      },
       search: makeSearch({ uow, index: new PostgresSearchIndex() }),
       policies: {
         list: policy.list,
@@ -816,6 +951,15 @@ export function compose() {
           return payInvoice(ctx, input);
         },
         cureNonpayment: makeCureNonpayment(policyChanges),
+        switchToDirect: async (
+          ctx: TenantContext,
+          scope: PolicyScope,
+          input: Parameters<typeof billingMethods.mortgagee.switchToDirect>[1],
+        ) => {
+          await policy.get.detail(ctx, scope, { id: input.policyId });
+
+          return billingMethods.mortgagee.switchToDirect(ctx, input);
+        },
         applyBillingEvent,
         endorsementSetup: makeGetEndorsementSetup(policyChanges),
         quoteEndorsement: async (
@@ -858,6 +1002,8 @@ export function compose() {
             new PrismaFormEditionCloner(uow),
             new PrismaRaterWorkbookCloner(uow),
             new PrismaCatalogCloner(uow),
+            new PrismaDistributionCloner(uow),
+            new PrismaUnderwritingSettingsCloner(uow),
           ],
           clocks,
         }),

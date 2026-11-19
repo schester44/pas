@@ -1,5 +1,5 @@
 import type { TenantContext } from "@pas/kernel";
-import type { Dunning, PayPlan } from "@pas/pay-plans";
+import type { Dunning, MortgageeFollowUp, PayPlan } from "@pas/pay-plans";
 import type { InsuredParty } from "../domain/insured";
 
 export interface MoneyJson {
@@ -32,7 +32,25 @@ export interface NewBusinessRequest {
   taxesFees: { code: string; label: string; remitter: string; amount: MoneyJson }[];
   writtenPremium: MoneyJson;
   snapshot: Record<string, unknown>;
-  billing: { method: "direct" | "agency" | "mortgagee"; payPlan: PayPlan | null; dunning: Dunning };
+  billing: {
+    method: "direct" | "agency" | "mortgagee";
+    payPlan: PayPlan | null;
+    dunning: Dunning;
+    payer?: {
+      payer: "insured" | "agency" | "mortgagee";
+      payerRef: string | null;
+      payerName: string | null;
+      payerAddress: {
+        line1: string;
+        line2?: string;
+        city: string;
+        region: string;
+        postalCode: string;
+        country?: string;
+      } | null;
+    };
+    mortgagee?: { followUp: MortgageeFollowUp; lenderEmail: string | null };
+  };
   actor: TimelineActor;
   history: {
     type: string;

@@ -19,6 +19,7 @@ import {
   type PolicyEventProps,
   type PolicyEventType,
   type TimelineActor,
+  timelinePayload,
 } from "./policy-event";
 import {
   assertTransition,
@@ -1016,6 +1017,12 @@ export class Policy extends AggregateRoot {
     const event: PolicyEventProps = { ...entry, id: newId(), category: categoryOf(entry.type) };
     assertLinked(event);
     this.append("events", event);
+
+    this.recordEvent(
+      "policy.timeline_recorded",
+      event.occurredAt,
+      timelinePayload(this.id, this.number, event),
+    );
   }
 
   attachDocument(document: Omit<PolicyDocumentProps, "id" | "createdAt">, clock: Clock): void {
@@ -1061,6 +1068,18 @@ export class Policy extends AggregateRoot {
   }
 
   /** Broker of record change: the policy moves to another producer and agency from a date. */
+  /** Billing moved the term to another payer (a lender's bill taken over by the insured). */
+  changeBillingMethod(termId: string, method: BillingMethod, clock: Clock): boolean {
+    const term = this.term(termId);
+
+    if (term.billingMethod === method) return false;
+
+    term.billingMethod = method;
+    term.updatedAt = clock.now();
+
+    return true;
+  }
+
   changeProducer(
     input: {
       producer: ProducerOfRecord;

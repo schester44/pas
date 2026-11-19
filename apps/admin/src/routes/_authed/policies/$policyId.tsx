@@ -5,6 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { ActivityTimeline } from "@/components/policies/activity";
+import { BilledTo } from "@/components/policies/billed-to";
 import { BillingPanel, type Invoice, InvoiceSheet } from "@/components/policies/billing";
 import { PolicyCoverage } from "@/components/policies/coverage";
 import { PolicyDocuments } from "@/components/policies/documents";
@@ -135,7 +136,10 @@ function TabContent({
       );
     case "billing":
       return billing ? (
-        <BillingPanel billing={billing} onOpenInvoice={onOpenInvoice} onPay={onPay} />
+        <div className="grid gap-6">
+          <BilledTo policyId={policy.id} billing={billing} />
+          <BillingPanel billing={billing} onOpenInvoice={onOpenInvoice} onPay={onPay} />
+        </div>
       ) : (
         <div className="h-96 animate-pulse rounded-xl bg-muted/60" />
       );

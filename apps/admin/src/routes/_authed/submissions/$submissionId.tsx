@@ -17,6 +17,7 @@ import {
   type StaffQuote,
 } from "@/components/submissions/quote";
 import { SubmissionStatus } from "@/components/submissions/submission-status";
+import { InspectionsPanel, SubjectivitiesPanel } from "@/components/underwriting/conditions";
 import { useAccess } from "@/lib/permissions";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
@@ -41,6 +42,11 @@ function SubmissionPage() {
   const submission = useQuery(trpc.submissions.get.queryOptions({ id: submissionId }));
   const quote = useQuery(trpc.submissions.quote.queryOptions({ submissionId }));
   const access = useAccess();
+
+  const referrals = useQuery({
+    ...trpc.underwriting.forQuote.queryOptions({ quoteId: quote.data?.id ?? "" }),
+    enabled: !!quote.data?.id && access.underwriting.read,
+  });
 
   const title = (
     <Breadcrumb
@@ -82,9 +88,20 @@ function SubmissionPage() {
                     schema={submission.data.riskSchema}
                     submissionId={submissionId}
                     canDecide={access.underwriting.approve}
+                    {...(referrals.data?.[0] && { referralId: referrals.data[0].id })}
                   />
                   {quote.data.status !== "declined" && <QuotePremium quote={quote.data} />}
                   {quote.data.status !== "declined" && <RequirementsPanel quote={quote.data} />}
+                  {access.underwriting.read && (
+                    <>
+                      <SubjectivitiesPanel
+                        quoteId={quote.data.id}
+                        submissionId={submissionId}
+                        canDecide={access.underwriting.approve}
+                      />
+                      <InspectionsPanel quoteId={quote.data.id} />
+                    </>
+                  )}
                   <QuoteWorksheet quote={quote.data} schema={submission.data.riskSchema} />
                 </>
               )}

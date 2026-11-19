@@ -16,6 +16,12 @@ export * from "./jdm";
 export {
   aggregate,
   CHANNEL_KINDS,
+  INSPECTION_TYPES,
+  SUBJECTIVITY_OWNERS,
+  SUBJECTIVITY_TIMINGS,
+  type InspectionType,
+  type SubjectivityOwner,
+  type SubjectivityTiming,
   contractFields,
   DUE_FROM,
   OBLIGATION_KINDS,

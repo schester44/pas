@@ -9,6 +9,7 @@ export interface AdditionalInterest {
   name: string;
   address: AddressValue | null;
   reference?: string;
+  email?: string;
 }
 
 export interface AdmittedDeclination {

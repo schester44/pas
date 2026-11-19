@@ -114,6 +114,23 @@ const obligationRule = {
   holidays: z.array(isoDate).optional(),
 };
 
+/** When a subjectivity or inspection is due: before binding, or within days after it. */
+export const SUBJECTIVITY_TIMINGS = ["pre_bind", "post_bind"] as const;
+
+export type SubjectivityTiming = (typeof SUBJECTIVITY_TIMINGS)[number];
+
+export const SUBJECTIVITY_OWNERS = ["producer", "insured", "underwriter"] as const;
+
+export type SubjectivityOwner = (typeof SUBJECTIVITY_OWNERS)[number];
+
+/** Inspection kinds the inspection port can order; `aerial` is imagery, never a sole basis to decline. */
+export const INSPECTION_TYPES = ["exterior", "interior_exterior", "aerial", "field"] as const;
+
+export type InspectionType = (typeof INSPECTION_TYPES)[number];
+
+/** Priced-quote inputs for decisions evaluated after rating. */
+const QUOTE_CONTEXT = ["quote", "quote.tiv", "quote.writtenPremium"] as const;
+
 const firstPerCode = <T extends { code: string }>(rows: T[]) => {
   const seen = new Set<string>();
 
@@ -278,8 +295,40 @@ export const DECISION_KINDS = {
   referral_triggers: defineKind({
     label: "Referral triggers",
     cardinality: "many",
+    contextPaths: QUOTE_CONTEXT,
     row: z.object({ code: text, message: text, authority: text.optional() }),
     aggregate: (rows) => ({ triggers: rows }),
+  }),
+  subjectivities: defineKind({
+    label: "Subjectivities",
+    cardinality: "many",
+    contextPaths: QUOTE_CONTEXT,
+    row: z.object({
+      code: text,
+      title: text,
+      description: text.optional(),
+      timing: z.enum(SUBJECTIVITY_TIMINGS),
+      dueDays: z.number().int().min(0).optional(),
+      owner: z.enum(SUBJECTIVITY_OWNERS).optional(),
+      consequence: text.optional(),
+    }),
+    aggregate: (rows) => ({ subjectivities: firstPerCode(rows) }),
+  }),
+  inspection_requirements: defineKind({
+    label: "Inspection requirements",
+    cardinality: "many",
+    contextPaths: QUOTE_CONTEXT,
+    row: z.object({
+      code: text,
+      type: z.enum(INSPECTION_TYPES),
+      timing: z.enum(SUBJECTIVITY_TIMINGS),
+      reason: text,
+    }),
+    aggregate: (rows) => {
+      const seen = new Set<string>();
+
+      return { inspections: rows.filter((row) => !seen.has(row.type) && seen.add(row.type)) };
+    },
   }),
   filing_obligations: defineKind({
     label: "Filing obligations",

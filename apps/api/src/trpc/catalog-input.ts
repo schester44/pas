@@ -2,6 +2,7 @@ import { FORM_CHANNELS, FORM_STAGES, MARKETS } from "@pas/catalog";
 import { DECISION_KIND_KEYS, type JdmDecision } from "@pas/decisions-engine";
 import { documentSetSchema } from "@pas/documents";
 import { formDefinitionSchema, riskSchemaSchema } from "@pas/forms-core";
+import { BILLING_METHODS, emptyBillingConfig } from "@pas/pay-plans";
 import type { BindingManifest, RatingPlan } from "@pas/rating-engine";
 import { z } from "zod";
 
@@ -192,6 +193,18 @@ const billingConfig = z.object({
     reminderAfterDays: days,
     delinquencySource: z.enum(["pas", "billing_system"]),
   }),
+  methods: z
+    .array(z.enum(BILLING_METHODS))
+    .max(3)
+    .default(() => emptyBillingConfig().methods),
+  mortgagee: z
+    .object({
+      dueDays: days,
+      reminderDays: z.array(days).max(6),
+      offerDirectAfterDays: days,
+      nonpaymentAfterDays: days,
+    })
+    .default(() => emptyBillingConfig().mortgagee),
 });
 
 export const versionContentsInput = z.object({

@@ -41,7 +41,13 @@ export interface CommissionRepository {
   list(
     tx: Transaction,
     ctx: TenantContext,
-    filter: { agencyIds?: readonly string[]; policyId?: string; from?: Instant; to?: Instant },
+    filter: {
+      agencyIds?: readonly string[];
+      policyId?: string;
+      transactionIds?: readonly string[];
+      from?: Instant;
+      to?: Instant;
+    },
   ): Promise<CommissionRecord[]>;
   requirements(tx: Transaction, ctx: TenantContext): Promise<LicensingRequirement[]>;
   saveRequirement(

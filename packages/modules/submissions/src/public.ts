@@ -34,6 +34,23 @@ export {
   type DecideReferral,
   type ReferralDecisionInput,
 } from "./application/decide-referral";
+export {
+  makePreviewReferralApproval,
+  type ApprovalPreview,
+  type PreviewReferralApproval,
+} from "./application/preview-referral-approval";
+export {
+  makeRecordQuoteActivity,
+  type RecordQuoteActivity,
+} from "./application/record-quote-activity";
+export type { BindConditions } from "./ports/bind-conditions";
+export type { QuoteActivityType } from "./domain/quote-activity";
+export {
+  insuredValueOf,
+  NO_MODIFICATIONS,
+  type PremiumAdjustment,
+  type ReferralModifications,
+} from "./domain/underwriter-terms";
 export { makeQuoteTimers, type JourneyState, type QuoteTimers } from "./application/quote-timers";
 export {
   JOURNEY_EVENTS,
@@ -58,3 +75,6 @@ export type { QuoteDocuments } from "./ports/quote-documents";
 export type { QuoteRepository } from "./ports/quote-repository";
 export type { SubmissionRepository } from "./ports/submission-repository";
 export { makeRateTerm, type RateTerm } from "./application/rate-term";
+export { makeBillingOptions, type BillingOptions } from "./application/billing-options";
+export type { BillingMethodOption } from "./domain/billing-methods";
+export type { AgencyBilling, AgencyBillCheck } from "./ports/agency-bill-check";

@@ -16,6 +16,23 @@ export type InvoiceStatus = "scheduled" | "open" | "past_due" | "partially_paid"
 
 export type Payer = "insured" | "agency" | "mortgagee";
 
+export interface PayerAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  country?: string;
+}
+
+/** Who an invoice is billed to: the insured, the agency (ref = agency id) or the lender (ref = loan number). */
+export interface PayerDetails {
+  payer: Payer;
+  payerRef: string | null;
+  payerName: string | null;
+  payerAddress: PayerAddress | null;
+}
+
 export interface InvoiceProps {
   id: InvoiceId;
   tenantId: TenantId;
@@ -29,6 +46,8 @@ export interface InvoiceProps {
   installments: number;
   payer: Payer;
   payerRef: string | null;
+  payerName: string | null;
+  payerAddress: PayerAddress | null;
   lines: Charge[];
   total: Money;
   amountPaid: Money;
@@ -80,10 +99,11 @@ export class Invoice {
       | "installments"
       | "payer"
       | "payerRef"
+      | "payerName"
+      | "payerAddress"
     > &
-      Partial<
-        Pick<InvoiceProps, "scheduleId" | "installment" | "installments" | "payer" | "payerRef">
-      > & {
+      Partial<Pick<InvoiceProps, "scheduleId" | "installment" | "installments">> &
+      Partial<PayerDetails> & {
         draft: InvoiceDraft;
         scheduled?: boolean;
       },
@@ -99,6 +119,8 @@ export class Invoice {
       installments: 1,
       payer: "insured",
       payerRef: null,
+      payerName: null,
+      payerAddress: null,
       ...rest,
       id: newId<"Invoice">(),
       kind: draft.kind,
@@ -163,6 +185,32 @@ export class Invoice {
       dueOn: today,
       updatedAt: clock.now(),
     };
+  }
+
+  get payerDetails(): PayerDetails {
+    const { payer, payerRef, payerName, payerAddress } = this.props;
+
+    return { payer, payerRef, payerName, payerAddress };
+  }
+
+  /** Re-issues an unpaid bill to someone else (e.g. from the lender to the insured), due on `dueOn`. */
+  reassign(payer: PayerDetails, dueOn: PlainDate, clock: Clock): void {
+    this.assertUnpaid();
+
+    this.props = {
+      ...this.props,
+      ...payer,
+      status: this.props.status === "past_due" ? "open" : this.props.status,
+      dueOn,
+      updatedAt: clock.now(),
+    };
+  }
+
+  /** An unpaid bill falls due on another date (an agency's account current due date). */
+  dueBy(dueOn: PlainDate, clock: Clock): void {
+    if (!this.isUnpaid) return;
+
+    this.props = { ...this.props, dueOn, updatedAt: clock.now() };
   }
 
   markPastDue(clock: Clock): boolean {

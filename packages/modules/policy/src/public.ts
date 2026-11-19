@@ -11,6 +11,15 @@ export {
 export { makeListPolicies, type ListPolicies } from "./application/list-policies";
 export { makeChangeProducer, type ChangeProducer } from "./application/change-producer";
 export {
+  makeGetEvidenceOfInsurance,
+  type EvidenceOfInsuranceDto,
+  type GetEvidenceOfInsurance,
+} from "./application/get-evidence-of-insurance";
+export {
+  makeChangeBillingMethod,
+  type ChangeBillingMethod,
+} from "./application/change-billing-method";
+export {
   makeGetTransactionFinancials,
   type GetTransactionFinancials,
   type TransactionFinancialsDto,
@@ -81,7 +90,7 @@ export {
   type PolicyEventType,
   type TimelineActor,
 } from "./domain/policy-event";
-export type { InvoiceIssuer, IssuedInvoice } from "./ports/invoice-issuer";
+export type { BillingPayer, InvoiceIssuer, IssuedInvoice } from "./ports/invoice-issuer";
 export type { InsuredParty, PolicyParties } from "./ports/policy-parties";
 export type { ChangeRequestRepository } from "./ports/change-request-repository";
 export {

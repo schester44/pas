@@ -1,5 +1,9 @@
 import { prismaTx } from "@pas/db";
-import type { BillingSchedule as Row, PaymentMethod as MethodRow, Prisma } from "@pas/db/client";
+import {
+  type BillingSchedule as Row,
+  type PaymentMethod as MethodRow,
+  Prisma,
+} from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { billingConfigOf, type PayPlan } from "@pas/pay-plans";
 import {
@@ -7,6 +11,7 @@ import {
   type BillingMethod,
   type SavedPaymentMethod,
 } from "../domain/billing-schedule";
+import type { PayerDetails } from "../domain/invoice";
 import type { BillingScheduleRepository } from "../ports/billing-schedule-repository";
 
 const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
@@ -20,6 +25,11 @@ export class PrismaBillingScheduleRepository implements BillingScheduleRepositor
     const data = {
       status: s.status,
       paymentMethodId: s.paymentMethodId,
+      billingMethod: s.billingMethod,
+      payer: s.payer.payer,
+      payerRef: s.payer.payerRef,
+      payerName: s.payer.payerName,
+      payerAddress: s.payer.payerAddress ? json(s.payer.payerAddress) : Prisma.DbNull,
       updatedAt: toDate(s.updatedAt),
     };
 
@@ -32,7 +42,6 @@ export class PrismaBillingScheduleRepository implements BillingScheduleRepositor
         policyId: s.policyId,
         policyNumber: s.policyNumber,
         termId: s.termId,
-        billingMethod: s.billingMethod,
         plan: json(s.plan),
         dunning: json(s.dunning),
         createdAt: toDate(s.createdAt),
@@ -107,6 +116,12 @@ function toSchedule(row: Row): BillingSchedule {
     policyNumber: row.policyNumber,
     termId: row.termId,
     billingMethod: row.billingMethod as BillingMethod,
+    payer: {
+      payer: row.payer as PayerDetails["payer"],
+      payerRef: row.payerRef,
+      payerName: row.payerName,
+      payerAddress: row.payerAddress as PayerDetails["payerAddress"],
+    },
     plan: row.plan as unknown as PayPlan,
     dunning: billingConfigOf({ dunning: row.dunning }).dunning,
     status: row.status as "active" | "closed",

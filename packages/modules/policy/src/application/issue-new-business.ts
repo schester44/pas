@@ -13,8 +13,8 @@ import { type BillingMethod, type NewBusinessLine, Policy } from "../domain/poli
 import { categoryOf } from "../domain/policy-event";
 import { formatPolicyNumber } from "../domain/policy-number";
 import type { PolicyEventType, TimelineActor } from "../domain/policy-event";
-import type { InvoiceIssuer } from "../ports/invoice-issuer";
-import type { Dunning, PayPlan } from "@pas/pay-plans";
+import type { BillingPayer, InvoiceIssuer } from "../ports/invoice-issuer";
+import type { Dunning, MortgageeFollowUp, PayPlan } from "@pas/pay-plans";
 import { transactionInvoice } from "./pricing";
 import type { InsuredParty, PolicyParties } from "../ports/policy-parties";
 import type { PolicyRepository } from "../ports/policy-repository";
@@ -39,7 +39,13 @@ export interface IssueNewBusinessInput {
   taxesFees: { code: string; label: string; remitter: string; amount: MoneyJson }[];
   writtenPremium: MoneyJson;
   snapshot: Record<string, unknown>;
-  billing: { method: BillingMethod; payPlan: PayPlan | null; dunning: Dunning };
+  billing: {
+    method: BillingMethod;
+    payPlan: PayPlan | null;
+    dunning: Dunning;
+    payer?: BillingPayer;
+    mortgagee?: { followUp: MortgageeFollowUp; lenderEmail: string | null };
+  };
   actor: TimelineActor;
   history: {
     type: PolicyEventType;
@@ -180,6 +186,8 @@ export function makeIssueNewBusiness(deps: {
             plan: input.billing.payPlan,
             dunning: input.billing.dunning,
             billingMethod: input.billing.method,
+            ...(input.billing.payer && { payer: input.billing.payer }),
+            ...(input.billing.mortgagee && { mortgagee: input.billing.mortgagee }),
           },
         }),
       });

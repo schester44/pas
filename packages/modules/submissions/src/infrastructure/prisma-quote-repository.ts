@@ -31,8 +31,9 @@ const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Json;
 
 type EvaluationJson = Omit<
   QuoteEvaluation,
-  "premium" | "writtenPremium" | "taxesFees" | "total" | "evaluatedAt"
+  "premium" | "writtenPremium" | "taxesFees" | "total" | "evaluatedAt" | "adjustment"
 > & {
+  adjustment?: Omit<NonNullable<QuoteEvaluation["adjustment"]>, "amount"> & { amount: MoneyJson };
   premium: (Omit<QuoteEvaluation["premium"][number], "premium"> & { premium: MoneyJson })[];
   writtenPremium: MoneyJson;
   taxesFees: (Omit<QuoteEvaluation["taxesFees"][number], "amount"> & { amount: MoneyJson })[];
@@ -40,7 +41,7 @@ type EvaluationJson = Omit<
   evaluatedAt: string;
 };
 
-function evaluationFromJson(value: EvaluationJson): QuoteEvaluation {
+function evaluationFromJson({ adjustment, ...value }: EvaluationJson): QuoteEvaluation {
   return {
     ...value,
     premium: value.premium.map((line) => ({ ...line, premium: money(line.premium) })),
@@ -49,6 +50,7 @@ function evaluationFromJson(value: EvaluationJson): QuoteEvaluation {
     total: money(value.total),
     evaluatedAt: instant(value.evaluatedAt),
     payPlans: value.payPlans ?? [],
+    ...(adjustment && { adjustment: { ...adjustment, amount: money(adjustment.amount) } }),
   };
 }
 

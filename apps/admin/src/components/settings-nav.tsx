@@ -1,4 +1,15 @@
-import { BadgeCheck, Blocks, FlaskConical, Palette, ShieldCheck, Users } from "lucide-react";
+import {
+  BadgeCheck,
+  Bell,
+  BookOpen,
+  Blocks,
+  ClipboardCheck,
+  FlaskConical,
+  Palette,
+  ShieldCheck,
+  Users,
+  Webhook,
+} from "lucide-react";
 import type * as React from "react";
 import { type Access, useAccess } from "@/lib/permissions";
 import type { FileRouteTypes } from "@/routeTree.gen";
@@ -33,9 +44,38 @@ const settingsNav: { label: string; items: SettingsNavItem[] }[] = [
         visible: (access) => access.compliance.write,
       },
       {
+        to: "/settings/underwriting",
+        label: "Underwriting",
+        icon: <ClipboardCheck />,
+        visible: (access) => access.underwriting.read,
+      },
+      {
         to: "/settings/sandbox",
         label: "Sandbox",
         icon: <FlaskConical />,
+        visible: (access) => access.branding.update,
+      },
+      {
+        to: "/settings/notifications",
+        label: "Notifications",
+        icon: <Bell />,
+        visible: () => true,
+      },
+    ],
+  },
+  {
+    label: "Developers",
+    items: [
+      {
+        to: "/settings/developers/webhooks",
+        label: "Webhooks",
+        icon: <Webhook />,
+        visible: (access) => access.branding.update,
+      },
+      {
+        to: "/settings/developers/events",
+        label: "Event catalog",
+        icon: <BookOpen />,
         visible: (access) => access.branding.update,
       },
     ],

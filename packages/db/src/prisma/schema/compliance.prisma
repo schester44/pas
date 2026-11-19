@@ -1,34 +1,34 @@
 /// A regulatory or contractual duty created by a decision on a domain event (PLAN §17.1).
 model ComplianceObligation {
-  id           String    @id @db.Uuid
-  tenantId     String    @map("tenant_id")
-  dedupeKey    String    @map("dedupe_key")
-  kind         String
-  code         String
-  title        String
-  status       String
-  jurisdiction String
-  country      String
-  subjectType  String    @map("subject_type")
-  policyId     String?   @map("policy_id") @db.Uuid
-  transactionId String?  @map("transaction_id") @db.Uuid
-  licenseeId   String?   @map("licensee_id") @db.Uuid
-  anchorDate   DateTime  @map("anchor_date") @db.Date
-  subject      Json
-  responsible  Json
-  channel      String
-  rule         Json
-  timer        Json
-  dueDate      DateTime  @map("due_date") @db.Date
-  lateFrom     DateTime  @map("late_from") @db.Timestamptz(6)
-  escalation   Int       @default(0)
-  data         Json
-  source       Json
-  proof        Json?
-  waiver       Json?
-  createdAt    DateTime  @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @map("updated_at") @db.Timestamptz(6)
-  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id")
+  dedupeKey     String    @map("dedupe_key")
+  kind          String
+  code          String
+  title         String
+  status        String
+  jurisdiction  String
+  country       String
+  subjectType   String    @map("subject_type")
+  policyId      String?   @map("policy_id") @db.Uuid
+  transactionId String?   @map("transaction_id") @db.Uuid
+  licenseeId    String?   @map("licensee_id") @db.Uuid
+  anchorDate    DateTime  @map("anchor_date") @db.Date
+  subject       Json
+  responsible   Json
+  channel       String
+  rule          Json
+  timer         Json
+  dueDate       DateTime  @map("due_date") @db.Date
+  lateFrom      DateTime  @map("late_from") @db.Timestamptz(6)
+  escalation    Int       @default(0)
+  data          Json
+  source        Json
+  proof         Json?
+  waiver        Json?
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @map("updated_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
 
   filings ComplianceFiling[]
   events  ComplianceObligationEvent[]

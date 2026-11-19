@@ -29,6 +29,7 @@ import {
 import { lobProvider } from "./providers/lob";
 import { postmarkProvider } from "./providers/postmark";
 import { resendProvider } from "./providers/resend";
+import { slackProvider } from "./providers/slack";
 import { smtpProvider } from "./providers/smtp";
 import { stripeProvider } from "./providers/stripe";
 import { webhookEmailProvider, webhookPrintMailProvider } from "./providers/webhook";
@@ -55,6 +56,7 @@ export function composeIntegrations(deps: {
     lobProvider(),
     webhookEmailProvider(),
     webhookPrintMailProvider(),
+    slackProvider(),
     externalBillingProvider(),
     censusGeocoderProvider,
     e2valueProvider(),

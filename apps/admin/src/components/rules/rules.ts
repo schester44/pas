@@ -24,6 +24,8 @@ export const KIND_COPY: Record<DecisionKind, string> = {
   dea: "Says when a surplus lines diligent search is required.",
   attestations: "Lists the statements the insured must confirm before binding.",
   referral_triggers: "Flags conditions that need an underwriter's review.",
+  subjectivities: "Lists the conditions the insured or producer must meet before or after binding.",
+  inspection_requirements: "Orders a property inspection before or after binding.",
   filing_obligations:
     "Creates filings and affidavits owed for each issued transaction, with their deadlines.",
   reporting_obligations: "Creates periodic reports and remittances owed per licensee and state.",
@@ -182,6 +184,21 @@ export function summarize(kind: DecisionKind, result: unknown): string {
       return plural((result as DecisionResult<"referral_triggers">).triggers.length, "trigger");
     case "attestations":
       return plural((result as DecisionResult<"attestations">).attestations.length, "attestation");
+    case "subjectivities":
+      return plural(
+        (result as DecisionResult<"subjectivities">).subjectivities.length,
+        "subjectivity",
+        "subjectivities",
+      );
+    case "inspection_requirements": {
+      const { inspections } = result as DecisionResult<"inspection_requirements">;
+
+      return inspections.length
+        ? inspections
+            .map((i) => `${humanize(i.type)} · ${humanize(i.timing).toLowerCase()}`)
+            .join(", ")
+        : "No inspection";
+    }
     case "notice_rules": {
       const notice = result as DecisionResult<"notice_rules">;
 

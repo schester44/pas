@@ -311,6 +311,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../packages/engines/documents
+      '@pas/events':
+        specifier: workspace:*
+        version: link:../../packages/modules/events
       '@pas/form-library':
         specifier: workspace:*
         version: link:../../packages/modules/form-library
@@ -329,6 +332,9 @@ importers:
       '@pas/parties':
         specifier: workspace:*
         version: link:../../packages/modules/parties
+      '@pas/pay-plans':
+        specifier: workspace:*
+        version: link:../../packages/engines/pay-plans
       '@pas/policy':
         specifier: workspace:*
         version: link:../../packages/modules/policy
@@ -356,6 +362,9 @@ importers:
       '@pas/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@pas/underwriting':
+        specifier: workspace:*
+        version: link:../../packages/modules/underwriting
       '@pas/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -445,6 +454,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@pas/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@pas/billing':
         specifier: workspace:*
         version: link:../../packages/modules/billing
@@ -460,6 +472,9 @@ importers:
       '@pas/distribution':
         specifier: workspace:*
         version: link:../../packages/modules/distribution
+      '@pas/events':
+        specifier: workspace:*
+        version: link:../../packages/modules/events
       '@pas/integrations':
         specifier: workspace:*
         version: link:../../packages/modules/integrations
@@ -493,6 +508,9 @@ importers:
       '@pas/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@pas/underwriting':
+        specifier: workspace:*
+        version: link:../../packages/modules/underwriting
       '@pas/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -736,12 +754,18 @@ importers:
       '@pas/db':
         specifier: workspace:*
         version: link:../../db
+      '@pas/documents':
+        specifier: workspace:*
+        version: link:../../engines/documents
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
       '@pas/pay-plans':
         specifier: workspace:*
         version: link:../../engines/pay-plans
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
 
   packages/modules/catalog:
     dependencies:
@@ -791,6 +815,24 @@ importers:
         specifier: workspace:*
         version: link:../../kernel
 
+  packages/modules/events:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/expressions':
+        specifier: workspace:*
+        version: link:../../engines/expressions
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/queues':
+        specifier: workspace:*
+        version: link:../../queues
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   packages/modules/form-library:
     dependencies:
       '@pas/db':
@@ -823,6 +865,9 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@pas/underwriting':
+        specifier: workspace:*
+        version: link:../underwriting
       nodemailer:
         specifier: ^10.6.0
         version: 10.6.0
@@ -955,6 +1000,27 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../kernel
+
+  packages/modules/underwriting:
+    dependencies:
+      '@pas/addresses':
+        specifier: workspace:*
+        version: link:../addresses
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/decisions-engine':
+        specifier: workspace:*
+        version: link:../../engines/decisions
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
+      '@pas/submissions':
+        specifier: workspace:*
+        version: link:../submissions
 
   packages/observability:
     dependencies:

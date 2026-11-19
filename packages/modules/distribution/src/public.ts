@@ -57,3 +57,9 @@ export type {
 } from "./ports/producer-licensing";
 export type { PolicyFinancials, TransactionFinancials } from "./ports/policy-financials";
 export type { MemberDirectory } from "./ports/member-directory";
+export {
+  makeAgencyBilling,
+  type AgencyBilling,
+  type AgencyBillingTerms,
+} from "./application/agency-billing";
+export { REMITTANCE_BASES, type RemittanceBasis } from "./domain/agency";

@@ -10,7 +10,8 @@
     "dev": "LOG_PRETTY=true tsx watch --env-file=../../.env src/index.ts",
     "build": "tsup",
     "start": "node --env-file-if-exists=../../.env --enable-source-maps dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:underwriting": "tsx --env-file=../../.env src/scripts/seed-underwriting.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
@@ -24,12 +25,14 @@
     "@pas/decisions-engine": "workspace:*",
     "@pas/distribution": "workspace:*",
     "@pas/documents": "workspace:*",
+    "@pas/events": "workspace:*",
     "@pas/form-library": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/observability": "workspace:*",
     "@pas/parties": "workspace:*",
+    "@pas/pay-plans": "workspace:*",
     "@pas/policy": "workspace:*",
     "@pas/queues": "workspace:*",
     "@pas/rating": "workspace:*",
@@ -39,6 +42,7 @@
     "@pas/submissions": "workspace:*",
     "@pas/tenants": "workspace:*",
     "@pas/ui": "workspace:*",
+    "@pas/underwriting": "workspace:*",
     "@pas/workflows": "workspace:*",
     "@trpc/server": "^11.29.4",
     "fastify": "^5.12.8",

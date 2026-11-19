@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { createLocalStorage } from "./local";
 import { createS3Storage } from "./s3";
 import type { ObjectStorage } from "./storage";
@@ -12,6 +14,17 @@ function required(env: Env, name: string): string {
   return value;
 }
 
+// Relative paths resolve from the workspace root so the api and worker share one directory.
+function localDir(dir: string): string {
+  if (isAbsolute(dir)) return dir;
+
+  let at = process.cwd();
+
+  while (!existsSync(join(at, "pnpm-workspace.yaml")) && dirname(at) !== at) at = dirname(at);
+
+  return resolve(existsSync(join(at, "pnpm-workspace.yaml")) ? at : process.cwd(), dir);
+}
+
 /**
  * Build storage from env. `STORAGE_DRIVER=local` (default) uses `STORAGE_LOCAL_DIR`;
  * `STORAGE_DRIVER=s3` uses `S3_BUCKET`, `S3_REGION`, and optionally `S3_ENDPOINT`,
@@ -22,7 +35,7 @@ export function createStorageFromEnv(env: Env = process.env): ObjectStorage {
 
   switch (driver) {
     case "local":
-      return createLocalStorage(env.STORAGE_LOCAL_DIR ?? ".storage");
+      return createLocalStorage(localDir(env.STORAGE_LOCAL_DIR ?? ".storage"));
     case "s3": {
       const accessKeyId = env.S3_ACCESS_KEY_ID;
       const secretAccessKey = env.S3_SECRET_ACCESS_KEY;

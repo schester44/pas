@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@pas/db": "workspace:*",
+    "@pas/documents": "workspace:*",
     "@pas/kernel": "workspace:*",
-    "@pas/pay-plans": "workspace:*"
+    "@pas/pay-plans": "workspace:*",
+    "@pas/storage": "workspace:*"
   }
 }

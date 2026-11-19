@@ -68,7 +68,14 @@ export class TenantClocks implements TenantClockControl {
       }),
     );
 
-    this.offsets = new Map(rows.map((r) => [r.tenantId, Number(r.clockOffsetMs)]));
+    // Sandbox time only moves forward: a read that started before a travel committed mustn't rewind it.
+    this.offsets = new Map(
+      rows.map((r) => [
+        r.tenantId,
+        Math.max(Number(r.clockOffsetMs), this.offsets.get(r.tenantId) ?? -Infinity),
+      ]),
+    );
+
     this.sandboxes = new Set(rows.map((r) => r.tenantId));
   }
 

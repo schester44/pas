@@ -3,3 +3,4 @@ export { PrismaProducerRepository } from "./infrastructure/prisma-producer-repos
 export { PrismaCommissionRepository } from "./infrastructure/prisma-commission-repository";
 export { PrismaMemberDirectory } from "./infrastructure/prisma-member-directory";
 export { OnFileLicensing } from "./infrastructure/on-file-licensing";
+export { PrismaDistributionCloner } from "./infrastructure/prisma-distribution-cloner";

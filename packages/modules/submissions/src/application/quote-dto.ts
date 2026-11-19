@@ -9,6 +9,7 @@ import type { Quote } from "../domain/quote";
 import type { DecisionRecord, RatingRecord } from "../domain/quote-evaluation";
 import type { Submission } from "../domain/submission";
 import type { UnderwritingReason } from "../domain/underwriting";
+import { insuredValueOf, type ReferralModifications } from "../domain/underwriter-terms";
 import { AUTOPAY_CONSENT, ESIGN_CONSENT } from "./esign-consent";
 
 export interface MoneyDto {
@@ -67,7 +68,9 @@ export interface QuoteDto {
     written: MoneyDto;
     taxesFees: { code: string; label: string; rate?: string; basis: string; amount: MoneyDto }[];
     total: MoneyDto;
+    adjustment: { percent: string; reason: string; amount: MoneyDto } | null;
   };
+  insuredValue: MoneyDto;
   declineReasons: ReasonDto[];
   referral: {
     reasons: ReasonDto[];
@@ -78,6 +81,8 @@ export interface QuoteDto {
       by: string;
       note?: string;
       conditions: string[];
+      modifications: ReferralModifications | null;
+      adverseActionNotice?: string;
       decidedAt: string;
     } | null;
   } | null;
@@ -212,13 +217,27 @@ export function toQuoteDto(
         amount: money(line.amount),
       })),
       total: money(e.total),
+      adjustment: e.adjustment
+        ? {
+            percent: e.adjustment.percent,
+            reason: e.adjustment.reason,
+            amount: money(e.adjustment.amount),
+          }
+        : null,
     },
+    insuredValue: money(insuredValueOf(e.offers, q.selection, e.total.currency)),
     declineReasons:
       q.status === "declined"
-        ? (q.referral?.decision?.outcome === "declined"
-            ? q.referral.reasons
-            : e.reasons.filter((r) => r.outcome === "decline")
-          ).map((r) => reasonDto(r, view))
+        ? q.referral?.decision?.declineReasons?.length
+          ? q.referral.decision.declineReasons.map((r) => ({
+              reasonCode: r.code,
+              message: r.message,
+              outcome: "decline" as const,
+            }))
+          : (q.referral?.decision?.outcome === "declined"
+              ? q.referral.reasons
+              : e.reasons.filter((r) => r.outcome === "decline")
+            ).map((r) => reasonDto(r, view))
         : [],
     referral: q.referral && {
       reasons: q.referral.reasons.map((r) => reasonDto(r, view)),
@@ -229,6 +248,10 @@ export function toQuoteDto(
         by: q.referral.decision.by.name,
         ...(q.referral.decision.note && { note: q.referral.decision.note }),
         conditions: q.referral.decision.conditions,
+        modifications: q.referral.decision.modifications ?? null,
+        ...(q.referral.decision.adverseActionNotice && {
+          adverseActionNotice: q.referral.decision.adverseActionNotice,
+        }),
         decidedAt: q.referral.decision.decidedAt.toString(),
       },
     },

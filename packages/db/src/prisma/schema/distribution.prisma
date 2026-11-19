@@ -1,23 +1,32 @@
 /// An agency or one of its branches/sub-agencies (PLAN §4 Distribution). Agency-bill terms are data
 /// the billing context reads later (PLAN §13).
 model Agency {
-  id                 String   @id @db.Uuid
-  tenantId           String   @map("tenant_id")
-  parentId           String?  @map("parent_id") @db.Uuid
-  name               String
-  legalName          String?  @map("legal_name")
-  fein               String?
-  address            Json?
-  phone              String?
-  email              String?
-  status             String
-  tier               String
-  agencyBillEligible Boolean  @default(false) @map("agency_bill_eligible")
-  remittanceDays     Int?     @map("remittance_days")
-  creditLimit        Decimal? @map("credit_limit") @db.Decimal(18, 2)
-  currency           String   @default("USD") @db.Char(3)
-  createdAt          DateTime @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @map("updated_at") @db.Timestamptz(6)
+  id                        String    @id @db.Uuid
+  tenantId                  String    @map("tenant_id")
+  parentId                  String?   @map("parent_id") @db.Uuid
+  name                      String
+  legalName                 String?   @map("legal_name")
+  fein                      String?
+  address                   Json?
+  phone                     String?
+  email                     String?
+  status                    String
+  tier                      String
+  agencyBillEligible        Boolean   @default(false) @map("agency_bill_eligible")
+  remittanceDays            Int?      @map("remittance_days")
+  creditLimit               Decimal?  @map("credit_limit") @db.Decimal(18, 2)
+  /// gross | net (net deducts the commission from what the agency remits)
+  remittanceBasis           String    @default("gross") @map("remittance_basis")
+  /// Account current cut-off day of month; null cuts off at month end.
+  statementDay              Int?      @map("statement_day")
+  reminderDays              Int?      @map("reminder_days")
+  suspendAfterDays          Int?      @map("suspend_after_days")
+  nonpaymentCancels         Boolean   @default(false) @map("nonpayment_cancels")
+  agencyBillSuspendedAt     DateTime? @map("agency_bill_suspended_at") @db.Timestamptz(6)
+  agencyBillSuspendedReason String?   @map("agency_bill_suspended_reason")
+  currency                  String    @default("USD") @db.Char(3)
+  createdAt                 DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime  @map("updated_at") @db.Timestamptz(6)
 
   @@index([tenantId, parentId])
   @@index([tenantId, name])

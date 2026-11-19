@@ -10,6 +10,7 @@ import {
 import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { NotificationsBell } from "@/components/notifications-bell";
 import { SearchTrigger } from "@/components/search-palette";
 import { authClient } from "@/lib/auth";
 import { initials } from "@/lib/format";
@@ -58,6 +59,7 @@ function AuthedLayout() {
           )}
           <div className="ml-auto flex flex-1 items-center justify-end gap-3">
             <SearchTrigger userId={session.user.id} />
+            <NotificationsBell />
             <DropdownMenu>
               <DropdownMenuTrigger className="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                 {initials(session.user.name)}

@@ -23,6 +23,8 @@ model Invoice {
   installments     Int           @default(1)
   payer            String        @default("insured")
   payerRef         String?       @map("payer_ref")
+  payerName        String?       @map("payer_name")
+  payerAddress     Json?         @map("payer_address")
   currency         String        @db.Char(3)
   total            Decimal       @db.Decimal(18, 2)
   amountPaid       Decimal       @map("amount_paid") @db.Decimal(18, 2)
@@ -92,6 +94,10 @@ model BillingSchedule {
   policyNumber    String   @map("policy_number")
   termId          String   @map("term_id") @db.Uuid
   billingMethod   String   @default("direct") @map("billing_method")
+  payer           String   @default("insured")
+  payerRef        String?  @map("payer_ref")
+  payerName       String?  @map("payer_name")
+  payerAddress    Json?    @map("payer_address")
   plan            Json
   dunning         Json
   status          String

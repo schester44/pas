@@ -8,6 +8,8 @@ export type {
   BillingSystem,
   CardPayments,
   CategoryAdapters,
+  ChatChannel,
+  ChatPost,
   CheckoutSetup,
   DataProvider,
   EmailMessage,

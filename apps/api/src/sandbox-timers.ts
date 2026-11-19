@@ -1,9 +1,22 @@
-import { installmentWorkflow, type InstallmentTimers } from "@pas/billing";
+import {
+  agencyAccountWorkflow,
+  type AgencyStatements,
+  installmentWorkflow,
+  type InstallmentTimers,
+  type MortgageeBilling,
+  mortgageeBillWorkflow,
+} from "@pas/billing";
 import { filingWorkflow, obligationWorkflow, type ObligationTimers } from "@pas/compliance";
 import type { TenantContext } from "@pas/kernel";
 import { policyCancellationWorkflow, policyTermWorkflow, type TermTimers } from "@pas/policy";
 import { type QuoteTimers, quoteJourneyWorkflow } from "@pas/submissions";
 import type { SandboxTimers, UpcomingTimer } from "@pas/tenants";
+import {
+  type InspectionTimers,
+  inspectionWorkflow,
+  type SubjectivityTimers,
+  subjectivityWorkflow,
+} from "@pas/underwriting";
 import type { PostgresWorkflows, ScheduledTimer } from "@pas/workflows";
 
 const POLL_MS = 200;
@@ -24,8 +37,41 @@ export function makeSandboxTimers(deps: {
   quotes: QuoteTimers;
   installments: InstallmentTimers;
   obligations: ObligationTimers;
+  inspections: InspectionTimers;
+  subjectivities: SubjectivityTimers;
+  agencyStatements: AgencyStatements;
+  mortgagee: MortgageeBilling;
 }): SandboxTimers {
   const describers: Record<string, Describe> = {
+    [agencyAccountWorkflow.id]: async (_ctx, timer) => {
+      const step = timer.stepId.replace(/^wait-/, "");
+      const input = timer.input as { cutoff: string };
+
+      const label =
+        {
+          cutoff: "Account current cut-off",
+          "past-due": "Agency statement past due",
+          remind: "Agency statement reminder",
+          suspend: "Agency bill suspension",
+        }[step] ?? "Agency statement step";
+
+      return { label, reference: `Cut-off ${input.cutoff}` };
+    },
+    [mortgageeBillWorkflow.id]: async (ctx, timer) => {
+      const bill = await deps.mortgagee.describe(ctx, timer.input as { mortgageeBillId: string });
+
+      const step = timer.stepId.replace(/^wait-/, "");
+
+      const label = step.startsWith("remind")
+        ? "Lender premium reminder"
+        : step === "offer-direct"
+          ? "Offer direct bill to the insured"
+          : step === "nonpayment"
+            ? "Mortgagee bill nonpayment"
+            : "Mortgagee bill step";
+
+      return { label, reference: bill ? `${bill.policyNumber} · ${bill.lender}` : null };
+    },
     [policyTermWorkflow.id]: async (ctx, timer) => {
       const policy = await deps.terms.describe(ctx, timer.input as { termId: string });
 
@@ -74,6 +120,28 @@ export function makeSandboxTimers(deps: {
       );
 
       return { label: "Filing answer check", reference: obligation?.reference ?? null };
+    },
+    [inspectionWorkflow.id]: async (ctx, timer) => {
+      const inspection = await deps.inspections.describe(
+        ctx,
+        timer.input as { inspectionId: string },
+      );
+
+      return {
+        label: `${inspection?.label ?? "Inspection"} update`,
+        reference: inspection?.reference ?? null,
+      };
+    },
+    [subjectivityWorkflow.id]: async (ctx, timer) => {
+      const subjectivity = await deps.subjectivities.describe(
+        ctx,
+        timer.input as { subjectivityId: string },
+      );
+
+      return {
+        label: `${subjectivity?.title ?? "Subjectivity"} due`,
+        reference: subjectivity?.reference ?? null,
+      };
     },
     [quoteJourneyWorkflow.id]: async (ctx, timer) => {
       const quote = await deps.quotes.describe(ctx, timer.input as { quoteId: string });

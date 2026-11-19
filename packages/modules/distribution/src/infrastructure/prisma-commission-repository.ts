@@ -123,6 +123,7 @@ export class PrismaCommissionRepository implements CommissionRepository {
     filter: {
       agencyIds?: readonly string[];
       policyId?: string;
+      transactionIds?: readonly string[];
       from?: Temporal.Instant;
       to?: Temporal.Instant;
     },
@@ -132,6 +133,7 @@ export class PrismaCommissionRepository implements CommissionRepository {
         tenantId: ctx.tenantId,
         ...(filter.agencyIds && { agencyId: { in: [...filter.agencyIds] } }),
         ...(filter.policyId && { policyId: filter.policyId }),
+        ...(filter.transactionIds && { transactionId: { in: [...filter.transactionIds] } }),
         ...((filter.from || filter.to) && {
           recordedAt: {
             ...(filter.from && { gte: toDate(filter.from) }),

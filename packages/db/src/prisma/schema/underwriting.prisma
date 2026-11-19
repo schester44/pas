@@ -1,0 +1,124 @@
+/// A referred quote in the underwriter queue (PLAN §11).
+model UnderwritingReferral {
+  id               String    @id @db.Uuid
+  tenantId         String    @map("tenant_id")
+  quoteId          String    @map("quote_id") @db.Uuid
+  submissionId     String    @map("submission_id") @db.Uuid
+  submissionNumber String    @map("submission_number")
+  productId        String    @map("product_id") @db.Uuid
+  productName      String    @map("product_name")
+  country          String    @db.Char(2)
+  subdivision      String?   @db.VarChar(6)
+  insuredName      String?   @map("insured_name")
+  producer         Json
+  status           String
+  quote            Json
+  requiredLevel    Int       @map("required_level")
+  assigneeId       String?   @map("assignee_id")
+  assignee         Json?
+  escalation       Json?
+  decision         Json?
+  dueAt            DateTime  @map("due_at") @db.Timestamptz(6)
+  openedAt         DateTime  @map("opened_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  entries UnderwritingReferralEntry[]
+
+  @@index([tenantId, status, dueAt])
+  @@index([tenantId, quoteId])
+  @@map("underwriting_referrals")
+}
+
+/// Append-only conversation and audit trail of a referral: who did what, when, and what changed.
+model UnderwritingReferralEntry {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id")
+  referralId String   @map("referral_id") @db.Uuid
+  kind       String
+  visibility String
+  action     String?
+  author     Json
+  body       String
+  data       Json
+  at         DateTime @db.Timestamptz(6)
+
+  referral UnderwritingReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, referralId, at], map: "uw_referral_entries_tenant_referral_at_idx")
+  @@map("underwriting_referral_entries")
+}
+
+/// A condition of the offer, before or after binding.
+model UnderwritingSubjectivity {
+  id               String    @id @db.Uuid
+  tenantId         String    @map("tenant_id")
+  quoteId          String    @map("quote_id") @db.Uuid
+  submissionId     String    @map("submission_id") @db.Uuid
+  submissionNumber String    @map("submission_number")
+  policyId         String?   @map("policy_id") @db.Uuid
+  policyNumber     String?   @map("policy_number")
+  referralId       String?   @map("referral_id") @db.Uuid
+  inspectionId     String?   @map("inspection_id") @db.Uuid
+  code             String
+  title            String
+  description      String?
+  timing           String
+  dueDays          Int?      @map("due_days")
+  dueDate          DateTime? @map("due_date") @db.Date
+  owner            String
+  source           String
+  consequence      String?
+  status           String
+  documents        Json
+  history          Json
+  overdueAt        DateTime? @map("overdue_at") @db.Timestamptz(6)
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, quoteId, code], map: "uw_subjectivities_tenant_quote_code_key")
+  @@index([tenantId, policyId])
+  @@index([tenantId, status, dueDate])
+  @@map("underwriting_subjectivities")
+}
+
+/// A property inspection ordered through the inspection port, and its review.
+model UnderwritingInspection {
+  id               String    @id @db.Uuid
+  tenantId         String    @map("tenant_id")
+  quoteId          String    @map("quote_id") @db.Uuid
+  submissionId     String    @map("submission_id") @db.Uuid
+  submissionNumber String    @map("submission_number")
+  policyId         String?   @map("policy_id") @db.Uuid
+  policyNumber     String?   @map("policy_number")
+  subjectivityId   String?   @map("subjectivity_id") @db.Uuid
+  code             String
+  type             String
+  timing           String
+  reason           String
+  address          Json
+  providerId       String?   @map("provider_id")
+  providerRef      String?   @map("provider_ref")
+  status           String
+  scheduledFor     DateTime? @map("scheduled_for") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  report           Json?
+  review           Json?
+  history          Json
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, quoteId, code])
+  @@index([tenantId, status, updatedAt])
+  @@map("underwriting_inspections")
+}
+
+/// Tenant underwriting config: authority profiles, decline reasons, overdue consequence.
+model UnderwritingSettings {
+  tenantId           String   @id @map("tenant_id")
+  authorityProfiles  Json     @map("authority_profiles")
+  declineReasons     Json     @map("decline_reasons")
+  overdueConsequence String?  @map("overdue_consequence")
+  updatedAt          DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@map("underwriting_settings")
+}

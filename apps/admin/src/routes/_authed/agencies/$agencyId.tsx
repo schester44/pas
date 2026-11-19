@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, Building2, Plus, Users } from "lucide-react";
 import { useState } from "react";
+import { StatementsTable } from "@/components/billing/statements";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { AgencyDialog } from "@/components/distribution/agency-dialog";
 import { AgencyStatement } from "@/components/distribution/agency-statement";
@@ -34,7 +35,7 @@ import { formatMoney, formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
-const TABS = ["producers", "licenses", "appointments", "statement"] as const;
+const TABS = ["producers", "licenses", "appointments", "statement", "account"] as const;
 type Tab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/_authed/agencies/$agencyId")({
@@ -96,6 +97,12 @@ function AgencyPage() {
           </>
         ) : (
           <>
+            {agency.data.billing.suspension && (
+              <Notice tone="warning" title="Agency bill suspended">
+                {agency.data.billing.suspension.reason}. New binds fall back to direct bill until
+                the account is current; existing policies stay in force.
+              </Notice>
+            )}
             <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
               <AgencySummary agency={agency.data} />
               <Hierarchy agency={agency.data} />
@@ -115,7 +122,10 @@ function AgencyPage() {
                   { value: "producers", label: `Producers ${agency.data.producers.length}` },
                   { value: "licenses", label: "Licenses" },
                   { value: "appointments", label: "Appointments" },
-                  { value: "statement", label: "Statement" },
+                  { value: "statement", label: "Commissions" },
+                  ...(agency.data.billing.eligible || agency.data.billing.suspension
+                    ? [{ value: "account" as const, label: "Account current" }]
+                    : []),
                 ]}
               />
               {tab === "producers" && (
@@ -123,6 +133,7 @@ function AgencyPage() {
               )}
               {tab === "licenses" && <LicensesPanel agency={agency.data} />}
               {tab === "appointments" && <AppointmentsPanel agency={agency.data} />}
+              {tab === "account" && <StatementsTable agencyId={agency.data.id} />}
               {tab === "statement" && (
                 <AgencyStatement
                   agencyId={agency.data.id}
@@ -153,15 +164,18 @@ function AgencySummary({ agency }: { agency: AgencyDetail }) {
         <Fact label="FEIN">{agency.fein ?? "—"}</Fact>
         <Fact label="Commission tier">{tierLabel(agency.tier)}</Fact>
         <Fact label="Agency bill">
-          {agency.billing.eligible
-            ? [
-                agency.billing.remittanceDays !== null && `Net ${agency.billing.remittanceDays}`,
-                agency.billing.creditLimit &&
-                  `${formatMoney(agency.billing.creditLimit.amount, agency.billing.creditLimit.currency)} limit`,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Eligible"
-            : "Not eligible"}
+          {agency.billing.suspension
+            ? "Suspended"
+            : agency.billing.eligible
+              ? [
+                  agency.billing.remittanceBasis === "net" ? "Net of commission" : "Gross",
+                  agency.billing.remittanceDays !== null && `${agency.billing.remittanceDays} days`,
+                  agency.billing.creditLimit &&
+                    `${formatMoney(agency.billing.creditLimit.amount, agency.billing.creditLimit.currency)} limit`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Eligible"
+              : "Not eligible"}
         </Fact>
         <Fact label="Email">{agency.email ?? "—"}</Fact>
         <Fact label="Phone">{agency.phone ?? "—"}</Fact>

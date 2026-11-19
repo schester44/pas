@@ -6,9 +6,18 @@ import {
   type Transaction,
   type ClockProvider,
 } from "@pas/kernel";
-import { buildSchedule, type Dunning, netCredit, type PayPlan, spreadCharge } from "@pas/pay-plans";
-import { BillingSchedule, type BillingMethod } from "../domain/billing-schedule";
-import { Invoice } from "../domain/invoice";
+import {
+  buildSchedule,
+  type Dunning,
+  type MortgageeFollowUp,
+  netCredit,
+  type PayPlan,
+  spreadCharge,
+} from "@pas/pay-plans";
+import { BillingSchedule, type BillingMethod, INSURED } from "../domain/billing-schedule";
+import { Invoice, type PayerDetails } from "../domain/invoice";
+import { MortgageeBill } from "../domain/mortgagee-bill";
+import type { MortgageeBillRepository } from "../ports/mortgagee-bill-repository";
 import { type Charge, type ChargeKind, invoiceFrom, totalOf } from "../domain/invoice-lines";
 import { formatInvoiceNumber } from "../domain/invoice-number";
 import type { BillingScheduleRepository } from "../ports/billing-schedule-repository";
@@ -37,7 +46,13 @@ export interface IssueInvoiceInput {
   }[];
   issuedOn: string;
   dueOn: string;
-  schedule?: { plan: PayPlan; dunning: Dunning; billingMethod: BillingMethod };
+  schedule?: {
+    plan: PayPlan;
+    dunning: Dunning;
+    billingMethod: BillingMethod;
+    payer?: PayerDetails;
+    mortgagee?: { followUp: MortgageeFollowUp; lenderEmail: string | null };
+  };
 }
 
 export interface IssuedInvoiceDto extends InvoiceDto {
@@ -45,7 +60,11 @@ export interface IssuedInvoiceDto extends InvoiceDto {
   netted?: { credited: MoneyJson; installments: number };
 }
 
-type Deps = BillingEventDeps & { schedules: BillingScheduleRepository; clocks: ClockProvider };
+type Deps = BillingEventDeps & {
+  schedules: BillingScheduleRepository;
+  mortgageeBills: MortgageeBillRepository;
+  clocks: ClockProvider;
+};
 
 const SYSTEM = { type: "system" as const, name: "Billing" };
 
@@ -81,9 +100,12 @@ export function makeIssueInvoice(deps: Deps) {
       if (spread) return spread;
     }
 
-    const invoice = await issue(deps, tx, ctx, input, { draft });
+    const invoice = await issue(deps, tx, ctx, input, {
+      draft,
+      ...(schedule?.isActive && { payer: schedule.payer }),
+    });
 
-    if (schedule?.isActive && draft.kind === "credit_note") {
+    if (schedule?.isActive && draft.kind === "credit_note" && schedule.payer.payer !== "agency") {
       return netAgainstInstallments(deps, tx, ctx, input, schedule, invoice);
     }
 
@@ -102,13 +124,15 @@ async function issue(
   > & {
     issuedOn?: Temporal.PlainDate;
     dueOn?: Temporal.PlainDate;
+    payer?: PayerDetails;
   },
 ): Promise<Invoice> {
-  const { issuedOn, dueOn, ...rest } = options;
+  const { issuedOn, dueOn, payer, ...rest } = options;
 
   const invoice = Invoice.issue(
     {
       ...rest,
+      ...payer,
       tenantId: ctx.tenantId,
       number: formatInvoiceNumber(await deps.invoices.nextSequence(tx, ctx)),
       policyId: input.policyId,
@@ -121,6 +145,20 @@ async function issue(
   );
 
   await deps.invoices.save(tx, invoice);
+
+  if (payer?.payer === "agency" && payer.payerRef) {
+    await deps.outbox.add(tx, [
+      {
+        id: newId(),
+        type: "billing.agency_invoice_issued",
+        tenantId: ctx.tenantId,
+        aggregateType: "invoice",
+        aggregateId: invoice.id,
+        occurredAt: deps.clocks.forTenant(ctx.tenantId).now(),
+        payload: { invoiceId: invoice.id, policyId: input.policyId, agencyId: payer.payerRef },
+      },
+    ]);
+  }
 
   return invoice;
 }
@@ -142,6 +180,7 @@ async function startSchedule(
       policyNumber: input.policyNumber,
       termId: input.termId,
       billingMethod: config.billingMethod,
+      payer: config.payer ?? INSURED,
       plan: config.plan,
       dunning: config.dunning,
     },
@@ -156,12 +195,20 @@ async function startSchedule(
   );
 
   if (config.plan.installments <= 1) {
-    return toInvoiceDto(
-      await issue(deps, tx, ctx, input, {
-        draft: invoiceFrom(charges, input.currency, ROUNDING),
-        scheduleId: schedule.id,
+    const invoice = await issue(deps, tx, ctx, input, {
+      draft: invoiceFrom(charges, input.currency, ROUNDING),
+      scheduleId: schedule.id,
+      payer: schedule.payer,
+      ...(config.mortgagee && {
+        dueOn: parsePlainDate(input.issuedOn).add({ days: config.mortgagee.followUp.dueDays }),
       }),
-    );
+    });
+
+    if (config.billingMethod === "mortgagee" && config.mortgagee) {
+      await startMortgageeBill(deps, tx, ctx, input, invoice, config.mortgagee);
+    }
+
+    return toInvoiceDto(invoice);
   }
 
   const installments = buildSchedule(config.plan, {
@@ -225,6 +272,39 @@ async function startSchedule(
   );
 
   return toInvoiceDto(invoices[0]!);
+}
+
+async function startMortgageeBill(
+  deps: Deps,
+  tx: Transaction,
+  ctx: TenantContext,
+  input: IssueInvoiceInput,
+  invoice: Invoice,
+  config: NonNullable<NonNullable<IssueInvoiceInput["schedule"]>["mortgagee"]>,
+) {
+  const clock = deps.clocks.forTenant(ctx.tenantId);
+  const payer = invoice.payerDetails;
+
+  const bill = MortgageeBill.start(
+    {
+      tenantId: ctx.tenantId,
+      policyId: input.policyId,
+      policyNumber: input.policyNumber,
+      termId: input.termId,
+      invoiceId: invoice.id,
+      lender: {
+        name: payer.payerName ?? "Mortgagee",
+        loanNumber: payer.payerRef,
+        address: payer.payerAddress,
+        email: config.lenderEmail,
+      },
+      followUp: config.followUp,
+    },
+    clock,
+  );
+
+  await deps.mortgageeBills.save(tx, ctx, bill);
+  await deps.outbox.add(tx, bill.pullEvents());
 }
 
 async function spreadOver(

@@ -12,7 +12,9 @@ import {
 } from "@pas/kernel";
 import type { BillingEvent } from "../domain/billing-event";
 import type { Invoice } from "../domain/invoice";
+import type { AgencyStatementRepository } from "../ports/agency-statement-repository";
 import type { BillingEventLog } from "../ports/billing-event-log";
+import type { MortgageeBillRepository } from "../ports/mortgagee-bill-repository";
 import type { InvoiceRepository } from "../ports/invoice-repository";
 import type { BillingTimelineEntry, PolicyTimeline } from "../ports/policy-timeline";
 
@@ -22,6 +24,8 @@ export interface BillingEventDeps {
   timeline: PolicyTimeline;
   outbox: Outbox;
   clocks: ClockProvider;
+  statements?: AgencyStatementRepository;
+  mortgageeBills?: MortgageeBillRepository;
 }
 
 export const formatMoney = (money: Money) =>
@@ -47,6 +51,10 @@ export async function applyBillingEventIn(
   ctx: TenantContext,
   event: BillingEvent,
 ): Promise<{ applied: boolean; invoice: Invoice | null }> {
+  if (event.statementId && !event.invoiceId) {
+    return { applied: await applyStatementEventIn(deps, tx, ctx, event), invoice: null };
+  }
+
   const clock = deps.clocks.forTenant(ctx.tenantId);
 
   const invoice = event.invoiceId
@@ -213,7 +221,7 @@ export async function applyBillingEventIn(
       await log({
         type: "credit_applied",
         summary: applied
-          ? `Credit of ${formatMoney(amount())}${from} applied to ${number}`
+          ? `Credit of ${formatMoney(amount())}${from} applied to ${number}${event.reason ? ` (${event.reason})` : ""}`
           : `Credit of ${formatMoney(amount())} removed from ${number}`,
         data: { invoiceNumber: number, amount: amount().toJSON(), removed: !applied },
       });
@@ -285,8 +293,140 @@ export async function applyBillingEventIn(
 
   if (invoice) await deps.invoices.save(tx, invoice);
 
+  if (invoice && !invoice.isUnpaid && deps.mortgageeBills) {
+    const bill = await deps.mortgageeBills.findByInvoice(tx, ctx, invoice.id);
+
+    if (bill?.markPaid(clock.today("UTC"), clock)) await deps.mortgageeBills.save(tx, ctx, bill);
+  }
+
   return { applied: true, invoice };
 }
+
+/**
+ * A remittance (or its reversal) against an agency's account current: applied across the
+ * statement's items, each through the invoice path. A fully paid item's invoice is settled with
+ * a credit for what the agency kept (commission) or what returns already netted.
+ */
+async function applyStatementEventIn(
+  deps: BillingEventDeps,
+  tx: Transaction,
+  ctx: TenantContext,
+  event: BillingEvent,
+): Promise<boolean> {
+  if (!deps.statements) throw invalid("Agency statements aren't available here");
+
+  const statement = await deps.statements.findById(tx, ctx, event.statementId!);
+
+  if (!statement) throw notFound("Agency statement", event.statementId!);
+
+  if (event.type !== "payment.received" && event.type !== "payment.reversed") {
+    throw invalid("Statement events are payment.received or payment.reversed");
+  }
+
+  if (!event.amount) throw invalid(`${event.type} needs an amount`);
+
+  const fresh = await deps.events.record(tx, ctx, { ...event, invoiceId: null, policyId: null });
+
+  if (!fresh) return false;
+
+  const clock = deps.clocks.forTenant(ctx.tenantId);
+  const s = statement.toSnapshot();
+  const reference = `account current ${s.number}`;
+  const item = (id: string) => statement.items.find((i) => i.id === id)!;
+
+  const invoiceEvent = (suffix: string, rest: Partial<BillingEvent> & Pick<BillingEvent, "type">) =>
+    applyBillingEventIn(deps, tx, ctx, {
+      ...rest,
+      eventId: `${event.eventId}:${suffix}`,
+      source: event.source,
+      occurredAt: event.occurredAt,
+      ...(event.provider && { provider: event.provider }),
+      ...(event.reason && { reason: event.reason }),
+      actor: event.actor,
+    });
+
+  if (event.type === "payment.received") {
+    for (const allocation of statement.applyPayment(event.amount, clock)) {
+      const invoice = await deps.invoices.findById(tx, ctx, asId(allocation.invoiceId));
+      const cash = invoice ? minOf(allocation.amount, invoice.balance) : null;
+
+      if (cash?.amount.greaterThan(0)) {
+        await invoiceEvent(allocation.itemId, {
+          type: "payment.received",
+          invoiceId: allocation.invoiceId,
+          amount: cash,
+          reference: `${event.reference ? `${event.reference}, ` : ""}${reference}, ${item(allocation.itemId).invoiceNumber}`,
+        });
+      }
+
+      if (!allocation.settled) continue;
+
+      const after = await deps.invoices.findById(tx, ctx, asId(allocation.invoiceId));
+      const rest = after?.isUnpaid ? after.balance : null;
+
+      if (!rest?.amount.greaterThan(0)) continue;
+
+      await invoiceEvent(`${allocation.itemId}:settle`, {
+        type: "credit.applied",
+        invoiceId: allocation.invoiceId,
+        amount: rest,
+        reason: `Settled on ${reference}`,
+      });
+
+      statement.recordSettlementCredit(allocation.itemId, rest, clock);
+    }
+  } else {
+    const today = clock.today("UTC");
+
+    for (const reversal of statement.reversePayment(event.amount, today, clock)) {
+      const settlement = item(reversal.itemId).settlementCredit;
+
+      if (reversal.settled && settlement.amount.greaterThan(0)) {
+        await invoiceEvent(`${reversal.itemId}:unsettle`, {
+          type: "credit.removed",
+          invoiceId: reversal.invoiceId,
+          amount: settlement,
+        });
+
+        statement.recordSettlementCredit(reversal.itemId, settlement.minus(settlement), clock);
+      }
+
+      const invoice = await deps.invoices.findById(tx, ctx, asId(reversal.invoiceId));
+      const paid = invoice ? minOf(reversal.amount, invoice.toSnapshot().amountPaid) : null;
+
+      if (paid?.amount.greaterThan(0)) {
+        await invoiceEvent(reversal.itemId, {
+          type: "payment.reversed",
+          invoiceId: reversal.invoiceId,
+          amount: paid,
+        });
+      }
+    }
+  }
+
+  await deps.statements.save(tx, ctx, statement);
+
+  await deps.outbox.add(tx, [
+    {
+      id: newId(),
+      type: "billing.agency_statement_changed",
+      tenantId: ctx.tenantId,
+      aggregateType: "agency_statement",
+      aggregateId: statement.id,
+      occurredAt: clock.now(),
+      payload: {
+        statementId: statement.id,
+        agencyId: s.agencyId,
+        status: statement.status,
+        cause: event.type,
+      },
+    },
+  ]);
+
+  return true;
+}
+
+const minOf = (a: Money, b: Money) => (a.amount.lessThan(b.amount) ? a : b);
 
 /** Applies one billing event in its own unit of work (built-in flows and inbound billing events). */
 export function makeApplyBillingEvent(deps: BillingEventDeps & { uow: UnitOfWork }) {

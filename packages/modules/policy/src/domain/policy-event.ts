@@ -33,6 +33,12 @@ export const POLICY_EVENT_TYPES = {
     "subjectivity_cleared",
     "inspection_ordered",
     "inspection_completed",
+    "uw_info_requested",
+    "uw_info_provided",
+    "uw_escalated",
+    "subjectivity_overdue",
+    "inspection_scheduled",
+    "inspection_reviewed",
   ],
   billing: [
     "invoice_issued",
@@ -48,6 +54,11 @@ export const POLICY_EVENT_TYPES = {
     "autopay_updated",
     "delinquent",
     "account_current",
+    "statement_issued",
+    "billing_method_changed",
+    "mortgagee_packet_sent",
+    "mortgagee_reminder",
+    "direct_bill_offered",
   ],
   document: ["documents_generated", "signed"],
   communication: ["notice_sent", "notice_mailed"],
@@ -103,3 +114,20 @@ export function assertLinked(
     throw new Error(`A ${event.type} event needs its transaction and invoice`);
   }
 }
+
+/** The `policy.timeline_recorded` payload: every timeline entry is also a domain event (PLAN §15.8). */
+export const timelinePayload = (
+  policyId: string,
+  number: string | null,
+  event: PolicyEventProps,
+) => ({
+  policyId,
+  number,
+  eventId: event.id,
+  type: event.type,
+  category: event.category,
+  termId: event.termId,
+  transactionId: event.transactionId,
+  invoiceId: event.invoiceId,
+  data: event.data,
+});

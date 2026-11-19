@@ -9,6 +9,7 @@ export interface InboundBillingEvent {
   type: BillingEventType;
   occurredAt: string;
   invoiceId?: string;
+  statementId?: string;
   policyNumber?: string;
   amount?: MoneyJson;
   reference?: string;
@@ -28,6 +29,7 @@ export function billingEventFrom(installId: string, event: InboundBillingEvent):
     type: event.type,
     occurredAt: Temporal.Instant.from(event.occurredAt),
     ...(event.invoiceId && { invoiceId: event.invoiceId }),
+    ...(event.statementId && { statementId: event.statementId }),
     ...(event.policyNumber && { policyNumber: event.policyNumber }),
     ...(event.amount && { amount: money(event.amount) }),
     ...(event.reference && { reference: event.reference }),

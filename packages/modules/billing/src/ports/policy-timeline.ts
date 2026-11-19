@@ -15,7 +15,12 @@ export interface BillingTimelineEntry {
     | "payment_reminder"
     | "autopay_updated"
     | "delinquent"
-    | "account_current";
+    | "account_current"
+    | "statement_issued"
+    | "billing_method_changed"
+    | "mortgagee_packet_sent"
+    | "mortgagee_reminder"
+    | "direct_bill_offered";
   invoiceId?: string;
   actor: { type: "user" | "system" | "api"; id?: string; name: string };
   summary: string;

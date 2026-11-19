@@ -5,6 +5,7 @@ import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building, ScrollText } from "lucide-react";
+import { AgencyStatements } from "@/components/agency-statements";
 import { formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 
@@ -41,6 +42,7 @@ function MyAgencyPage() {
       ) : (
         roots.map((agency) => <AgencyProducers key={agency.id} agencyId={agency.id} />)
       )}
+      {!agencies.error && <AgencyStatements />}
       <Panel
         title="Book"
         description="Policies written through your agency and its sub-agencies."

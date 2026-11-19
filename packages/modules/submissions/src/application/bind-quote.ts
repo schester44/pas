@@ -15,16 +15,25 @@ import { outstandingFor } from "../domain/bind-requirements";
 import type { Quote } from "../domain/quote";
 import type { SubmissionScope } from "../domain/scope";
 import type { Submission } from "../domain/submission";
+import { type BillingMethodOption, mortgageeOf } from "../domain/billing-methods";
 import type { AddressRegistry } from "../ports/address-registry";
+import type { AgencyBilling } from "../ports/agency-bill-check";
+import type { BindConditions } from "../ports/bind-conditions";
 import type { PaymentGateway, PaymentMethodInput } from "../ports/payment-gateway";
 import type { ProducerLicenseCheck } from "../ports/producer-license-check";
-import type { NewBusinessRequest, PolicyIssuer, TimelineActor } from "../ports/policy-issuer";
+import type {
+  IssuedPolicy,
+  NewBusinessRequest,
+  PolicyIssuer,
+  TimelineActor,
+} from "../ports/policy-issuer";
 import type { CatalogRelease, ProductCatalog } from "../ports/product-catalog";
 import type { QuoteDocuments } from "../ports/quote-documents";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
 import { insuredPartiesOf, mailingAddressOf } from "../domain/insured";
 import { namedInsuredOf, quoteDocumentContext } from "./document-context";
+import { billingOptionsFor } from "./billing-options";
 import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
 import { JOURNEY_EVENTS, type QuoteJourney } from "./quote-journey";
 import { type QuoteDto, toQuoteDto } from "./quote-dto";
@@ -49,6 +58,8 @@ type Deps = EvaluationDeps & {
   clocks: ClockProvider;
   licensing: ProducerLicenseCheck;
   addresses: AddressRegistry;
+  conditions: BindConditions;
+  agencyBilling: AgencyBilling;
 };
 
 /**
@@ -61,7 +72,8 @@ export function makeBindQuote(deps: Deps) {
     scope: SubmissionScope,
     input: {
       submissionId: string;
-      method: PaymentMethodInput;
+      method?: PaymentMethodInput;
+      billingMethod?: BillingMethodOption["method"];
       actorName: string;
       autopay?: boolean;
     },
@@ -89,6 +101,18 @@ export function makeBindQuote(deps: Deps) {
     const q = quote.toSnapshot();
     const s = submission.toSnapshot();
 
+    const conditions = await deps.conditions.outstanding(ctx, {
+      quoteId: q.id,
+      submissionId: q.submissionId,
+    });
+
+    if (conditions.length > 0) {
+      throw conflict(
+        `Clear the pre-bind subjectivities first: ${conditions.map((c) => c.title).join(", ")}`,
+        { reason: "subjectivities_open" },
+      );
+    }
+
     const [release, productName] = await Promise.all([
       deps.catalog.getRelease(ctx, q.productReleaseId),
       deps.catalog.productName(ctx, s.productId),
@@ -113,6 +137,22 @@ export function makeBindQuote(deps: Deps) {
 
     if (rechecked) return { status: "rechecked", quote: rechecked };
 
+    if (input.billingMethod && input.billingMethod !== "direct") {
+      return bindBilledTo(deps, ctx, scope, {
+        submissionId: input.submissionId,
+        billingMethod: input.billingMethod,
+        actor,
+        release,
+        productName,
+      });
+    }
+
+    if (!input.method) {
+      throw new DomainError("invalid", "Pay by card, or choose another billing method");
+    }
+
+    const method = input.method;
+
     const offer = quote.selectedPayPlan();
     const plan = offer ? (release.billing.payPlans.find((p) => p.key === offer.key) ?? null) : null;
 
@@ -126,7 +166,7 @@ export function makeBindQuote(deps: Deps) {
       reference: q.submissionNumber,
       idempotencyKey: `${q.id}:r${q.revision}`,
       amount,
-      method: input.method,
+      method,
     });
 
     if (authorization.status === "declined") {
@@ -201,51 +241,13 @@ export function makeBindQuote(deps: Deps) {
       await enrollAutopay(deps, ctx, {
         policyId: issued.policyId,
         reference: issued.policyNumber,
-        method: input.method,
+        method,
         payer: namedInsuredOf(quote),
         actor,
       });
     }
 
-    const packet = await deps.documents.render(ctx, {
-      release,
-      transactions: ["new_business"],
-      context: quoteDocumentContext({
-        submission,
-        quote,
-        release,
-        productName,
-        policyNumber: issued.policyNumber,
-        issuedDate: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
-      }),
-    });
-
-    const packetKey = `tenants/${ctx.tenantId}/policies/${issued.policyId}/${issued.transactionId}/packet.pdf`;
-
-    await deps.storage.put({ key: packetKey, body: packet.pdf, contentType: "application/pdf" });
-
-    const signedKey = q.signature!.documentKey;
-    const signed = await deps.storage.get(signedKey);
-
-    await deps.policies.attachDocuments(ctx, {
-      policyId: issued.policyId,
-      transactionId: issued.transactionId,
-      documents: [
-        {
-          kind: "policy_packet",
-          title: "Policy documents",
-          storageKey: packetKey,
-          sizeBytes: packet.pdf.byteLength,
-        },
-        {
-          kind: "signed_application",
-          title: "Signed application",
-          storageKey: signedKey,
-          sizeBytes: signed?.body.byteLength ?? 0,
-        },
-      ],
-      actor: { type: "system", name: "Document generation" },
-    });
+    await attachPacket(deps, ctx, { quote, submission, release, productName, issued });
 
     const bound = await deps.uow.run(ctx, async (tx) => {
       const current = await loadQuote(deps, tx, ctx, scope, input.submissionId);
@@ -289,6 +291,166 @@ export function makeBindQuote(deps: Deps) {
 
     return { status: "bound", quote: dto(bound.quote, bound.submission) };
   };
+}
+
+/** The policy packet and the signed application on the new policy. */
+async function attachPacket(
+  deps: Deps,
+  ctx: TenantContext,
+  input: {
+    quote: Quote;
+    submission: Submission;
+    release: CatalogRelease;
+    productName: string;
+    issued: IssuedPolicy;
+  },
+) {
+  const { quote, submission, release, productName, issued } = input;
+
+  const packet = await deps.documents.render(ctx, {
+    release,
+    transactions: ["new_business"],
+    context: quoteDocumentContext({
+      submission,
+      quote,
+      release,
+      productName,
+      policyNumber: issued.policyNumber,
+      issuedDate: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
+    }),
+  });
+
+  const packetKey = `tenants/${ctx.tenantId}/policies/${issued.policyId}/${issued.transactionId}/packet.pdf`;
+
+  await deps.storage.put({ key: packetKey, body: packet.pdf, contentType: "application/pdf" });
+
+  const signedKey = quote.toSnapshot().signature!.documentKey;
+  const signed = await deps.storage.get(signedKey);
+
+  await deps.policies.attachDocuments(ctx, {
+    policyId: issued.policyId,
+    transactionId: issued.transactionId,
+    documents: [
+      {
+        kind: "policy_packet",
+        title: "Policy documents",
+        storageKey: packetKey,
+        sizeBytes: packet.pdf.byteLength,
+      },
+      {
+        kind: "signed_application",
+        title: "Signed application",
+        storageKey: signedKey,
+        sizeBytes: signed?.body.byteLength ?? 0,
+      },
+    ],
+    actor: { type: "system", name: "Document generation" },
+  });
+}
+
+/**
+ * Binds on agency or mortgagee bill (PLAN §13): nothing is collected now; the agency's account
+ * current or the lender's invoice carries the premium. Agency bill respects the credit limit.
+ */
+async function bindBilledTo(
+  deps: Deps,
+  ctx: TenantContext,
+  scope: SubmissionScope,
+  input: {
+    submissionId: string;
+    billingMethod: "agency" | "mortgagee";
+    actor: TimelineActor;
+    release: CatalogRelease;
+    productName: string;
+  },
+): Promise<BindQuoteResult> {
+  const { release, actor } = input;
+
+  const { submission, quote } = await deps.uow.run(ctx, (tx) =>
+    loadQuote(deps, tx, ctx, scope, input.submissionId),
+  );
+
+  const option = (await billingOptionsFor(deps, ctx, { quote, submission, release })).find(
+    (o) => o.method === input.billingMethod,
+  );
+
+  if (!option?.available || !option.payPlan) {
+    throw new DomainError(
+      "precondition_failed",
+      option?.reason ??
+        `${input.billingMethod === "agency" ? "Agency" : "Mortgagee"} bill isn't offered on this quote`,
+      { reason: "billing_method_unavailable" },
+    );
+  }
+
+  const plan = release.billing.payPlans.find((p) => p.key === option.payPlan)!;
+  const mortgagee = mortgageeOf(quote.toSnapshot().details);
+  const history = await deps.uow.run(ctx, (tx) => deps.quotes.listActivity(tx, ctx, quote.id));
+  const agency = submission.toSnapshot().producer.agencyId;
+
+  const payer =
+    input.billingMethod === "agency"
+      ? {
+          payer: "agency" as const,
+          payerRef: option.payer?.reference ?? agency,
+          payerName: option.payer?.name ?? null,
+          payerAddress: null,
+        }
+      : {
+          payer: "mortgagee" as const,
+          payerRef: mortgagee?.reference?.trim() || null,
+          payerName: mortgagee!.name.trim(),
+          payerAddress: mortgagee?.address?.line1?.trim() ? mortgagee.address : null,
+        };
+
+  const issued = await deps.policies.issue(ctx, {
+    ...issueRequest(quote, submission, release, input.productName),
+    billing: {
+      method: input.billingMethod,
+      payPlan: plan,
+      dunning: release.billing.dunning,
+      payer,
+      ...(input.billingMethod === "mortgagee" && {
+        mortgagee: { followUp: release.billing.mortgagee, lenderEmail: mortgagee?.email ?? null },
+      }),
+    },
+    actor,
+    history: history.map((entry) => ({
+      type: entry.type,
+      occurredAt: entry.occurredAt.toString(),
+      actor: entry.actor,
+      summary: entry.summary,
+      data: entry.data,
+    })),
+  });
+
+  await trackPolicyAddresses(deps, ctx, { quote, submission, release, policy: issued });
+
+  await attachPacket(deps, ctx, {
+    quote,
+    submission,
+    release,
+    productName: input.productName,
+    issued,
+  });
+
+  const bound = await deps.uow.run(ctx, async (tx) => {
+    const current = await loadQuote(deps, tx, ctx, scope, input.submissionId);
+
+    current.quote.markBound(
+      { policy: { id: issued.policyId, number: issued.policyNumber }, payment: null },
+      deps.clocks.forTenant(ctx.tenantId),
+    );
+
+    await deps.quotes.save(tx, current.quote);
+    await deps.outbox.add(tx, current.quote.pullEvents());
+
+    return current;
+  });
+
+  await deps.journey.signal(ctx, bound.quote, JOURNEY_EVENTS.changed);
+
+  return { status: "bound", quote: dto(bound.quote, bound.submission) };
 }
 
 /** Saves the card for autopay; a card the provider won't save leaves the policy on invoices. */
@@ -349,6 +511,7 @@ async function recheck(
     termEnd: q.termEnd,
     selection: q.selection,
     channel: submission.toSnapshot().channel,
+    modifications: quote.modifications(),
   });
 
   return deps.uow.run(ctx, async (tx) => {

@@ -2,6 +2,7 @@ import { StatusChip } from "@pas/ui/components/status-chip";
 import { cn } from "@pas/ui/lib/utils";
 import {
   BadgeCheck,
+  Camera,
   CreditCard,
   Database,
   FileSpreadsheet,
@@ -10,6 +11,7 @@ import {
   type LucideIcon,
   Mail,
   MapPin,
+  MessageSquare,
   Printer,
   Signature,
   Webhook,
@@ -23,6 +25,10 @@ export const CATEGORIES: Record<string, { label: string; port: string }> = {
   esign: { label: "E-signature", port: "Signs applications before bind." },
   email: { label: "Email", port: "Sends sign-in codes, portal invitations and notices." },
   sms: { label: "SMS", port: "Sends text messages." },
+  chat: {
+    label: "Chat",
+    port: "Posts event notifications to team channels; choose the events under Settings → Notifications.",
+  },
   print_mail: {
     label: "Print and mail",
     port: "Prints and mails notices, and records proof of mailing.",
@@ -39,6 +45,10 @@ export const CATEGORIES: Record<string, { label: string; port: string }> = {
     label: "Regulatory reporting",
     port: "Files surplus lines, affidavits, tax remittances and other regulatory reports. Each channel files the kinds and states it lists.",
   },
+  inspections: {
+    label: "Inspections",
+    port: "Orders property inspections that underwriting rules ask for, and returns the findings for review.",
+  },
   carrier: { label: "Carriers", port: "Exchanges policies with carriers." },
   billing: { label: "Billing", port: "Runs billing in an outside system." },
   llm: { label: "Language models", port: "Powers AI drafting." },
@@ -50,6 +60,7 @@ export function categoryLabel(category: string): string {
 
 const ICONS: Record<string, LucideIcon> = {
   card: CreditCard,
+  camera: Camera,
   signature: Signature,
   inbox: Inbox,
   printer: Printer,
@@ -57,6 +68,7 @@ const ICONS: Record<string, LucideIcon> = {
   map: MapPin,
   webhook: Webhook,
   mail: Mail,
+  message: MessageSquare,
   landmark: Landmark,
   file: FileSpreadsheet,
 };

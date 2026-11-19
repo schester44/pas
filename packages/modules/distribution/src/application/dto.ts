@@ -1,5 +1,5 @@
 import type { Money, PlainDate } from "@pas/kernel";
-import type { Agency, AgencyAddress, AgencyStatus } from "../domain/agency";
+import type { Agency, AgencyAddress, AgencyStatus, RemittanceBasis } from "../domain/agency";
 import type { Business, CommissionSchedule } from "../domain/commission";
 import { type License, type LicenseHealth, licenseHealth } from "../domain/license";
 import type { Appointment, MembershipRole, Producer, ProducerStatus } from "../domain/producer";
@@ -22,7 +22,17 @@ export interface AgencyDto {
   email: string | null;
   status: AgencyStatus;
   tier: string;
-  billing: { eligible: boolean; remittanceDays: number | null; creditLimit: MoneyDto | null };
+  billing: {
+    eligible: boolean;
+    remittanceDays: number | null;
+    creditLimit: MoneyDto | null;
+    remittanceBasis: RemittanceBasis;
+    statementDay: number | null;
+    reminderDays: number | null;
+    suspendAfterDays: number | null;
+    nonpaymentCancels: boolean;
+    suspension: { at: string; reason: string } | null;
+  };
   producerCount: number;
   subAgencyCount: number;
   licenseWarnings: number;
@@ -147,6 +157,15 @@ export function toAgencyDto(
       eligible: agency.billing.eligible,
       remittanceDays: agency.billing.remittanceDays,
       creditLimit: agency.billing.creditLimit && money(agency.billing.creditLimit),
+      remittanceBasis: agency.billing.remittanceBasis,
+      statementDay: agency.billing.statementDay,
+      reminderDays: agency.billing.reminderDays,
+      suspendAfterDays: agency.billing.suspendAfterDays,
+      nonpaymentCancels: agency.billing.nonpaymentCancels,
+      suspension: agency.billing.suspension && {
+        at: agency.billing.suspension.at.toString(),
+        reason: agency.billing.suspension.reason,
+      },
     },
     producerCount: producers.length,
     subAgencyCount: context.agencies.filter((a) => a.parentId === agency.id).length,

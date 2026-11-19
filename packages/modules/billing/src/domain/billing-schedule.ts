@@ -1,7 +1,15 @@
 import { type Clock, type Instant, newId, type TenantId } from "@pas/kernel";
 import type { Dunning, PayPlan } from "@pas/pay-plans";
+import type { PayerDetails } from "./invoice";
 
 export type BillingMethod = "direct" | "agency" | "mortgagee";
+
+export const INSURED: PayerDetails = {
+  payer: "insured",
+  payerRef: null,
+  payerName: null,
+  payerAddress: null,
+};
 
 export interface BillingScheduleProps {
   id: string;
@@ -10,6 +18,7 @@ export interface BillingScheduleProps {
   policyNumber: string;
   termId: string;
   billingMethod: BillingMethod;
+  payer: PayerDetails;
   plan: PayPlan;
   dunning: Dunning;
   status: "active" | "closed";
@@ -75,6 +84,29 @@ export class BillingSchedule {
 
   useForAutopay(paymentMethodId: string | null, clock: Clock): void {
     this.props = { ...this.props, paymentMethodId, updatedAt: clock.now() };
+  }
+
+  get billingMethod(): BillingMethod {
+    return this.props.billingMethod;
+  }
+
+  get payer(): PayerDetails {
+    return this.props.payer;
+  }
+
+  /** The insured takes over the bill (a mortgagee that didn't pay, PLAN §13). */
+  switchToDirect(clock: Clock): void {
+    this.props = {
+      ...this.props,
+      billingMethod: "direct",
+      payer: INSURED,
+      updatedAt: clock.now(),
+    };
+  }
+
+  /** A new lender on a mortgagee-billed term (mortgagee change endorsement). */
+  changePayer(payer: PayerDetails, clock: Clock): void {
+    this.props = { ...this.props, payer, updatedAt: clock.now() };
   }
 
   close(clock: Clock): void {

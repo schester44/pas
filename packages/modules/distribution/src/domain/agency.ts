@@ -14,12 +14,27 @@ export interface AgencyAddress {
   country: string;
 }
 
+export const REMITTANCE_BASES = ["gross", "net"] as const;
+export type RemittanceBasis = (typeof REMITTANCE_BASES)[number];
+
 /** Agency-bill eligibility and terms; billing reads them when it bills through the agency. */
 export interface AgencyBilling {
   eligible: boolean;
   remittanceDays: number | null;
   creditLimit: Money | null;
+  remittanceBasis: RemittanceBasis;
+  /** Account current cut-off day of month; null is the month end. */
+  statementDay: number | null;
+  reminderDays: number | null;
+  suspendAfterDays: number | null;
+  /** Lets aging start nonpayment on the statement's unpaid items, instead of only suspending. */
+  nonpaymentCancels: boolean;
+  suspension: { at: Instant; reason: string } | null;
 }
+
+/** Agency bill is offered when the agency is eligible, active and not suspended for aging. */
+export const mayAgencyBill = (agency: Pick<Agency, "status" | "billing">) =>
+  agency.status === "active" && agency.billing.eligible && agency.billing.suspension === null;
 
 export interface Agency {
   id: AgencyId;

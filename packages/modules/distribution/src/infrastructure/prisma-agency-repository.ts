@@ -1,7 +1,7 @@
 import { prismaTx } from "@pas/db";
 import type { Agency as AgencyRow, Prisma } from "@pas/db/client";
 import { asId, Money, type TenantContext, type Transaction } from "@pas/kernel";
-import type { Agency, AgencyAddress, AgencyStatus } from "../domain/agency";
+import type { Agency, AgencyAddress, AgencyStatus, RemittanceBasis } from "../domain/agency";
 import type { AgencyRepository } from "../ports/agency-repository";
 import { toDate, toInstant } from "./mappers";
 
@@ -21,6 +21,14 @@ const toAgency = (row: AgencyRow): Agency => ({
     eligible: row.agencyBillEligible,
     remittanceDays: row.remittanceDays,
     creditLimit: row.creditLimit ? Money.of(row.creditLimit.toString(), row.currency) : null,
+    remittanceBasis: row.remittanceBasis as RemittanceBasis,
+    statementDay: row.statementDay,
+    reminderDays: row.reminderDays,
+    suspendAfterDays: row.suspendAfterDays,
+    nonpaymentCancels: row.nonpaymentCancels,
+    suspension: row.agencyBillSuspendedAt
+      ? { at: toInstant(row.agencyBillSuspendedAt), reason: row.agencyBillSuspendedReason ?? "" }
+      : null,
   },
   createdAt: toInstant(row.createdAt),
   updatedAt: toInstant(row.updatedAt),
@@ -57,6 +65,15 @@ export class PrismaAgencyRepository implements AgencyRepository {
       remittanceDays: agency.billing.remittanceDays,
       creditLimit: agency.billing.creditLimit?.toString() ?? null,
       currency: agency.billing.creditLimit?.currency ?? "USD",
+      remittanceBasis: agency.billing.remittanceBasis,
+      statementDay: agency.billing.statementDay,
+      reminderDays: agency.billing.reminderDays,
+      suspendAfterDays: agency.billing.suspendAfterDays,
+      nonpaymentCancels: agency.billing.nonpaymentCancels,
+      agencyBillSuspendedAt: agency.billing.suspension
+        ? toDate(agency.billing.suspension.at)
+        : null,
+      agencyBillSuspendedReason: agency.billing.suspension?.reason ?? null,
       updatedAt: toDate(agency.updatedAt),
     };
 

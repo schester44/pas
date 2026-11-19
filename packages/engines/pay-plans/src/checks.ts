@@ -99,6 +99,35 @@ export function checkPayPlans(
     error("Use whole numbers for autopay retries and reminders", undefined, "dunning");
   }
 
+  if (config.methods.length === 0) {
+    error("Allow at least one billing method", undefined, "methods");
+  }
+
+  if (
+    config.methods.includes("mortgagee") &&
+    !config.payPlans.some((p) => p.installments === 1 && p.eligibility.mortgageeBilling)
+  ) {
+    error(
+      "Mortgagee billing needs a pay-in-full plan offered when the mortgagee pays",
+      undefined,
+      "methods",
+    );
+  }
+
+  if (config.methods.includes("agency") && !config.payPlans.some((p) => p.installments === 1)) {
+    error("Agency billing needs a pay-in-full plan", undefined, "methods");
+  }
+
+  const m = config.mortgagee;
+
+  if (
+    ![m.dueDays, m.offerDirectAfterDays, m.nonpaymentAfterDays, ...m.reminderDays].every(wholeDays)
+  ) {
+    error("Use whole numbers of days for mortgagee follow-ups", undefined, "mortgagee");
+  } else if (m.offerDirectAfterDays >= m.nonpaymentAfterDays) {
+    error("Offer direct bill before nonpayment starts on a mortgagee bill", undefined, "mortgagee");
+  }
+
   return issues;
 }
 

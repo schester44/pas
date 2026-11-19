@@ -1,12 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { addressRouter } from "./addresses";
+import { statementQueries } from "./billing";
+import { notificationsRouter } from "./events";
 import { requireAppPermission, tenantFromHost } from "./app-tenant";
 import { bookScopeOf } from "./book-scope";
 import { clientRouter } from "./client";
 import { policyChangesRouter, type ScopeResolver } from "./policy-changes";
 import { authedProcedure, publicProcedure, router } from "./init";
 import { appSearch } from "./search";
+import { producerUnderwritingRouter } from "./underwriting";
 import {
   availableProductsInput,
   listSubmissionsInput,
@@ -71,6 +74,7 @@ export const appRouter = router({
   }),
 
   client: clientRouter,
+  notifications: notificationsRouter(requireAppPermission({ submission: ["read"] })),
 
   addresses: addressRouter(tenantFromHost),
 
@@ -170,6 +174,11 @@ export const appRouter = router({
           ...ctx.client,
         }),
       ),
+    billingOptions: inBook({ quote: ["bind"] })
+      .input(bySubmission)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.quotes.billingOptions(ctx.tenant, ctx.scope, input),
+      ),
     checkout: inBook({ quote: ["bind"] }).query(async ({ ctx }) =>
       ctx.container.useCases.quotes.checkout(ctx.tenant),
     ),
@@ -178,9 +187,12 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         ctx.container.useCases.quotes.bind(ctx.tenant, ctx.scope, {
           submissionId: input.submissionId,
-          method: input.paymentToken
-            ? { kind: "token", token: input.paymentToken }
-            : { kind: "card", ...input.card! },
+          ...(input.billingMethod && { billingMethod: input.billingMethod }),
+          ...(input.paymentToken
+            ? { method: { kind: "token" as const, token: input.paymentToken } }
+            : input.card
+              ? { method: { kind: "card" as const, ...input.card } }
+              : {}),
           actorName: ctx.session.user.name,
           autopay: input.autopay ?? false,
         }),
@@ -188,6 +200,8 @@ export const appRouter = router({
   }),
 
   search: router({ query: appSearch }),
+
+  underwriting: producerUnderwritingRouter,
 
   agency: router({
     mine: inBook({ agency: ["read"] }).query(({ ctx }) =>
@@ -200,6 +214,15 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.distribution.agencies.get(ctx.tenant, ctx.scope, input),
       ),
+    statements: inBook({ agency: ["read"] })
+      .input(statementQueries.input)
+      .query(({ ctx, input }) => statementQueries.list(ctx, input)),
+    statement: inBook({ agency: ["read"] })
+      .input(z.object({ id: z.uuid() }))
+      .query(({ ctx, input }) => statementQueries.get(ctx, input)),
+    statementDocument: inBook({ agency: ["read"] })
+      .input(z.object({ id: z.uuid() }))
+      .query(({ ctx, input }) => statementQueries.document(ctx, input)),
   }),
 
   quoteLicensing: inBook({ quote: ["read"] })
