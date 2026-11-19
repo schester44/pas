@@ -52,6 +52,11 @@ Bounded contexts: identity, catalog, data-dictionary, forms, decisions, rating, 
 ## Conventions
 
 - **Comments: almost none.** Code explains itself through clean architecture, small functions and precise names. Don't narrate what code does, don't restate types, don't leave section banners or TODO essays. Write a comment only for a non-obvious _why_ (a regulatory rule, a vendor quirk, a deliberate trade-off), in one short line.
+- **No duplicate helpers.** Search before writing a utility; if it exists, import it, and if it's generic, put it in its shared home instead of a local copy:
+  - `@pas/kernel`: `isRecord`, `toPlainJson`, `canonicalJson`, `formatMoney`, `formatPlainDate`, `jurisdictionCode`, date parsing, `Money`.
+  - `@pas/db` (infrastructure only): `instantFromDb`/`instantToDb`, `plainDateFromDb`/`plainDateToDb`, `moneyFromDb`, `jsonToDb`.
+  - `@pas/forms-core`: risk-schema walking, exposure paths and labels, address values.
+  - `@pas/ui`: presentational formatting and components shared by the SPAs.
 - **Vertical spacing is enforced** (`@stylistic/padding-line-between-statements` via oxlint): blank line before `return`, around `if`/loops/`switch`/`try`, and around multi-line statements. `pnpm lint:fix` applies it.
 - **Use cases**: one file per command/query in `application/`, named verb-first (`bindQuote.ts`, `issueTransaction.ts`, `listSubmissions.ts`). Built by factories that take their ports: `makeBindQuote({ uow, rater, clock })`.
 - **Aggregates** enforce their own invariants and record domain events. State transitions are methods (`term.scheduleCancellation(...)`), never field assignment from outside.
