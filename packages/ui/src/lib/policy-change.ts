@@ -28,9 +28,16 @@ export const amountLabel = (value: CoverageAmount | undefined | null) =>
 export const sameAmount = (a?: CoverageAmount | null, b?: CoverageAmount | null) =>
   JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-/** "locations[1]" reads as "Location 2"; policy-level coverages have no exposure. */
-export function exposureLabel(exposure?: string | null) {
-  const match = exposure ? /\[(\d+)\]$/.exec(exposure) : null;
+/**
+ * The server's name for an exposure ("Location 2 (12 Main St)"); keys stored by position before
+ * names were sent read as "Location 2". Policy-level coverages have no exposure.
+ */
+export function exposureLabel(exposure?: string | null, labels?: Record<string, string>) {
+  if (!exposure) return null;
+
+  if (labels?.[exposure]) return labels[exposure];
+
+  const match = /\[(\d+)\]$/.exec(exposure);
 
   return match ? `Location ${Number(match[1]) + 1}` : null;
 }

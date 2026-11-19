@@ -25,6 +25,8 @@ import {
 } from "./policy-event";
 import {
   assertTransition,
+  type Charges,
+  chargesByDate,
   chargesOf,
   OPEN_STATUSES,
   type PolicyTransactionProps,
@@ -249,7 +251,10 @@ function transactionSummary(t: PolicyTransactionProps): string {
       const listed =
         changes.length > 2 ? [...changes.slice(0, 2), `${changes.length - 2} more`] : changes;
 
-      return [...listed, capitalizeFirst(money, listed.length > 0)].join(" · ");
+      const rerolled = (t.details?.reroll ?? []).map((segment) => segment.label);
+      const reroll = rerolled.length > 0 ? [`Re-rates the ${listOf(rerolled)}`] : [];
+
+      return [...listed, capitalizeFirst(money, listed.length > 0), ...reroll].join(" · ");
     }
     case "CANCELLATION": {
       const c = t.details?.cancellation;
@@ -551,6 +556,52 @@ export class Policy extends AggregateRoot {
       );
   }
 
+  /**
+   * The term's issued states as they stand, in effective-date order (PLAN §7.4). A version
+   * replaces every later-dated one: an out-of-sequence change and its rerolls supersede what
+   * they re-applied.
+   */
+  timeline(termId: string): TermVersionProps[] {
+    const segments: TermVersionProps[] = [];
+
+    for (const version of this.state.versions
+      .filter((v) => v.termId === termId)
+      .toSorted((a, b) => a.version - b.version)) {
+      while (
+        segments.length > 0 &&
+        compare(segments.at(-1)!.effectiveDate, version.effectiveDate) > 0
+      ) {
+        segments.pop();
+      }
+
+      segments.push(version);
+    }
+
+    return segments;
+  }
+
+  /** The issued state in force on a date. */
+  versionAt(termId: string, date: PlainDate): TermVersionProps {
+    const segments = this.timeline(termId);
+
+    return segments.findLast((v) => compare(v.effectiveDate, date) <= 0) ?? segments[0]!;
+  }
+
+  /** What issuing a version billed: its transaction's own lines, or one of its reroll segments. */
+  chargesOfVersion(version: TermVersionProps): Charges {
+    const transaction = this.transaction(version.transactionId);
+    const details = transaction.details;
+
+    if (!details) throw conflict(`The ${label(transaction.type)} has no priced lines to offset`);
+
+    const position = this.state.versions
+      .filter((v) => v.transactionId === version.transactionId)
+      .toSorted((a, b) => a.version - b.version)
+      .findIndex((v) => v.id === version.id);
+
+    return position <= 0 ? details : details.reroll![position - 1]!.reissued;
+  }
+
   openTransaction(termId: string): PolicyTransactionProps | null {
     return (
       this.state.transactions.find(
@@ -565,6 +616,7 @@ export class Policy extends AggregateRoot {
     type: TransactionType,
     effectiveDate: PlainDate,
     except?: string,
+    sequence: { outOfSequence?: boolean } = {},
   ) {
     const term = this.term(termId);
 
@@ -598,13 +650,28 @@ export class Policy extends AggregateRoot {
       });
     }
 
-    const latest = this.lastIssued(termId);
+    const later = this.timeline(termId).filter((v) => compare(v.effectiveDate, effectiveDate) > 0);
+    const latest = later.at(-1);
 
-    if (latest && compare(effectiveDate, latest.effectiveDate) < 0) {
+    if (latest && !(type === "ENDORSEMENT" && sequence.outOfSequence)) {
+      const t = this.transaction(latest.transactionId);
+
       throw new DomainError(
         "precondition_failed",
-        `Out-of-sequence changes aren't supported yet: this policy already has ${article(label(latest.type))} effective ${formatPlainDate(latest.effectiveDate)}. Pick that date or later.`,
+        `This product doesn't take out-of-sequence changes: this policy already has ${article(label(t.type))} effective ${formatPlainDate(latest.effectiveDate)}. Pick that date or later.`,
         { reason: "out_of_sequence", latest: latest.effectiveDate.toString() },
+      );
+    }
+
+    const blocker = later
+      .map((v) => this.transaction(v.transactionId))
+      .find((t) => t.type !== "ENDORSEMENT");
+
+    if (blocker) {
+      throw new DomainError(
+        "precondition_failed",
+        `Out-of-sequence changes can't go back past the ${label(blocker.type)} effective ${formatPlainDate(blocker.effectiveDate)} yet. Pick that date or later.`,
+        { reason: "out_of_sequence_blocked", latest: blocker.effectiveDate.toString() },
       );
     }
 
@@ -631,7 +698,9 @@ export class Policy extends AggregateRoot {
     },
     clock: Clock,
   ): PolicyTransactionProps {
-    this.assertChangeable(input.termId, input.type, input.effectiveDate, input.transactionId);
+    this.assertChangeable(input.termId, input.type, input.effectiveDate, input.transactionId, {
+      outOfSequence: input.details.reroll !== undefined,
+    });
 
     const now = clock.now();
     const currency = this.term(input.termId).writtenPremium.currency;
@@ -966,28 +1035,43 @@ export class Policy extends AggregateRoot {
 
     if (approvedBy) transaction.details = { ...details, approvedBy };
 
-    this.append("versions", {
-      id: newId(),
-      termId: term.id,
-      transactionId: id,
-      version: latest.version + 1,
-      effectiveDate: transaction.effectiveDate,
-      snapshot: details.after ?? latest.snapshot,
-      recordedAt: now,
-    });
+    const states = [
+      { effectiveDate: transaction.effectiveDate, snapshot: details.after ?? latest.snapshot },
+      ...(details.reroll ?? []).map((segment) => ({
+        effectiveDate: Temporal.PlainDate.from(segment.effectiveDate),
+        snapshot: segment.after,
+      })),
+    ];
 
-    const charges = chargesOf(details);
-
-    for (const line of charges) {
-      this.append("financials", {
+    states.forEach((state, i) =>
+      this.append("versions", {
         id: newId(),
         termId: term.id,
         transactionId: id,
-        ...line,
-        effectiveDate: transaction.effectiveDate,
+        version: latest.version + 1 + i,
+        ...state,
         recordedAt: now,
-      });
+      }),
+    );
+
+    for (const group of chargesByDate(details)) {
+      const effectiveDate = group.effectiveDate
+        ? Temporal.PlainDate.from(group.effectiveDate)
+        : transaction.effectiveDate;
+
+      for (const line of group.lines) {
+        this.append("financials", {
+          id: newId(),
+          termId: term.id,
+          transactionId: id,
+          ...line,
+          effectiveDate,
+          recordedAt: now,
+        });
+      }
     }
+
+    const charges = chargesOf(details);
 
     this.refreshPremium(term);
 

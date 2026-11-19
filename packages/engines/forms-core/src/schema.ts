@@ -23,6 +23,18 @@ export interface EnumOption {
   label: string;
 }
 
+/**
+ * Whether a field (or a repeatable's rows) can change by endorsement: always, never, or when a
+ * condition over the issued risk and the change holds and the actor has one of the roles.
+ */
+export interface EndorsableRule {
+  when?: string;
+  roles?: string[];
+  reason?: string;
+}
+
+export type Endorsable = boolean | EndorsableRule;
+
 interface NodeBase {
   key: string;
   label: string;
@@ -31,7 +43,7 @@ interface NodeBase {
 
 export interface FieldNode extends NodeBase {
   kind: FieldKind;
-  endorsable?: boolean;
+  endorsable?: Endorsable;
   pii?: boolean;
   options?: EnumOption[];
   currency?: string;
@@ -47,6 +59,8 @@ export interface GroupNode extends NodeBase {
 export interface RepeatableNode extends NodeBase {
   kind: "repeatable";
   exposure?: string;
+  /** Rows can be added and removed by endorsement. */
+  endorsable?: Endorsable;
   minItems?: number;
   maxItems?: number;
   children: SchemaNode[];
@@ -85,11 +99,20 @@ export const COMPOSITE_KEYS: Partial<Record<FieldKind, readonly string[]>> = {
 const key = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "Use letters, digits and _ only");
 const base = { key, label: z.string().min(1), description: z.string().optional() };
 
+const endorsable = z.union([
+  z.boolean(),
+  z.object({
+    when: z.string().trim().min(1).optional(),
+    roles: z.array(z.string().trim().min(1)).optional(),
+    reason: z.string().trim().min(1).optional(),
+  }),
+]);
+
 const fieldNodeSchema = z
   .object({
     ...base,
     kind: z.enum(FIELD_KINDS),
-    endorsable: z.boolean().optional(),
+    endorsable: endorsable.optional(),
     pii: z.boolean().optional(),
     options: z.array(z.object({ value: z.string().min(1), label: z.string().min(1) })).optional(),
     currency: z
@@ -121,6 +144,7 @@ const repeatableNodeSchema = z
     ...base,
     kind: z.literal("repeatable"),
     exposure: z.string().min(1).optional(),
+    endorsable: endorsable.optional(),
     minItems: z.number().int().min(0).optional(),
     maxItems: z.number().int().min(1).optional(),
     get children() {

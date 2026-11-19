@@ -14,6 +14,8 @@ interface FieldProps {
   copy: Copy;
   uploadFile?: (file: File) => Promise<FileValue>;
   compact?: boolean;
+  /** Why the field can't change here; it shows its value without editing. */
+  readOnly?: string | null;
 }
 
 const domId = (path: string) => `field-${path.replace(/[^A-Za-z0-9_-]/g, "-")}`;
@@ -28,10 +30,11 @@ export function Field({
   copy,
   uploadFile,
   compact,
+  readOnly,
 }: FieldProps) {
   const id = domId(state.path);
   const errors = showErrors ? state.errors : [];
-  const help = compact ? undefined : (item.help ?? field.description);
+  const help = readOnly ?? (compact ? undefined : (item.help ?? field.description));
 
   const wide =
     item.width === "full" ||
@@ -51,21 +54,23 @@ export function Field({
         ) : (
           <Label htmlFor={id}>{item.label ?? field.label}</Label>
         )}
-        {!state.required && (
+        {!state.required && !readOnly && (
           <span className="text-xs leading-none text-muted-foreground">{copy.optional}</span>
         )}
       </div>
-      <Control
-        id={id}
-        field={field}
-        item={item}
-        value={value}
-        onChange={onChange}
-        invalid={errors.length > 0}
-        describedBy={describedBy}
-        copy={copy}
-        uploadFile={uploadFile}
-      />
+      <fieldset disabled={!!readOnly} className="m-0 min-w-0 border-0 p-0">
+        <Control
+          id={id}
+          field={field}
+          item={item}
+          value={value}
+          onChange={onChange}
+          invalid={errors.length > 0}
+          describedBy={describedBy}
+          copy={copy}
+          uploadFile={uploadFile}
+        />
+      </fieldset>
       {help && (
         <p id={`${id}-help`} className="m-0 text-xs text-muted-foreground">
           {help}

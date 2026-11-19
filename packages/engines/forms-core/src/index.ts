@@ -1,6 +1,27 @@
 export * from "./schema";
 export * from "./form";
-export { canonicalPath, getAt, joinPath, parsePath, setAt, type Segment } from "./paths";
+export {
+  canonicalPath,
+  getAt,
+  joinPath,
+  parsePath,
+  ROW_ID,
+  rowIdOf,
+  rowPath,
+  setAt,
+  type RowRef,
+  type Segment,
+} from "./paths";
+export { legacyRowId, newRow, withRowIds } from "./rows";
+export {
+  checkEndorsableRules,
+  endorsePermit,
+  endorsementEditability,
+  isConditional,
+  type EndorsableIssue,
+  type EndorsementContext,
+  type Permit,
+} from "./endorsable";
 export {
   coerce,
   currencyDecimals,
@@ -11,6 +32,7 @@ export {
 } from "./values";
 export {
   evaluateForm,
+  expressionData,
   schemaIndex,
   type EntryState,
   type EvaluateOptions,

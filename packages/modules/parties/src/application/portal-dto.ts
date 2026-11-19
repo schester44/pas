@@ -30,6 +30,7 @@ export interface ClientPolicyDetailDto extends ClientPolicySummaryDto {
   coverages: {
     name: string;
     exposure?: string;
+    exposureLabel?: string;
     limit?: unknown;
     deductible?: unknown;
     premium: MoneyDto;
@@ -120,6 +121,8 @@ export function toClientPolicyDetail(
     coverages: policy.coverages.map((c) => ({
       name: c.name,
       ...(c.exposure && { exposure: c.exposure }),
+      ...(c.exposure &&
+        policy.exposureLabels[c.exposure] && { exposureLabel: policy.exposureLabels[c.exposure] }),
       ...(c.limit !== undefined && { limit: c.limit }),
       ...(c.deductible !== undefined && { deductible: c.deductible }),
       premium: c.premium,

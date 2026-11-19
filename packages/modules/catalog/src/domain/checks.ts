@@ -1,5 +1,5 @@
 import { checkDocuments, type DocumentSet, type DocumentTarget } from "@pas/documents";
-import { checkReferences, schemaIndex } from "@pas/forms-core";
+import { checkEndorsableRules, checkReferences, schemaIndex } from "@pas/forms-core";
 import { jurisdictionCode, type MessageParams, sameJurisdiction } from "@pas/kernel";
 import { checkPayPlans } from "@pas/pay-plans";
 import {
@@ -168,9 +168,13 @@ function checkBilling(contents: VersionContents): CheckIssue[] {
 }
 
 function checkRiskSchema(contents: VersionContents): CheckIssue[] {
-  if (contents.riskSchema.fields.length > 0) return [];
+  if (contents.riskSchema.fields.length === 0) {
+    return [error({ area: "risk" }, "Add at least one field to the risk data")];
+  }
 
-  return [error({ area: "risk" }, "Add at least one field to the risk data")];
+  return checkEndorsableRules(contents.riskSchema).map((issue) =>
+    error({ area: "risk" }, `${issue.path}: ${issue.message}`),
+  );
 }
 
 function checkForms(contents: VersionContents): CheckIssue[] {

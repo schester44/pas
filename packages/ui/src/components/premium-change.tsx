@@ -18,6 +18,8 @@ export interface PremiumPreview {
   }[];
   retained: { name: string; minimum: MoneyValue; amount: MoneyValue }[];
   fees: { code: string; label: string; amount: MoneyValue }[];
+  exposureLabels?: Record<string, string>;
+  reroll?: { transactionId: string; label: string; reversed: MoneyValue; reissued: MoneyValue }[];
   cancellation?: {
     minimumEarned: {
       type: string;
@@ -69,8 +71,13 @@ function PremiumChange({ preview, className }: { preview: PremiumPreview; classN
   const credit = Number(preview.total.amount) < 0;
   const mep = preview.cancellation?.minimumEarned;
 
+  const reroll = preview.reroll ?? [];
+
   const neutral =
-    preview.premium.length === 0 && preview.fees.length === 0 && preview.retained.length === 0;
+    preview.premium.length === 0 &&
+    preview.fees.length === 0 &&
+    preview.retained.length === 0 &&
+    reroll.length === 0;
 
   return (
     <div className={cn("grid gap-4", className)}>
@@ -87,7 +94,9 @@ function PremiumChange({ preview, className }: { preview: PremiumPreview; classN
           {preview.premium.map((line) => (
             <Row
               key={`${line.coverage}@${line.exposure ?? ""}`}
-              label={[line.name, exposureLabel(line.exposure)].filter(Boolean).join(" · ")}
+              label={[line.name, exposureLabel(line.exposure, preview.exposureLabels)]
+                .filter(Boolean)
+                .join(" · ")}
               meta={
                 preview.type === "ENDORSEMENT"
                   ? `Annual ${whole(line.before)} → ${whole(line.after)}`
@@ -107,6 +116,20 @@ function PremiumChange({ preview, className }: { preview: PremiumPreview; classN
           {preview.fees.map((line) => (
             <Row key={line.code} label={line.label} amount={money(line.amount, { signed: true })} />
           ))}
+          {reroll.flatMap((segment) => [
+            <Row
+              key={`${segment.transactionId}-offset`}
+              label={`Offset of the ${segment.label}`}
+              meta="Its premium, taxes and fees, reversed"
+              amount={money(segment.reversed, { signed: true })}
+            />,
+            <Row
+              key={`${segment.transactionId}-rerated`}
+              label={`${segment.label.charAt(0).toUpperCase()}${segment.label.slice(1)}, re-rated`}
+              meta="Re-applied on top of this change"
+              amount={money(segment.reissued, { signed: true })}
+            />,
+          ])}
         </ul>
       )}
       {!neutral && (

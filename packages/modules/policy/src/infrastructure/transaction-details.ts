@@ -17,20 +17,30 @@ export function detailsToJson(
   return details ? jsonToDb(details) : undefined;
 }
 
+const chargesFromJson = (json: Json) => ({
+  premium: ((json.premium ?? []) as Json[]).map((l) => withMoney(l, ["before", "after", "amount"])),
+  retained: ((json.retained ?? []) as Json[]).map((l) => withMoney(l, ["minimum", "amount"])),
+  fees: ((json.fees ?? []) as Json[]).map((l) => withMoney(l, ["amount"])),
+});
+
 export function detailsFromJson(value: unknown): TransactionDetails | null {
   if (!value || typeof value !== "object") return null;
 
   const json = value as Json;
   const cancellation = json.cancellation as Json | undefined;
   const minimumEarned = cancellation?.minimumEarned as Json | null | undefined;
+  const reroll = json.reroll as Json[] | undefined;
 
   return {
     ...(json as unknown as TransactionDetails),
-    premium: ((json.premium ?? []) as Json[]).map((l) =>
-      withMoney(l, ["before", "after", "amount"]),
-    ),
-    retained: ((json.retained ?? []) as Json[]).map((l) => withMoney(l, ["minimum", "amount"])),
-    fees: ((json.fees ?? []) as Json[]).map((l) => withMoney(l, ["amount"])),
+    ...chargesFromJson(json),
+    ...(reroll && {
+      reroll: reroll.map((segment) => ({
+        ...segment,
+        reversed: chargesFromJson(segment.reversed as Json),
+        reissued: chargesFromJson(segment.reissued as Json),
+      })),
+    }),
     annualBefore: money(json.annualBefore),
     annualAfter: money(json.annualAfter),
     ...(cancellation && {

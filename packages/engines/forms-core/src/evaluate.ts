@@ -61,7 +61,7 @@ export function schemaIndex(schema: RiskSchema): SchemaIndex {
   return index;
 }
 
-function expressionData(nodes: SchemaNode[], data: unknown): Record<string, unknown> {
+export function expressionData(nodes: SchemaNode[], data: unknown): Record<string, unknown> {
   const source = isRecord(data) ? data : {};
   const out: Record<string, unknown> = {};
 

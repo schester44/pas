@@ -92,6 +92,7 @@ function PolicyPage() {
             </div>
             <InvoiceSheet
               invoice={billing.data?.invoices.find((i) => i.id === invoiceId)}
+              labels={policy.data.exposureLabels}
               onOpenChange={(open) => !open && openInvoice(undefined)}
             />
             <PayDialog

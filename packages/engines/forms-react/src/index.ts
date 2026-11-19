@@ -1,4 +1,4 @@
-export { IntakeForm, type FormData, type IntakeFormProps } from "./intake-form";
+export { IntakeForm, type Editability, type FormData, type IntakeFormProps } from "./intake-form";
 export { useExpressionsReady } from "./use-expressions-ready";
 export { defaultCopy, type Copy } from "./copy";
 export { StepIndicator } from "./step-indicator";
@@ -11,3 +11,4 @@ export {
   type AddressLookup,
   type AddressSuggestion,
 } from "./address-field";
+export { endorsedExposures, laterChanges } from "./endorsement";

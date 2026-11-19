@@ -1,8 +1,13 @@
 import type { AdminOutputs } from "@pas/api-client";
-import { getAt } from "@pas/forms-core";
-import { IntakeForm } from "@pas/forms-react";
+import { endorsementEditability } from "@pas/forms-core";
+import { endorsedExposures, IntakeForm, laterChanges } from "@pas/forms-react";
 import { Button } from "@pas/ui/components/button";
-import { type CoverageChoiceLike, CoverageEditor } from "@pas/ui/components/coverage-editor";
+import { ChangeList } from "@pas/ui/components/change-list";
+import {
+  type CoverageChoiceLike,
+  CoverageEditor,
+  withExposures,
+} from "@pas/ui/components/coverage-editor";
 import { EmptyState } from "@pas/ui/components/empty-state";
 import { Input } from "@pas/ui/components/input";
 import { Label } from "@pas/ui/components/label";
@@ -15,8 +20,9 @@ import { Textarea } from "@pas/ui/components/textarea";
 import { plainDate } from "@pas/ui/lib/policy-change";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
+
 import {
   AddressFields,
   type Address,
@@ -79,23 +85,6 @@ function EndorsePage() {
   );
 }
 
-function exposuresOf(setup: Setup, risk: Record<string, unknown>) {
-  const paths = new Set(
-    setup.offers.flatMap((o) => (o.attachesTo.level === "exposure" ? [o.attachesTo.path] : [])),
-  );
-
-  return Object.fromEntries(
-    [...paths].map((path) => {
-      const rows = getAt(risk, path);
-
-      return [
-        path,
-        Array.from({ length: Array.isArray(rows) ? rows.length : 1 }, (_, i) => `${path}[${i}]`),
-      ];
-    }),
-  );
-}
-
 function Editor({
   policyId,
   setup,
@@ -115,6 +104,7 @@ function Editor({
   );
 
   const [risk, setRisk] = useState<Record<string, unknown>>(setup.risk);
+  const exposures = endorsedExposures(setup, risk);
   const [coverages, setCoverages] = useState<CoverageChoiceLike[]>(setup.selection);
 
   const [mailing, setMailing] = useState<Address | null>(
@@ -167,6 +157,26 @@ function Editor({
       ...(note.trim() && { note: note.trim() }),
     });
 
+  const editable = useMemo(
+    () =>
+      endorsementEditability(setup.schema, setup.risk, risk, {
+        transaction: { effectiveDate },
+        term: { effectiveDate: setup.termStart, expirationDate: setup.termEnd },
+        actor: { roles: setup.roles },
+      }),
+    [setup, risk, effectiveDate],
+  );
+
+  const editRisk = (value: Record<string, unknown>) => {
+    edit(setRisk)(value);
+
+    setCoverages((current) =>
+      withExposures(current, setup.offers, endorsedExposures(setup, value).keys),
+    );
+  };
+
+  const rerolled = laterChanges(setup, effectiveDate);
+
   const formEditsMailing = !!setup.form?.steps.some((step) =>
     step.sections.some(
       (section) => !section.repeat && section.items.some((item) => item.path === "mailingAddress"),
@@ -202,12 +212,14 @@ function Editor({
                 type="date"
                 className="tabular-nums"
                 value={effectiveDate}
-                min={setup.earliestEffective}
+                min={setup.earliestAllowed}
                 max={setup.termEnd}
                 onChange={(e) => edit(setEffectiveDate)(e.target.value)}
               />
               <p className="m-0 text-xs text-muted-foreground tabular-nums">
-                Term {plainDate(setup.termStart)} – {plainDate(setup.termEnd)}
+                {rerolled.length > 0
+                  ? `Before the ${rerolled.map((c) => plainDate(c.effectiveDate)).join(", ")} endorsement${rerolled.length > 1 ? "s" : ""}, which will be re-rated on top of this change`
+                  : `Term ${plainDate(setup.termStart)} – ${plainDate(setup.termEnd)}`}
               </p>
             </div>
             <div className="grid gap-2">
@@ -226,7 +238,8 @@ function Editor({
         >
           <CoverageEditor
             offers={setup.offers}
-            exposures={exposuresOf(setup, risk)}
+            exposures={exposures.keys}
+            labels={exposures.labels}
             value={coverages}
             original={setup.selection}
             onChange={edit(setCoverages)}
@@ -251,7 +264,8 @@ function Editor({
             schema={setup.schema}
             form={setup.form}
             value={risk}
-            onChange={edit(setRisk)}
+            onChange={editRisk}
+            editable={editable}
             onSubmit={runPreview}
             busy={quote.isPending}
             copy={{ submit: "Preview change" }}
@@ -337,20 +351,7 @@ function Editor({
                   ))}
                 </div>
               )}
-              {preview.changes.length > 0 && (
-                <ul className="m-0 grid list-none gap-2 rounded-lg bg-muted/50 p-3 text-sm">
-                  {preview.changes.map((c) => (
-                    <li key={c.path} className="grid gap-0.5">
-                      <span className="font-medium">{c.label}</span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {c.before === null || c.before === undefined
-                          ? changeText(c.after)
-                          : `${changeText(c.before)} → ${changeText(c.after)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ChangeList changes={preview.changes} reroll={preview.reroll} />
               <PremiumChange preview={preview} />
             </div>
           )}
@@ -358,18 +359,4 @@ function Editor({
       </div>
     </div>
   );
-}
-
-function changeText(value: unknown): string {
-  if (value === null || value === undefined) return "Removed";
-
-  if (typeof value === "string" || typeof value === "number") return String(value);
-
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-
-  if (Array.isArray(value)) return `${value.length} listed`;
-
-  const address = value as Partial<Address>;
-
-  return address.line1 ? `${address.line1}, ${address.city}` : "Updated";
 }

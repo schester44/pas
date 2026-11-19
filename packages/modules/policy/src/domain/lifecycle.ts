@@ -18,6 +18,8 @@ export const CANCELLATION_REASONS: readonly CancellationReason[] = [
 export interface LifecycleRules {
   reasons: CancellationReason[];
   reinstatementWindowDays: number;
+  /** PLAN §7.4: an endorsement dated before issued ones rerolls them, or is rejected. */
+  outOfSequence: "reroll" | "reject";
   rounding: Rounding;
 }
 
@@ -33,6 +35,7 @@ export function lifecycleRules(lifecycle: Record<string, unknown>): LifecycleRul
   const transactions = record(lifecycle.transactions);
   const cancellation = record(transactions.cancellation);
   const reinstatement = record(transactions.reinstatement);
+  const endorsement = record(transactions.endorsement);
   const rounding = record(lifecycle.rounding);
 
   const configured = Array.isArray(cancellation.reasons)
@@ -58,6 +61,7 @@ export function lifecycleRules(lifecycle: Record<string, unknown>): LifecycleRul
   return {
     reasons,
     reinstatementWindowDays: Number.isInteger(windowDays) && windowDays >= 0 ? windowDays : 30,
+    outOfSequence: endorsement.outOfSequence === "reroll" ? "reroll" : "reject",
     rounding: {
       places: Number.isInteger(rounding.places) ? (rounding.places as number) : 2,
       mode: MODES.includes(rounding.mode as RoundingMode)

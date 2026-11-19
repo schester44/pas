@@ -197,7 +197,7 @@ function Coverage({ policy }: { policy: ClientPolicy }) {
         {policy.coverages.map((coverage, index) => {
           const limit = amountText(coverage.limit);
           const deductible = amountText(coverage.deductible);
-          const exposure = exposureText(coverage.exposure);
+          const exposure = coverage.exposureLabel ?? exposureText(coverage.exposure);
 
           return (
             <li key={index} className="flex items-start gap-4 px-(--card-p) py-3.5">

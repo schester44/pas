@@ -67,6 +67,18 @@ export const staffScope: ScopeResolver = async (ctx) => {
   return { tenant, scope: await bookScopeOf(ctx, tenant) };
 };
 
+/** The member's roles in the tenant: endorsable conditions can be limited to some (PLAN §7.4). */
+async function rolesOf(ctx: Context, tenant: TenantContext): Promise<string[]> {
+  const { role } = await ctx.container.auth.api
+    .getActiveMemberRole({ headers: ctx.headers, query: { organizationId: tenant.tenantId } })
+    .catch(() => ({ role: "" }));
+
+  return role
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
 /**
  * Mid-term changes (PLAN §7.4): endorsements, cancellations, rescissions and reinstatements.
  * `transaction:create` starts one; `transaction:issue` (plus `uw:approve` for referrals) issues
@@ -107,9 +119,12 @@ export function policyChangesRouter(resolve: ScopeResolver) {
 
       return { create, issue, approveReferrals };
     }),
-    endorsementSetup: base
-      .input(byPolicy)
-      .query(({ ctx, input }) => uc(ctx).endorsementSetup(ctx.tenant, ctx.scope, input)),
+    endorsementSetup: base.input(byPolicy).query(async ({ ctx, input }) =>
+      uc(ctx).endorsementSetup(ctx.tenant, ctx.scope, {
+        ...input,
+        roles: await rolesOf(ctx, ctx.tenant),
+      }),
+    ),
     quoteEndorsement: creator
       .input(
         byPolicy.extend({
@@ -126,11 +141,12 @@ export function policyChangesRouter(resolve: ScopeResolver) {
           note,
         }),
       )
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { note: text, parties, ...rest } = input;
 
         return uc(ctx).quoteEndorsement(ctx.tenant, ctx.scope, {
           ...rest,
+          roles: await rolesOf(ctx, ctx.tenant),
           ...(parties && {
             parties: {
               ...(parties.mailingAddress !== undefined && {

@@ -471,7 +471,12 @@ export function compose() {
     }),
     attachDocuments: makeAttachPolicyDocuments({ uow, policies, clocks }),
     list: makeListPolicies({ uow, policies }),
-    get: makeGetPolicy({ uow, policies, storage }),
+    get: makeGetPolicy({
+      uow,
+      policies,
+      storage,
+      config: { release: (ctx, id) => policyConfig.release(ctx, id) },
+    }),
   };
 
   const secretBox = new AesSecretBox(process.env.INTEGRATIONS_SECRET_KEY);

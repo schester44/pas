@@ -21,7 +21,7 @@ export function PolicyTransactions({ policy }: { policy: Policy }) {
       <Panel title="Transactions" flush>
         <ul className="m-0 list-none divide-y p-0">
           {transactions.map((t) => (
-            <TransactionRow key={t.id} transaction={t} />
+            <TransactionRow key={t.id} transaction={t} labels={policy.exposureLabels} />
           ))}
         </ul>
       </Panel>
@@ -58,7 +58,13 @@ function Disclosure({
   );
 }
 
-function TransactionRow({ transaction: t }: { transaction: Transaction }) {
+function TransactionRow({
+  transaction: t,
+  labels,
+}: {
+  transaction: Transaction;
+  labels: Record<string, string>;
+}) {
   const [open, setOpen] = useState(false);
   const pending = t.status !== "issued";
 
@@ -83,12 +89,18 @@ function TransactionRow({ transaction: t }: { transaction: Transaction }) {
           {formatMoney(t.premiumDelta)}
         </span>
       </Disclosure>
-      {open && <TransactionDetail transaction={t} />}
+      {open && <TransactionDetail transaction={t} labels={{ ...labels, ...t.exposureLabels }} />}
     </li>
   );
 }
 
-function TransactionDetail({ transaction: t }: { transaction: Transaction }) {
+function TransactionDetail({
+  transaction: t,
+  labels,
+}: {
+  transaction: Transaction;
+  labels: Record<string, string>;
+}) {
   const changed = t.premium.filter((line) => Number(line.amount.amount) !== 0);
 
   return (
@@ -115,13 +127,28 @@ function TransactionDetail({ transaction: t }: { transaction: Transaction }) {
           {changed.map((line) => (
             <Line
               key={`${line.coverage}@${line.exposure ?? ""}`}
-              label={`${line.name}${line.exposure ? ` · ${exposureLabel(line.exposure) ?? "Policy"}` : ""}`}
+              label={`${line.name}${line.exposure ? ` · ${exposureLabel(line.exposure, labels) ?? "Policy"}` : ""}`}
             >
               {formatMoney(line.amount)}
             </Line>
           ))}
         </Section>
       )}
+      {t.reroll.map((segment) => (
+        <Section key={segment.transactionId} title={`Re-rates the ${segment.label}`}>
+          <Line label="Offset in full">{formatMoney(segment.reversed)}</Line>
+          <Line label={`Re-applied from ${formatPlainDate(segment.effectiveDate)}`}>
+            {formatMoney(segment.reissued)}
+          </Line>
+          {segment.conflicts.map((c) => (
+            <Line key={c.path} label={c.label}>
+              {c.outcome === "no_longer_applies"
+                ? "No longer applies"
+                : `${display(c.theirs)} from ${formatPlainDate(segment.effectiveDate)}`}
+            </Line>
+          ))}
+        </Section>
+      ))}
       {t.fees.length > 0 && (
         <Section title="Taxes and fees">
           {t.fees.map((fee) => (
@@ -213,6 +240,7 @@ function Ledger({ policy }: { policy: Policy }) {
             key={group[0]!.transactionId}
             lines={group}
             source={transactions.get(group[0]!.transactionId)}
+            labels={policy.exposureLabels}
           />
         ))}
       </ul>
@@ -220,7 +248,15 @@ function Ledger({ policy }: { policy: Policy }) {
   );
 }
 
-function LedgerGroup({ lines, source }: { lines: Financial[]; source?: Transaction }) {
+function LedgerGroup({
+  lines,
+  source,
+  labels,
+}: {
+  lines: Financial[];
+  source?: Transaction;
+  labels: Record<string, string>;
+}) {
   const [open, setOpen] = useState(false);
   const first = lines[0]!;
 
@@ -257,12 +293,14 @@ function LedgerGroup({ lines, source }: { lines: Financial[]; source?: Transacti
                   {f.exposure && (
                     <span className="text-muted-foreground">
                       {" "}
-                      · {exposureLabel(f.exposure) ?? "Policy"}
+                      · {exposureLabel(f.exposure, labels) ?? "Policy"}
                     </span>
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {f.kind === "written_premium" ? "Written premium" : "Tax or fee"}
+                  {f.effectiveDate !== source?.effectiveDate &&
+                    ` · effective ${formatPlainDate(f.effectiveDate)}`}
                   {f.remitter && ` · remitted by ${humanize(f.remitter).toLowerCase()}`}
                 </span>
               </span>

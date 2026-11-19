@@ -7,6 +7,7 @@ import {
   getAt,
   isField,
   joinPath,
+  newRow,
   type RiskSchema,
   type SectionState,
   schemaIndex,
@@ -27,6 +28,12 @@ import { useExpressionsReady } from "./use-expressions-ready";
 
 export type FormData = Record<string, unknown>;
 
+/** What an endorsement may change: a read-only field's reason, and whether rows come and go. */
+export interface Editability {
+  field: (path: string) => string | null;
+  rows: (repeat: string) => boolean;
+}
+
 export interface IntakeFormProps {
   schema: RiskSchema;
   form: FormDefinition;
@@ -41,6 +48,7 @@ export interface IntakeFormProps {
   serverErrors?: Record<string, string[]>;
   copy?: Partial<Copy>;
   uploadFile?: (file: File) => Promise<FileValue>;
+  editable?: Editability;
 }
 
 export function IntakeForm(props: IntakeFormProps) {
@@ -63,6 +71,7 @@ function ReadyIntakeForm({
   copy: copyOverrides,
   uploadFile,
   compact,
+  editable,
 }: IntakeFormProps) {
   const copy = useMemo(() => ({ ...defaultCopy, ...copyOverrides }), [copyOverrides]);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -97,8 +106,12 @@ function ReadyIntakeForm({
   }
 
   const state = useMemo(
-    () => withServerErrors(evaluateForm(schema, form, value), serverErrors, dismissed),
-    [schema, form, value, serverErrors, dismissed],
+    () =>
+      withoutLocked(
+        withServerErrors(evaluateForm(schema, form, value), serverErrors, dismissed),
+        editable,
+      ),
+    [schema, form, value, serverErrors, dismissed, editable],
   );
 
   const dismiss = (path: string) => {
@@ -155,8 +168,9 @@ function ReadyIntakeForm({
     }
 
     const submission = validateSubmission(schema, form, value);
+    const blocking = Object.keys(submission.errors).filter((path) => !editable?.field(path));
 
-    if (!submission.ok) {
+    if (blocking.length > 0) {
       setAttempted(new Set(visibleSteps.map((candidate) => candidate.id)));
       const invalid = visibleSteps.find((candidate) => !candidate.valid);
 
@@ -194,6 +208,7 @@ function ReadyIntakeForm({
                 showErrors={false}
                 copy={copy}
                 uploadFile={uploadFile}
+                editable={editable}
               />
             );
           });
@@ -237,6 +252,7 @@ function ReadyIntakeForm({
             showErrors={showErrors}
             copy={copy}
             uploadFile={uploadFile}
+            editable={editable}
           />
         );
       })}
@@ -271,6 +287,7 @@ interface SectionProps {
   copy: Copy;
   uploadFile?: (file: File) => Promise<FileValue>;
   compact?: boolean;
+  editable?: Editability;
 }
 
 function CompactSection({
@@ -311,6 +328,7 @@ function Section({
   copy,
   uploadFile,
   compact,
+  editable,
 }: SectionProps) {
   const index = schemaIndex(schema);
   const Container = compact ? CompactSection : Panel;
@@ -340,6 +358,7 @@ function Section({
               copy={copy}
               uploadFile={uploadFile}
               compact={compact}
+              readOnly={editable?.field(itemState.path) ?? null}
             />
           );
         })}
@@ -365,7 +384,7 @@ function Section({
 
   const add = () => {
     onEdit(repeat);
-    onChange(setAt(value, repeat, [...rows, {}]));
+    onChange(setAt(value, repeat, [...rows, newRow()]));
   };
 
   const remove = (at: number) => {
@@ -380,7 +399,9 @@ function Section({
     );
   };
 
-  const addButton = (max === undefined || rows.length < max) && (
+  const rowsEditable = editable?.rows(repeat) ?? true;
+
+  const addButton = rowsEditable && (max === undefined || rows.length < max) && (
     <Button type="button" variant="outline" size="sm" onClick={add}>
       <Plus /> {copy.add(noun)}
     </Button>
@@ -406,7 +427,7 @@ function Section({
                 <h3 className="m-0 text-sm leading-5 font-medium">
                   {copy.entry(noun, entry.index! + 1)}
                 </h3>
-                {rows.length > min && (
+                {rowsEditable && rows.length > min && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -428,6 +449,37 @@ function Section({
       </div>
     </Container>
   );
+}
+
+function withoutLocked(state: FormState, editable: Editability | undefined): FormState {
+  if (!editable) return state;
+
+  const items: FormState["items"] = {};
+
+  const steps = state.steps.map((step) => {
+    const sections = step.sections.map((section) => ({
+      ...section,
+      entries: section.entries.map((entry) => ({
+        ...entry,
+        items: entry.items.map((item) => {
+          const next = editable.field(item.path) ? { ...item, errors: [] } : item;
+          items[next.path] = next;
+
+          return next;
+        }),
+      })),
+    }));
+
+    const valid = sections.every(
+      (section) =>
+        section.errors.length === 0 &&
+        section.entries.every((entry) => entry.items.every((item) => item.errors.length === 0)),
+    );
+
+    return { ...step, sections, valid };
+  });
+
+  return { steps, items, valid: steps.every((step) => !step.visible || step.valid) };
 }
 
 function withServerErrors(

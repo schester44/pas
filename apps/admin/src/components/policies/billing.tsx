@@ -201,9 +201,11 @@ function InvoiceList({
 export function InvoiceSheet({
   invoice,
   onOpenChange,
+  labels,
 }: {
   invoice: Invoice | undefined;
   onOpenChange: (open: boolean) => void;
+  labels?: Record<string, string>;
 }) {
   return (
     <Sheet open={invoice !== undefined} onOpenChange={onOpenChange}>
@@ -236,7 +238,7 @@ export function InvoiceSheet({
                         {line.exposure && (
                           <span className="text-muted-foreground">
                             {" "}
-                            · {exposureLabel(line.exposure) ?? line.exposure}
+                            · {exposureLabel(line.exposure, labels) ?? line.exposure}
                           </span>
                         )}
                       </td>

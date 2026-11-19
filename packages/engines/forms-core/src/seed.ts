@@ -2,6 +2,7 @@ import type { FormDefinition } from "./form";
 import { getAt, setAt } from "./paths";
 import type { RiskSchema } from "./schema";
 import { schemaIndex } from "./evaluate";
+import { newRow } from "./rows";
 
 export function withMinimumEntries<T>(schema: RiskSchema, form: FormDefinition, data: T): T {
   const index = schemaIndex(schema);
@@ -17,7 +18,7 @@ export function withMinimumEntries<T>(schema: RiskSchema, form: FormDefinition, 
 
       if (rows.length >= minimum) continue;
 
-      const padding = Array.from({ length: minimum - rows.length }, () => ({}));
+      const padding = Array.from({ length: minimum - rows.length }, newRow);
       seeded = setAt(seeded, section.repeat, [...rows, ...padding]);
     }
   }

@@ -15,7 +15,12 @@ export function PolicyCoverage({ policy }: { policy: Policy }) {
     <div className="grid gap-8">
       <div className="grid gap-6">
         {[...groups].map(([exposure, coverages]) => (
-          <CoverageGroup key={exposure} exposure={exposure} coverages={coverages} />
+          <CoverageGroup
+            key={exposure}
+            exposure={exposure}
+            coverages={coverages}
+            labels={policy.exposureLabels}
+          />
         ))}
       </div>
       <RiskDetails policy={policy} />
@@ -29,12 +34,20 @@ function premiumOf(coverages: Coverage[]) {
   return first ? rest.reduce((sum, m) => sum.plus(m), first).toJSON() : null;
 }
 
-function CoverageGroup({ exposure, coverages }: { exposure: string; coverages: Coverage[] }) {
+function CoverageGroup({
+  exposure,
+  coverages,
+  labels,
+}: {
+  exposure: string;
+  coverages: Coverage[];
+  labels: Record<string, string>;
+}) {
   const premium = premiumOf(coverages);
 
   return (
     <Panel
-      title={exposureLabel(exposure || undefined) ?? "Policy"}
+      title={exposureLabel(exposure || undefined, labels) ?? "Policy"}
       description={`${coverages.length} ${coverages.length === 1 ? "coverage" : "coverages"}`}
       action={
         premium && (

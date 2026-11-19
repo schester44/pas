@@ -1,7 +1,7 @@
-import type { Money } from "@pas/kernel";
+import { Money } from "@pas/kernel";
 import type { Policy, PolicyTransactionProps, TermStatus } from "../domain/policy";
 import { annualOf, coveragesOf } from "../domain/term-state";
-import { type CarrierHandling, chargesOf } from "../domain/transaction";
+import { type CarrierHandling, type Charges, chargesOf } from "../domain/transaction";
 
 type MoneyDto = { amount: string; currency: string };
 
@@ -37,6 +37,7 @@ export interface PolicySummaryDto {
 
 export interface PolicyDetailDto extends PolicySummaryDto {
   sourceSubmissionId: string;
+  exposureLabels: Record<string, string>;
   productVersion: string;
   coverages: {
     coverage: string;
@@ -132,7 +133,32 @@ export interface TransactionDto {
   note: string | null;
   approvedBy: string | null;
   carrier: CarrierHandling | null;
+  exposureLabels: Record<string, string>;
+  /** Later endorsements an out-of-sequence change offsets and re-applies (PLAN §7.4). */
+  reroll: {
+    transactionId: string;
+    effectiveDate: string;
+    label: string;
+    reversed: MoneyDto;
+    reissued: MoneyDto;
+    changes: { path: string; label: string; before: unknown; after: unknown }[];
+    conflicts: {
+      path: string;
+      label: string;
+      ours: unknown;
+      theirs: unknown;
+      outcome: "theirs_from_date" | "no_longer_applies";
+    }[];
+  }[];
 }
+
+const totalOf = (charges: Charges, currency: string): MoneyDto =>
+  money(
+    [...charges.premium, ...charges.retained, ...charges.fees].reduce(
+      (sum, line) => sum.plus(line.amount),
+      Money.zero(currency),
+    ),
+  );
 
 export function toTransactionDto(t: PolicyTransactionProps): TransactionDto {
   const d = t.details;
@@ -203,6 +229,16 @@ export function toTransactionDto(t: PolicyTransactionProps): TransactionDto {
     note: d?.note ?? null,
     approvedBy: d?.approvedBy?.name ?? null,
     carrier: d?.carrier ?? null,
+    exposureLabels: d?.exposureLabels ?? {},
+    reroll: (d?.reroll ?? []).map((segment) => ({
+      transactionId: segment.transactionId,
+      effectiveDate: segment.effectiveDate,
+      label: segment.label,
+      reversed: totalOf(segment.reversed, t.premiumDelta.currency),
+      reissued: totalOf(segment.reissued, t.premiumDelta.currency),
+      changes: segment.changes,
+      conflicts: segment.conflicts,
+    })),
   };
 }
 
@@ -246,7 +282,10 @@ export function toPolicySummaryDto(policy: Policy): PolicySummaryDto {
   };
 }
 
-export function toPolicyDetailDto(policy: Policy): PolicyDetailDto {
+export function toPolicyDetailDto(
+  policy: Policy,
+  exposureLabels: Record<string, string> = {},
+): PolicyDetailDto {
   const state = policy.toSnapshot();
   const term = policy.currentTerm;
   const latest = policy.latestVersion(term.id);
@@ -265,6 +304,7 @@ export function toPolicyDetailDto(policy: Policy): PolicyDetailDto {
   return {
     ...toPolicySummaryDto(policy),
     sourceSubmissionId: state.policy.sourceSubmissionId,
+    exposureLabels,
     productVersion: term.productVersion,
     coverages,
     transactions: state.transactions.filter((t) => t.status !== "discarded").map(toTransactionDto),

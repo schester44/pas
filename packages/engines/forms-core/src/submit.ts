@@ -1,6 +1,6 @@
 import type { FormDefinition } from "./form";
 import { evaluate, type EvaluateOptions, type FormState } from "./evaluate";
-import { setAt } from "./paths";
+import { getAt, ROW_ID, rowIdOf, setAt } from "./paths";
 import type { RiskSchema } from "./schema";
 
 export interface Submission {
@@ -20,10 +20,16 @@ export function validateSubmission(
   let output: Record<string, unknown> = {};
 
   for (const [path, count] of repeats) {
+    const rows = getAt(data, path);
+
     output = setAt(
       output,
       path,
-      Array.from({ length: count }, () => ({})),
+      Array.from({ length: count }, (_, i) => {
+        const id = Array.isArray(rows) ? rowIdOf(rows[i]) : undefined;
+
+        return id ? { [ROW_ID]: id } : {};
+      }),
     );
   }
 

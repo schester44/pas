@@ -79,6 +79,37 @@ export interface CancellationDetails {
   fullyEarnedFees: string[];
 }
 
+/** Premium and taxes a change bills, by coverage. */
+export interface Charges {
+  premium: PremiumChange[];
+  retained: RetainedLine[];
+  fees: FeeLine[];
+}
+
+/** A later change the reroll re-applied over this one, where it disagrees or no longer fits. */
+export interface RerollConflict {
+  path: string;
+  label: string;
+  ours: unknown;
+  theirs: unknown;
+  outcome: "theirs_from_date" | "no_longer_applies";
+}
+
+/**
+ * Out of sequence (PLAN §7.4): a later issued change, offset in full and re-applied on top of
+ * this one, re-priced from its own effective date.
+ */
+export interface RerollSegment {
+  transactionId: string;
+  effectiveDate: string;
+  label: string;
+  reversed: Charges;
+  reissued: Charges;
+  after: Record<string, unknown>;
+  changes: FieldChange[];
+  conflicts: RerollConflict[];
+}
+
 /** What a non-issued transaction proposes, and what issuing it will write. */
 export interface TransactionDetails {
   after: Record<string, unknown> | null;
@@ -94,6 +125,9 @@ export interface TransactionDetails {
   note?: string;
   approvedBy?: TimelineActor;
   carrier?: CarrierHandling;
+  reroll?: RerollSegment[];
+  /** People-facing names of the exposure keys its lines use. */
+  exposureLabels?: Record<string, string>;
 }
 
 /** The carrier's part in a delegated change: its run, reference and how its figures moved ours. */
@@ -135,33 +169,59 @@ export interface PolicyTransactionProps {
   issuedAt: Instant | null;
 }
 
-/** The billable lines: prorated premium by coverage, minimum earned retained, then taxes and fees. */
-export function chargesOf(details: TransactionDetails) {
+const chargeLines = (charges: Charges, prefix = "") => [
+  ...charges.premium.map((line) => ({
+    kind: "written_premium" as const,
+    code: line.coverage,
+    label: `${prefix}${line.name}`,
+    coverage: line.coverage,
+    ...(line.exposure !== undefined && { exposure: line.exposure }),
+    amount: line.amount,
+  })),
+  ...charges.retained.map((line) => ({
+    kind: "written_premium" as const,
+    code: "MINIMUM_EARNED",
+    label: `${prefix}${line.name}`,
+    ...(line.coverage !== undefined && { coverage: line.coverage }),
+    ...(line.exposure !== undefined && { exposure: line.exposure }),
+    amount: line.amount,
+  })),
+  ...charges.fees.map((line) => ({
+    kind: "tax_fee" as const,
+    code: line.code,
+    label: `${prefix}${line.label}`,
+    remitter: line.remitter,
+    amount: line.amount,
+  })),
+];
+
+export type ChargeLine = ReturnType<typeof chargeLines>[number];
+
+/**
+ * The billable lines by effective date: the change's own, then for each rerolled later change
+ * its offset and its re-priced lines on that change's date.
+ */
+export function chargesByDate(details: TransactionDetails): {
+  effectiveDate: string | null;
+  lines: ChargeLine[];
+}[] {
   return [
-    ...details.premium.map((line) => ({
-      kind: "written_premium" as const,
-      code: line.coverage,
-      label: line.name,
-      coverage: line.coverage,
-      ...(line.exposure !== undefined && { exposure: line.exposure }),
-      amount: line.amount,
-    })),
-    ...details.retained.map((line) => ({
-      kind: "written_premium" as const,
-      code: "MINIMUM_EARNED",
-      label: line.name,
-      ...(line.coverage !== undefined && { coverage: line.coverage }),
-      ...(line.exposure !== undefined && { exposure: line.exposure }),
-      amount: line.amount,
-    })),
-    ...details.fees.map((line) => ({
-      kind: "tax_fee" as const,
-      code: line.code,
-      label: line.label,
-      remitter: line.remitter,
-      amount: line.amount,
+    { effectiveDate: null, lines: chargeLines(details) },
+    ...(details.reroll ?? []).map((segment) => ({
+      effectiveDate: segment.effectiveDate,
+      lines: [
+        ...chargeLines(segment.reversed, `Offset of ${segment.label} · `),
+        ...chargeLines(segment.reissued, `${capitalized(segment.label)} re-rated · `),
+      ],
     })),
   ];
+}
+
+const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** The billable lines: prorated premium by coverage, minimum earned retained, then taxes and fees. */
+export function chargesOf(details: TransactionDetails) {
+  return chargesByDate(details).flatMap((group) => group.lines);
 }
 
 export function premiumOf(details: TransactionDetails, currency: string): Money {

@@ -66,12 +66,14 @@ function CoverageEditor({
   value,
   original,
   onChange,
+  labels,
 }: {
   offers: CoverageOfferLike[];
   exposures: Record<string, string[]>;
   value: CoverageChoiceLike[];
   original: CoverageChoiceLike[];
   onChange: (value: CoverageChoiceLike[]) => void;
+  labels?: Record<string, string>;
 }) {
   const slots = offers.flatMap((offer) =>
     offer.attachesTo.level === "policy"
@@ -145,7 +147,7 @@ function CoverageEditor({
               <label htmlFor={id} className="grid min-w-0 gap-0.5">
                 <span className="text-sm font-medium">{offer.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {[exposureLabel(exposure) ?? "Policy", offer.required ? "Required" : null]
+                  {[exposureLabel(exposure, labels) ?? "Policy", offer.required ? "Required" : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
@@ -172,4 +174,34 @@ function CoverageEditor({
   );
 }
 
-export { CoverageEditor };
+/**
+ * Keeps a selection in step with the exposures being edited: required coverages for entries
+ * just added, nothing for entries removed.
+ */
+function withExposures(
+  value: CoverageChoiceLike[],
+  offers: CoverageOfferLike[],
+  exposures: Record<string, string[]>,
+): CoverageChoiceLike[] {
+  const live = new Set(Object.values(exposures).flat());
+  const kept = value.filter((c) => c.exposure === undefined || live.has(c.exposure));
+
+  const added = offers.flatMap((offer) =>
+    offer.attachesTo.level === "exposure" && offer.required
+      ? (exposures[offer.attachesTo.path] ?? [])
+          .filter(
+            (exposure) => !kept.some((c) => c.coverage === offer.code && c.exposure === exposure),
+          )
+          .map((exposure) => ({
+            coverage: offer.code,
+            exposure,
+            ...(offer.limits[0] && { limit: offer.limits[0] }),
+            ...(offer.deductibles[0] && { deductible: offer.deductibles[0] }),
+          }))
+      : [],
+  );
+
+  return added.length === 0 && kept.length === value.length ? value : [...kept, ...added];
+}
+
+export { CoverageEditor, withExposures };

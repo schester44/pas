@@ -1,6 +1,13 @@
 import type { AppOutputs } from "@pas/api-client";
+import { endorsementEditability } from "@pas/forms-core";
+import { endorsedExposures, IntakeForm, laterChanges } from "@pas/forms-react";
 import { Button } from "@pas/ui/components/button";
-import { type CoverageChoiceLike, CoverageEditor } from "@pas/ui/components/coverage-editor";
+import { ChangeList } from "@pas/ui/components/change-list";
+import {
+  type CoverageChoiceLike,
+  CoverageEditor,
+  withExposures,
+} from "@pas/ui/components/coverage-editor";
 import { Input } from "@pas/ui/components/input";
 import { Label } from "@pas/ui/components/label";
 import { Notice } from "@pas/ui/components/notice";
@@ -11,7 +18,7 @@ import { Textarea } from "@pas/ui/components/textarea";
 import { plainDate } from "@pas/ui/lib/policy-change";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PolicyBack } from "@/components/policy/policy-back";
 import { useTRPC } from "@/lib/trpc";
 
@@ -63,6 +70,7 @@ function ChangeEditor({
   const navigate = useNavigate();
   const [effectiveDate, setEffectiveDate] = useState(setup.earliestEffective);
   const [coverages, setCoverages] = useState<CoverageChoiceLike[]>(setup.selection);
+  const [risk, setRisk] = useState<Record<string, unknown>>(setup.risk);
   const [note, setNote] = useState("");
 
   const [preview, setPreview] = useState<Setup["open"]>(
@@ -71,18 +79,39 @@ function ChangeEditor({
 
   const [stale, setStale] = useState(false);
 
-  const exposures = Object.fromEntries(
-    setup.offers
-      .flatMap((o) => (o.attachesTo.level === "exposure" ? [o.attachesTo.path] : []))
-      .map((path) => {
-        const rows = setup.risk[path];
+  const exposures = endorsedExposures(setup, risk);
 
-        return [
-          path,
-          Array.from({ length: Array.isArray(rows) ? rows.length : 1 }, (_, i) => `${path}[${i}]`),
-        ];
+  const editable = useMemo(
+    () =>
+      endorsementEditability(setup.schema, setup.risk, risk, {
+        transaction: { effectiveDate },
+        term: { effectiveDate: setup.termStart, expirationDate: setup.termEnd },
+        actor: { roles: setup.roles },
       }),
+    [setup, risk, effectiveDate],
   );
+
+  const editRisk = (value: Record<string, unknown>) => {
+    setRisk(value);
+
+    setCoverages((current) =>
+      withExposures(current, setup.offers, endorsedExposures(setup, value).keys),
+    );
+
+    setStale(true);
+  };
+
+  const rerolled = laterChanges(setup, effectiveDate);
+
+  const runPreview = () =>
+    quote.mutate({
+      policyId,
+      ...(preview && { transactionId: preview.id }),
+      effectiveDate,
+      risk,
+      coverages,
+      ...(note.trim() && { note: note.trim() }),
+    });
 
   const quote = useMutation(
     trpc.policies.changes.quoteEndorsement.mutationOptions({
@@ -116,13 +145,20 @@ function ChangeEditor({
                 type="date"
                 className="tabular-nums"
                 value={effectiveDate}
-                min={setup.earliestEffective}
+                min={setup.earliestAllowed}
                 max={setup.termEnd}
                 onChange={(e) => {
                   setEffectiveDate(e.target.value);
                   setStale(true);
                 }}
               />
+              {rerolled.length > 0 && (
+                <p className="m-0 text-xs text-muted-foreground">
+                  Before the {rerolled.map((c) => plainDate(c.effectiveDate)).join(", ")}{" "}
+                  endorsement{rerolled.length > 1 ? "s" : ""}, which will be re-rated on top of this
+                  change.
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="note">
@@ -136,7 +172,8 @@ function ChangeEditor({
         <Panel title="Coverages" flush>
           <CoverageEditor
             offers={setup.offers}
-            exposures={exposures}
+            exposures={exposures.keys}
+            labels={exposures.labels}
             value={coverages}
             original={setup.selection}
             onChange={(value) => {
@@ -145,6 +182,18 @@ function ChangeEditor({
             }}
           />
         </Panel>
+        {setup.form && (
+          <Panel title="Policy details">
+            <IntakeForm
+              compact
+              schema={setup.schema}
+              form={setup.form}
+              value={risk}
+              onChange={editRisk}
+              editable={editable}
+            />
+          </Panel>
+        )}
       </div>
       <Panel
         title="Premium change"
@@ -157,18 +206,7 @@ function ChangeEditor({
               </Notice>
             )}
             {(!preview || stale) && !pending ? (
-              <Button
-                disabled={quote.isPending}
-                onClick={() =>
-                  quote.mutate({
-                    policyId,
-                    ...(preview && { transactionId: preview.id }),
-                    effectiveDate,
-                    coverages,
-                    ...(note.trim() && { note: note.trim() }),
-                  })
-                }
-              >
+              <Button disabled={quote.isPending} onClick={runPreview}>
                 {quote.isPending && <Spinner />} Preview change
               </Button>
             ) : (
@@ -188,10 +226,13 @@ function ChangeEditor({
         }
       >
         {preview ? (
-          <PremiumChange preview={preview} />
+          <div className="grid gap-4">
+            <ChangeList changes={preview.changes} reroll={preview.reroll} />
+            <PremiumChange preview={preview} />
+          </div>
         ) : (
           <p className="m-0 text-sm text-muted-foreground">
-            Change coverages, then preview the prorated premium from {plainDate(effectiveDate)}.
+            Change the policy, then preview the prorated premium from {plainDate(effectiveDate)}.
           </p>
         )}
       </Panel>

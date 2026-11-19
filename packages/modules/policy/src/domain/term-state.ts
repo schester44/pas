@@ -1,4 +1,5 @@
 import { Money } from "@pas/kernel";
+import { stableExposure } from "./exposures";
 import type { PremiumLine } from "./proration";
 
 type MoneyJson = { amount: string; currency: string };
@@ -11,13 +12,18 @@ export interface RatedCoverage extends PremiumLine {
 const isMoney = (value: unknown): value is MoneyJson =>
   typeof value === "object" && value !== null && "amount" in value && "currency" in value;
 
-/** Full-term premium by coverage, as the TermVersion snapshot recorded it. */
+/**
+ * Full-term premium by coverage, as the TermVersion snapshot recorded it, with exposures keyed by
+ * row id even where the snapshot keyed them by position.
+ */
 export function coveragesOf(snapshot: Record<string, unknown>): RatedCoverage[] {
   const rows = (snapshot.coverages ?? []) as Record<string, unknown>[];
 
   return rows.map((row) => ({
     coverage: String(row.coverage),
-    ...(typeof row.exposure === "string" && { exposure: row.exposure }),
+    ...(typeof row.exposure === "string" && {
+      exposure: stableExposure(snapshot.risk, row.exposure)!,
+    }),
     name: String(row.name ?? row.coverage),
     ...(row.limit !== undefined && { limit: row.limit }),
     ...(row.deductible !== undefined && { deductible: row.deductible }),

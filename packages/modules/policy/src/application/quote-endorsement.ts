@@ -3,7 +3,8 @@ import type { TimelineActor } from "../domain/policy-event";
 import type { PolicyScope } from "../domain/scope";
 import type { CoverageChoice } from "../ports/term-rater";
 import { type TransactionDto, toTransactionDto } from "./dto";
-import { type ChangeDeps, loadPolicy, type PartyChanges, priceEndorsement } from "./pricing";
+import { type PartyChanges, priceEndorsement } from "./price-endorsement";
+import { type ChangeDeps, loadPolicy } from "./pricing";
 
 /** Prices a change and stores it as a quoted ENDORSEMENT, ready to issue (PLAN §7.4). */
 export function makeQuoteEndorsement(deps: ChangeDeps) {
@@ -19,13 +20,12 @@ export function makeQuoteEndorsement(deps: ChangeDeps) {
       parties?: PartyChanges;
       note?: string;
       actor: TimelineActor;
+      roles?: readonly string[];
     },
   ): Promise<TransactionDto> {
     const effectiveDate = parsePlainDate(input.effectiveDate);
     const policy = await loadPolicy(deps, ctx, scope, input.policyId);
     const term = policy.currentTerm;
-
-    policy.assertChangeable(term.id, "ENDORSEMENT", effectiveDate, input.transactionId);
 
     const details = await priceEndorsement(deps, ctx, policy, { ...input, effectiveDate });
     const base = policy.latestVersion(term.id).version;

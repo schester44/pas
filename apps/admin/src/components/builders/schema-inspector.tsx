@@ -10,6 +10,7 @@ import {
 import { Textarea } from "@pas/ui/components/textarea";
 import { ArrowDown, ArrowUp, Copy, Trash } from "lucide-react";
 import { useId } from "react";
+import { EndorsableProp } from "./endorsable-prop";
 import {
   Code,
   FlagProp,
@@ -161,6 +162,7 @@ export function SchemaInspector({
             problems={problems}
             onChange={patch}
             id={id}
+            inRow={canonical.includes("[]")}
           />
         ) : (
           <FieldSections
@@ -169,6 +171,7 @@ export function SchemaInspector({
             problems={problems}
             onChange={patch}
             id={id}
+            inRow={canonical.includes("[]")}
           />
         )}
       </InspectorBody>
@@ -250,11 +253,19 @@ interface SectionProps<T extends SchemaNode> {
   readOnly?: boolean;
   problems: ReturnType<typeof problemsOf>;
   onChange: (changes: Partial<T>) => void;
+  inRow: boolean;
 }
 
 const parseCount = (raw: string) => (raw === "" ? undefined : Math.max(0, Math.trunc(Number(raw))));
 
-function ContainerSections({ id, node, readOnly, problems, onChange }: SectionProps<Container>) {
+function ContainerSections({
+  id,
+  node,
+  readOnly,
+  problems,
+  onChange,
+  inRow,
+}: SectionProps<Container>) {
   const exposed = node.exposure !== undefined;
 
   return (
@@ -298,6 +309,13 @@ function ContainerSections({ id, node, readOnly, problems, onChange }: SectionPr
               />
             </Prop>
           </PropRow>
+          <EndorsableProp
+            label="Added or removed by endorsement"
+            value={node.endorsable}
+            readOnly={readOnly}
+            inRow={inRow}
+            onChange={(endorsable) => onChange({ endorsable })}
+          />
         </InspectorSection>
       )}
       <InspectorSection title="Exposure" readOnly={readOnly}>
@@ -340,7 +358,7 @@ function ContainerSections({ id, node, readOnly, problems, onChange }: SectionPr
   );
 }
 
-function FieldSections({ id, node, readOnly, problems, onChange }: SectionProps<FieldNode>) {
+function FieldSections({ id, node, readOnly, problems, onChange, inRow }: SectionProps<FieldNode>) {
   return (
     <>
       {hasOptions(node.kind) && (
@@ -409,12 +427,12 @@ function FieldSections({ id, node, readOnly, problems, onChange }: SectionProps<
         </InspectorSection>
       )}
       <InspectorSection title="Handling" readOnly={readOnly}>
-        <FlagProp
-          label="Endorsable"
-          description="Can change mid-term through an endorsement."
-          checked={node.endorsable === true}
+        <EndorsableProp
+          label="Changes by endorsement"
+          value={node.endorsable}
           readOnly={readOnly}
-          onChange={(checked) => onChange({ endorsable: checked || undefined })}
+          inRow={inRow}
+          onChange={(endorsable) => onChange({ endorsable })}
         />
         <FlagProp
           label="Personal data"

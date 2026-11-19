@@ -1,5 +1,5 @@
 import { clearanceModeFrom } from "@pas/addresses";
-import { validateSubmission } from "@pas/forms-core";
+import { validateSubmission, withRowIds } from "@pas/forms-core";
 import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import { Quote } from "../domain/quote";
 import type { RiskData } from "../domain/submission";
@@ -60,7 +60,12 @@ export function makeSubmitSubmission(
       return { ok: false, errors: result.errors };
     }
 
-    const stamped = await deps.addresses.stamp(ctx, intake.riskSchema, result.data);
+    const stamped = await deps.addresses.stamp(
+      ctx,
+      intake.riskSchema,
+      withRowIds(intake.riskSchema, result.data),
+    );
+
     const locations = stamped.addresses.filter((a) => a.role === "location");
 
     const clearance = await deps.addresses.clearance(ctx, {
