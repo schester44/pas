@@ -13,21 +13,19 @@ type Jsonified<T> = T extends Money
 
 export type RatingResultJson = Jsonified<RatingResult>;
 
-const money = (json: MoneyJson) => Money.of(json.amount, json.currency);
-
 export function ratingResultFromJson(json: RatingResultJson): RatingResult {
   return {
     ...json,
     coverages: json.coverages.map((c) => ({
       ...c,
-      premium: money(c.premium),
-      calculated: money(c.calculated),
+      premium: Money.fromJSON(c.premium),
+      calculated: Money.fromJSON(c.calculated),
     })),
     adjustments: json.adjustments.map((a) => ({
       ...a,
-      minimum: money(a.minimum),
-      adjustment: money(a.adjustment),
+      minimum: Money.fromJSON(a.minimum),
+      adjustment: Money.fromJSON(a.adjustment),
     })),
-    total: money(json.total),
+    total: Money.fromJSON(json.total),
   };
 }

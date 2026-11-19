@@ -189,9 +189,7 @@ function TimelineItem({
           >
             <Receipt aria-hidden className="size-3.5 text-muted-foreground" />
             <span className="font-medium tabular-nums">{invoice.number}</span>
-            <span className="tabular-nums text-muted-foreground">
-              {formatMoney(invoice.total.amount, invoice.total.currency)}
-            </span>
+            <span className="tabular-nums text-muted-foreground">{formatMoney(invoice.total)}</span>
           </button>
         )}
         <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">

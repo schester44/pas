@@ -1,9 +1,9 @@
-import { type PrismaClient, prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx, type PrismaClient } from "@pas/db";
 import { asId, type TenantContext, type TenantId, type Transaction } from "@pas/kernel";
 import type { IntegrationCategory } from "../domain/category";
 import { IntegrationInstall, type SealedSecret } from "../domain/install";
 import type { InstallRepository } from "../ports/install-repository";
-import { json, toDate, toInstant } from "./mappers";
+import { json } from "./mappers";
 
 type Row = NonNullable<Awaited<ReturnType<PrismaClient["integrationInstall"]["findFirst"]>>>;
 
@@ -22,14 +22,14 @@ function toInstall(row: Row): IntegrationInstall {
     health:
       row.lastCheckedAt && row.lastCheckOk !== null
         ? {
-            checkedAt: toInstant(row.lastCheckedAt),
+            checkedAt: instantFromDb(row.lastCheckedAt),
             ok: row.lastCheckOk,
             detail: row.lastCheckDetail ?? "",
           }
         : null,
-    enabledAt: row.enabledAt && toInstant(row.enabledAt),
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    enabledAt: row.enabledAt && instantFromDb(row.enabledAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -71,11 +71,11 @@ export class PrismaInstallRepository implements InstallRepository {
       secrets: json(i.secrets),
       secretHints: json(i.secretHints),
       position: i.position,
-      lastCheckedAt: i.health && toDate(i.health.checkedAt),
+      lastCheckedAt: i.health && instantToDb(i.health.checkedAt),
       lastCheckOk: i.health?.ok ?? null,
       lastCheckDetail: i.health?.detail ?? null,
-      enabledAt: i.enabledAt && toDate(i.enabledAt),
-      updatedAt: toDate(i.updatedAt),
+      enabledAt: i.enabledAt && instantToDb(i.enabledAt),
+      updatedAt: instantToDb(i.updatedAt),
     };
 
     await prismaTx(tx).integrationInstall.upsert({
@@ -85,7 +85,7 @@ export class PrismaInstallRepository implements InstallRepository {
         tenantId: i.tenantId,
         providerId: i.providerId,
         category: i.category,
-        createdAt: toDate(i.createdAt),
+        createdAt: instantToDb(i.createdAt),
         ...data,
       },
       update: data,

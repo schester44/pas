@@ -1,4 +1,11 @@
-import { prismaTx } from "@pas/db";
+import {
+  instantFromDb,
+  instantToDb,
+  moneyFromDb,
+  plainDateFromDb,
+  plainDateToDb,
+  prismaTx,
+} from "@pas/db";
 import type {
   AgencyStatement as StatementRow,
   AgencyStatementItem as ItemRow,
@@ -13,12 +20,6 @@ import {
 } from "../domain/agency-statement";
 import type { AgencyStatementRepository, StatementRef } from "../ports/agency-statement-repository";
 
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
-const dateToDb = (d: PlainDate) => new Date(`${d.toString()}T00:00:00Z`);
-const dateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0, 10));
-const money = (amount: Prisma.Decimal, currency: string) => Money.of(amount.toString(), currency);
-
 const UNPAID = ["OPEN", "PAST_DUE", "PARTIALLY_PAID"] as const;
 
 export class PrismaAgencyStatementRepository implements AgencyStatementRepository {
@@ -28,11 +29,11 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
 
     const data = {
       status: s.status,
-      remindedOn: s.remindedOn ? dateToDb(s.remindedOn) : null,
-      suspendedOn: s.suspendedOn ? dateToDb(s.suspendedOn) : null,
+      remindedOn: s.remindedOn ? plainDateToDb(s.remindedOn) : null,
+      suspendedOn: s.suspendedOn ? plainDateToDb(s.suspendedOn) : null,
       documentKey: s.documentKey,
       emailedTo: s.emailedTo,
-      updatedAt: toDate(s.updatedAt),
+      updatedAt: instantToDb(s.updatedAt),
     };
 
     await db.agencyStatement.upsert({
@@ -45,13 +46,13 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
         agencyId: s.agencyId,
         agencyName: s.agencyName,
         number: s.number,
-        periodStart: dateToDb(s.periodStart),
-        periodEnd: dateToDb(s.periodEnd),
-        issuedOn: dateToDb(s.issuedOn),
-        dueOn: dateToDb(s.dueOn),
+        periodStart: plainDateToDb(s.periodStart),
+        periodEnd: plainDateToDb(s.periodEnd),
+        issuedOn: plainDateToDb(s.issuedOn),
+        dueOn: plainDateToDb(s.dueOn),
         remittanceBasis: s.remittanceBasis,
         currency: s.currency,
-        createdAt: toDate(s.createdAt),
+        createdAt: instantToDb(s.createdAt),
       },
     });
 
@@ -79,7 +80,7 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
           insuredName: item.insuredName,
           transactionId: item.transactionId,
           transactionType: item.transactionType,
-          effectiveDate: dateToDb(item.effectiveDate),
+          effectiveDate: plainDateToDb(item.effectiveDate),
           gross: item.gross.toString(),
           commission: item.commission.toString(),
           net: item.net.toString(),
@@ -94,7 +95,7 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
   }
 
   async findByPeriod(tx: Transaction, ctx: TenantContext, agencyId: string, periodEnd: PlainDate) {
-    return this.one(tx, { tenantId: ctx.tenantId, agencyId, periodEnd: dateToDb(periodEnd) });
+    return this.one(tx, { tenantId: ctx.tenantId, agencyId, periodEnd: plainDateToDb(periodEnd) });
   }
 
   async latestFor(tx: Transaction, ctx: TenantContext, agencyId: string) {
@@ -146,7 +147,7 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
                   statementId: s.id,
                   number: s.number,
                   status: s.status as StatementStatus,
-                  dueOn: dateFromDb(s.dueOn),
+                  dueOn: plainDateFromDb(s.dueOn),
                 },
               ],
             ]
@@ -173,7 +174,7 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
         tenantId: ctx.tenantId,
         payer: "agency",
         payerRef: agencyId,
-        issuedOn: { lte: dateToDb(through) },
+        issuedOn: { lte: plainDateToDb(through) },
         status: { not: "VOID" },
       },
       select: { id: true },
@@ -206,10 +207,10 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
     return rows.reduce(
       (sum, r) =>
         sum.plus(
-          Money.of(r.total.toString(), currency)
-            .minus(Money.of(r.amountPaid.toString(), currency))
-            .minus(Money.of(r.amountCredited.toString(), currency))
-            .minus(Money.of(r.amountWrittenOff.toString(), currency)),
+          moneyFromDb(r.total, currency)
+            .minus(moneyFromDb(r.amountPaid, currency))
+            .minus(moneyFromDb(r.amountCredited, currency))
+            .minus(moneyFromDb(r.amountWrittenOff, currency)),
         ),
       Money.zero(currency),
     );
@@ -245,7 +246,7 @@ export class PrismaAgencyStatementRepository implements AgencyStatementRepositor
 }
 
 function toItem(row: ItemRow, currency: string): StatementItem {
-  const m = (value: Prisma.Decimal) => money(value, currency);
+  const m = (value: Prisma.Decimal) => moneyFromDb(value, currency);
 
   return {
     id: row.id,
@@ -258,7 +259,7 @@ function toItem(row: ItemRow, currency: string): StatementItem {
     insuredName: row.insuredName,
     transactionId: row.transactionId,
     transactionType: row.transactionType,
-    effectiveDate: dateFromDb(row.effectiveDate),
+    effectiveDate: plainDateFromDb(row.effectiveDate),
     gross: m(row.gross),
     commission: m(row.commission),
     net: m(row.net),
@@ -276,19 +277,19 @@ function toStatement(row: StatementRow, items: ItemRow[]): AgencyStatement {
     agencyId: row.agencyId,
     agencyName: row.agencyName,
     number: row.number,
-    periodStart: dateFromDb(row.periodStart),
-    periodEnd: dateFromDb(row.periodEnd),
-    issuedOn: dateFromDb(row.issuedOn),
-    dueOn: dateFromDb(row.dueOn),
+    periodStart: plainDateFromDb(row.periodStart),
+    periodEnd: plainDateFromDb(row.periodEnd),
+    issuedOn: plainDateFromDb(row.issuedOn),
+    dueOn: plainDateFromDb(row.dueOn),
     remittanceBasis: row.remittanceBasis as RemittanceBasis,
     currency: row.currency,
     status: row.status as StatementStatus,
     items: items.map((i) => toItem(i, row.currency)),
-    remindedOn: row.remindedOn ? dateFromDb(row.remindedOn) : null,
-    suspendedOn: row.suspendedOn ? dateFromDb(row.suspendedOn) : null,
+    remindedOn: row.remindedOn ? plainDateFromDb(row.remindedOn) : null,
+    suspendedOn: row.suspendedOn ? plainDateFromDb(row.suspendedOn) : null,
     documentKey: row.documentKey,
     emailedTo: row.emailedTo,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }

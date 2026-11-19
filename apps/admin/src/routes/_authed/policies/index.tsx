@@ -103,7 +103,7 @@ function PoliciesPage() {
                         <PolicyStatus status={policy.status} />
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatMoney(policy.writtenPremium.amount, policy.writtenPremium.currency)}
+                        {formatMoney(policy.writtenPremium)}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -1,16 +1,18 @@
-import { invoiceOpened } from "./issue-invoice";
 import {
   asId,
   type ClockProvider,
+  formatMoney,
+  formatPlainDate,
   type ProviderFor,
   type TenantContext,
   type UnitOfWork,
 } from "@pas/kernel";
+import { invoiceOpened } from "./issue-invoice";
 import type { Invoice } from "../domain/invoice";
 import type { BillingNotices } from "../ports/billing-notices";
 import type { BillingScheduleRepository } from "../ports/billing-schedule-repository";
 import type { PaymentGateway } from "../ports/payment-gateway";
-import { type ApplyBillingEvent, type BillingEventDeps, formatMoney } from "./apply-billing-event";
+import { type ApplyBillingEvent, type BillingEventDeps } from "./apply-billing-event";
 import { pastDueOf } from "./get-policy-billing";
 
 export type InstallmentAction = "open" | "charge" | "past_due" | "retry" | "remind" | "delinquent";
@@ -25,9 +27,6 @@ const SYSTEM = { type: "system" as const, name: "Billing" };
 
 const settled = (invoice: Invoice | null) =>
   !invoice || !invoice.isUnpaid || !invoice.balance.amount.greaterThan(0);
-
-const formatDate = (date: Temporal.PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 /**
  * What the `billing.installment` workflow does on its dates (PLAN §13): open the installment,
@@ -199,7 +198,7 @@ export function makeInstallmentTimers(
               invoiceId: i.id,
               type: "invoice_issued",
               actor: SYSTEM,
-              summary: `Installment ${i.installment} of ${i.installments}, ${i.number}, issued for ${formatMoney(current.balance)} due ${formatDate(i.dueOn)}`,
+              summary: `Installment ${i.installment} of ${i.installments}, ${i.number}, issued for ${formatMoney(current.balance)} due ${formatPlainDate(i.dueOn)}`,
               data: {
                 invoiceNumber: i.number,
                 total: i.total.toJSON(),
@@ -230,7 +229,7 @@ export function makeInstallmentTimers(
               invoiceId: i.id,
               type: "past_due",
               actor: SYSTEM,
-              summary: `${i.number} is past due: ${formatMoney(current.balance)} was due ${formatDate(i.dueOn)}`,
+              summary: `${i.number} is past due: ${formatMoney(current.balance)} was due ${formatPlainDate(i.dueOn)}`,
               data: {
                 invoiceNumber: i.number,
                 amount: current.balance.toJSON(),
@@ -248,7 +247,7 @@ export function makeInstallmentTimers(
             policyId: i.policyId,
             policyNumber: i.policyNumber,
             subject: `Your payment for policy ${i.policyNumber} is past due`,
-            text: `${formatMoney(invoice.balance)} for policy ${i.policyNumber} (${i.number}) was due on ${formatDate(i.dueOn)}. Pay now in your client portal to keep your coverage in force.`,
+            text: `${formatMoney(invoice.balance)} for policy ${i.policyNumber} (${i.number}) was due on ${formatPlainDate(i.dueOn)}. Pay now in your client portal to keep your coverage in force.`,
           });
 
           await deps.uow.run(ctx, (tx) =>

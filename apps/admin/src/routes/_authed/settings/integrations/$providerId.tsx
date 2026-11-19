@@ -24,8 +24,8 @@ import * as React from "react";
 import { useState } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { CATEGORIES, CertifiedMark, InstallState, ProviderLogo } from "@/components/integrations";
-import { formatDateTime } from "@/lib/environment";
 import { useTRPC } from "@/lib/trpc";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/_authed/settings/integrations/$providerId")({
   component: IntegrationPage,

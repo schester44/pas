@@ -21,9 +21,9 @@ import {
   InspectionStatus,
   TIMINGS,
 } from "@/components/underwriting/labels";
-import { formatDateTime } from "@/lib/environment";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/_authed/underwriting/inspections/$inspectionId")({
   component: InspectionPage,

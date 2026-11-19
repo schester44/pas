@@ -1,12 +1,10 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import { type Instant, newId, type TenantContext, type Transaction } from "@pas/kernel";
 import type {
   ClientUserLink,
   ClientUserMethod,
   ClientUserRepository,
 } from "../ports/client-user-repository";
-
-const toDate = (i: Instant) => new Date(i.epochMilliseconds);
 
 const toLink = (row: {
   userId: string;
@@ -17,7 +15,7 @@ const toLink = (row: {
   userId: row.userId,
   clientAccountId: row.clientAccountId,
   method: row.method as ClientUserMethod,
-  verifiedAt: Temporal.Instant.fromEpochMilliseconds(row.verifiedAt.getTime()),
+  verifiedAt: instantFromDb(row.verifiedAt),
 });
 
 export class PrismaClientUserRepository implements ClientUserRepository {
@@ -30,7 +28,7 @@ export class PrismaClientUserRepository implements ClientUserRepository {
           userId: link.userId,
           clientAccountId: link.clientAccountId,
           method: link.method,
-          verifiedAt: toDate(link.verifiedAt),
+          verifiedAt: instantToDb(link.verifiedAt),
         },
       ],
       skipDuplicates: true,
@@ -85,7 +83,7 @@ export class PrismaClientUserRepository implements ClientUserRepository {
         userId: attempt.userId,
         policyNumber: attempt.policyNumber,
         succeeded: attempt.succeeded,
-        attemptedAt: toDate(attempt.attemptedAt),
+        attemptedAt: instantToDb(attempt.attemptedAt),
       },
     });
   }
@@ -101,7 +99,7 @@ export class PrismaClientUserRepository implements ClientUserRepository {
         tenantId: ctx.tenantId,
         userId,
         succeeded: false,
-        attemptedAt: { gte: toDate(since) },
+        attemptedAt: { gte: instantToDb(since) },
       },
     });
   }

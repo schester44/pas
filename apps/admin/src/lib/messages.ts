@@ -18,7 +18,7 @@ function formatParam(param: MessageParam, coverages: CoverageNames): string {
     case "date":
       return formatPlainDate(param.value);
     case "money":
-      return formatMoney(param.amount, param.currency);
+      return formatMoney(param);
     case "text":
       return param.value;
   }

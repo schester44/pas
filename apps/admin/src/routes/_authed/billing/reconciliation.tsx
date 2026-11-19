@@ -22,8 +22,7 @@ import {
   useLedgerOverview,
   WorkStatus,
 } from "@/components/ledger/shared";
-import { formatDateTime } from "@/lib/environment";
-import { formatPlainDate } from "@/lib/format";
+import { formatDateTime, formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 

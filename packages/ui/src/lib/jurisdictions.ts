@@ -1,3 +1,5 @@
+export { jurisdictionCode } from "@pas/kernel";
+
 export interface Jurisdiction {
   country: string;
   subdivision?: string;
@@ -80,8 +82,4 @@ export function jurisdictionName(j: Jurisdiction): string {
 
 export function jurisdictionShort(j: Jurisdiction): string {
   return j.subdivision ? j.subdivision.slice(j.country.length + 1) : j.country;
-}
-
-export function jurisdictionCode(j: Jurisdiction): string {
-  return j.subdivision ?? j.country;
 }

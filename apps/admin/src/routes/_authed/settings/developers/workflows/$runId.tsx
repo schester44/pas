@@ -19,8 +19,7 @@ import { Clock, Radio } from "lucide-react";
 import { useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { RunStatusChip, subjectLink, workflowName } from "@/components/workflows/labels";
-import { formatDateTime } from "@/lib/environment";
-import { formatRelative } from "@/lib/format";
+import { formatDateTime, formatRelative } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/settings/developers/workflows/$runId")({

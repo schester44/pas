@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, plainDateFromDb, plainDateToDb, prismaTx } from "@pas/db";
 import type { Commission as CommissionRow } from "@pas/db/client";
 import { Money, newId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { Business, CommissionSchedule } from "../domain/commission";
@@ -8,7 +8,7 @@ import type {
   CommissionRepository,
   LicensingRequirement,
 } from "../ports/commission-repository";
-import { dateFromDb, dateToDb, decimal, optionalDate, toDate, toInstant } from "./mappers";
+import { decimal, optionalDate } from "./mappers";
 
 const toRecord = (row: CommissionRow): CommissionRecord => ({
   id: row.id,
@@ -25,8 +25,8 @@ const toRecord = (row: CommissionRow): CommissionRecord => ({
   premium: Money.of(decimal(row.premium), row.currency),
   rate: decimal(row.rate),
   amount: Money.of(decimal(row.amount), row.currency),
-  effectiveDate: dateFromDb(row.effectiveDate),
-  recordedAt: toInstant(row.recordedAt),
+  effectiveDate: plainDateFromDb(row.effectiveDate),
+  recordedAt: instantFromDb(row.recordedAt),
 });
 
 export class PrismaCommissionRepository implements CommissionRepository {
@@ -44,7 +44,7 @@ export class PrismaCommissionRepository implements CommissionRepository {
       business: row.business as Business | null,
       tier: row.tier,
       rate: decimal(row.rate),
-      effectiveDate: dateFromDb(row.effectiveDate),
+      effectiveDate: plainDateFromDb(row.effectiveDate),
       expirationDate: optionalDate(row.expirationDate),
     }));
   }
@@ -62,8 +62,8 @@ export class PrismaCommissionRepository implements CommissionRepository {
       business: s.business,
       tier: s.tier,
       rate: s.rate,
-      effectiveDate: dateToDb(s.effectiveDate),
-      expirationDate: s.expirationDate ? dateToDb(s.expirationDate) : null,
+      effectiveDate: plainDateToDb(s.effectiveDate),
+      expirationDate: s.expirationDate ? plainDateToDb(s.expirationDate) : null,
     };
 
     const existing = await prismaTx(tx).commissionSchedule.findFirst({
@@ -77,7 +77,7 @@ export class PrismaCommissionRepository implements CommissionRepository {
     }
 
     await prismaTx(tx).commissionSchedule.create({
-      data: { ...data, id: s.id, tenantId: ctx.tenantId, createdAt: toDate(at) },
+      data: { ...data, id: s.id, tenantId: ctx.tenantId, createdAt: instantToDb(at) },
     });
   }
 
@@ -108,8 +108,8 @@ export class PrismaCommissionRepository implements CommissionRepository {
         rate: r.rate,
         amount: r.amount.toString(),
         currency: r.amount.currency,
-        effectiveDate: dateToDb(r.effectiveDate),
-        recordedAt: toDate(r.recordedAt),
+        effectiveDate: plainDateToDb(r.effectiveDate),
+        recordedAt: instantToDb(r.recordedAt),
       })),
       skipDuplicates: true,
     });
@@ -136,8 +136,8 @@ export class PrismaCommissionRepository implements CommissionRepository {
         ...(filter.transactionIds && { transactionId: { in: [...filter.transactionIds] } }),
         ...((filter.from || filter.to) && {
           recordedAt: {
-            ...(filter.from && { gte: toDate(filter.from) }),
-            ...(filter.to && { lt: toDate(filter.to) }),
+            ...(filter.from && { gte: instantToDb(filter.from) }),
+            ...(filter.to && { lt: instantToDb(filter.to) }),
           },
         }),
       },
@@ -165,7 +165,7 @@ export class PrismaCommissionRepository implements CommissionRepository {
     r: LicensingRequirement,
     at: Temporal.Instant,
   ): Promise<void> {
-    const data = { mode: r.mode, linesOfAuthority: r.linesOfAuthority, updatedAt: toDate(at) };
+    const data = { mode: r.mode, linesOfAuthority: r.linesOfAuthority, updatedAt: instantToDb(at) };
 
     await prismaTx(tx).licensingRequirement.upsert({
       where: { tenantId_productId: { tenantId: ctx.tenantId, productId: r.productId } },

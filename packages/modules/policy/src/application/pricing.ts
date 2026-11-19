@@ -2,7 +2,10 @@ import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/d
 import {
   asId,
   type Clock,
+  type ClockProvider,
   DomainError,
+  formatMoney,
+  formatPlainDate,
   invalid,
   jurisdictionCode,
   Money,
@@ -10,9 +13,9 @@ import {
   type Outbox,
   type PlainDate,
   type TenantContext,
+  toPlainJson,
   type Transaction,
   type UnitOfWork,
-  type ClockProvider,
 } from "@pas/kernel";
 import { applyEndorsableChanges, sameValue } from "../domain/endorsable";
 import { lifecycleRules } from "../domain/lifecycle";
@@ -81,8 +84,6 @@ export async function loadPolicy(
 
 export const today = (clock: Clock) => clock.today("UTC");
 
-const json = <T>(value: T): T => JSON.parse(JSON.stringify(value ?? null)) as T;
-
 function decide<K extends DecisionKind>(
   release: PolicyRelease,
   kind: K,
@@ -142,13 +143,7 @@ const amountText = (value: unknown) => {
 
   if (!a) return null;
 
-  return a.kind === "money"
-    ? Number(a.amount).toLocaleString("en-US", {
-        style: "currency",
-        currency: a.currency,
-        maximumFractionDigits: 0,
-      })
-    : `${a.value}%`;
+  return a.kind === "money" ? formatMoney(a, { cents: false }) : `${a.value}%`;
 };
 
 const exposureLabel = (exposure?: string) => {
@@ -382,8 +377,8 @@ export async function priceEndorsement(
         additionalInterests: input.parties.additionalInterests,
       }),
     },
-    rater: json(rating.rater),
-    decisions: json(rating.decisions),
+    rater: toPlainJson(rating.rater),
+    decisions: toPlainJson(rating.decisions),
     underwriting: {
       acceptedReasonCodes: [...new Set([...accepted, ...rating.reasons.map((r) => r.reasonCode)])],
     },
@@ -582,7 +577,7 @@ export async function priceReinstatement(
   if (Temporal.PlainDate.compare(now, windowEnds) > 0) {
     throw new DomainError(
       "precondition_failed",
-      `The reinstatement window closed on ${windowEnds.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}. Rewrite the policy instead.`,
+      `The reinstatement window closed on ${formatPlainDate(windowEnds)}. Rewrite the policy instead.`,
       { reason: "window_closed" },
     );
   }
@@ -691,18 +686,14 @@ export async function billIssued(
   policy.billTransaction(transactionId, transactionInvoice(invoice), actor, clock);
 }
 
-const moneyOf = (value: { amount: string; currency: string }) =>
-  Money.of(value.amount, value.currency);
-
 export function transactionInvoice(invoice: IssuedInvoice): TransactionInvoice {
-  const money = moneyOf;
   const { netted, ...rest } = invoice;
 
   return {
     ...rest,
-    total: money(invoice.total),
+    total: Money.fromJSON(invoice.total),
     ...(netted && {
-      netted: { credited: money(netted.credited), installments: netted.installments },
+      netted: { credited: Money.fromJSON(netted.credited), installments: netted.installments },
     }),
   };
 }

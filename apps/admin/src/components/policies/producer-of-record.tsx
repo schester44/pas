@@ -85,7 +85,7 @@ export function ProducerOfRecord({ policy }: { policy: Policy }) {
                 <span className="text-muted-foreground">—</span>
               ) : (
                 <>
-                  {formatMoney(total.toFixed(2), currency)}
+                  {formatMoney({ amount: total.toFixed(2), currency })}
                   <span className="font-normal text-muted-foreground">
                     {" "}
                     on {commissions.data?.length}{" "}

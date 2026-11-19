@@ -1,14 +1,15 @@
 import {
   asId,
+  type ClockProvider,
+  formatMoney,
+  invalid,
   type Money,
   newId,
   notFound,
-  invalid,
   type Outbox,
   type TenantContext,
   type Transaction,
   type UnitOfWork,
-  type ClockProvider,
 } from "@pas/kernel";
 import type { BillingEvent } from "../domain/billing-event";
 import type { Invoice } from "../domain/invoice";
@@ -27,11 +28,6 @@ export interface BillingEventDeps {
   statements?: AgencyStatementRepository;
   mortgageeBills?: MortgageeBillRepository;
 }
-
-export const formatMoney = (money: Money) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: money.currency }).format(
-    Number(money.toString()),
-  );
 
 /** Events that move money on an invoice; each is published as `billing.event_applied` for the billing system. */
 export const MONEY_EVENT_TYPES: ReadonlySet<string> = new Set<BillingEvent["type"]>([

@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { FormEdition as FormEditionRow } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { type Edition, editionFromKey, editionKey } from "../domain/edition";
@@ -23,7 +23,7 @@ export class PrismaFormEditionRepository implements FormEditionRepository {
         pageCount: e.file.pageCount,
         sizeBytes: e.file.sizeBytes,
         createdBy: e.createdBy,
-        createdAt: new Date(e.createdAt.epochMilliseconds),
+        createdAt: instantToDb(e.createdAt),
       },
     });
   }
@@ -93,6 +93,6 @@ function toEdition(row: FormEditionRow): FormEdition {
       sizeBytes: row.sizeBytes,
     },
     createdBy: row.createdBy,
-    createdAt: Temporal.Instant.fromEpochMilliseconds(row.createdAt.getTime()),
+    createdAt: instantFromDb(row.createdAt),
   });
 }

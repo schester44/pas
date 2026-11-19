@@ -6,7 +6,7 @@ import {
   kindContextPaths,
 } from "@pas/decisions-engine";
 import { type RiskSchema, schemaIndex } from "@pas/forms-core";
-import { canonicalJson } from "@pas/kernel";
+import { canonicalJson, toPlainJson } from "@pas/kernel";
 import type { CheckIssue } from "./checks";
 import {
   type DecisionTest,
@@ -40,7 +40,7 @@ export type DecisionTestResult =
 export function runDecisionTest(decision: VersionDecision, test: DecisionTest): DecisionTestResult {
   try {
     const { result } = evaluateDecision(decision.kind, decision.decision, test.input);
-    const actual: unknown = JSON.parse(JSON.stringify(result ?? null));
+    const actual: unknown = toPlainJson(result);
 
     return { passed: canonicalJson(actual) === canonicalJson(test.expected ?? null), actual };
   } catch (cause) {

@@ -40,7 +40,7 @@ export function QuoteCarrierPanel({ quote }: { quote: StaffQuote }) {
   const diff = carrier.diff;
 
   const fmt = (amount: string | null) =>
-    amount === null || !diff ? "–" : formatMoney(amount, diff.currency);
+    amount === null || !diff ? "–" : formatMoney({ amount, currency: diff.currency });
 
   return (
     <Panel

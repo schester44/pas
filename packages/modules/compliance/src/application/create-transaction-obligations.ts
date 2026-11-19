@@ -1,6 +1,7 @@
 import { type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
 import {
   type Clock,
+  formatPlainDate,
   jurisdiction,
   type Jurisdiction,
   jurisdictionCode,
@@ -35,9 +36,6 @@ interface BoundSnapshot {
   } | null;
   decisions?: { ref: string; result: unknown }[];
 }
-
-const formatDate = (date: Temporal.PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 function responsibleFor(
   draft: ObligationDraft,
@@ -217,7 +215,7 @@ export function makeCreateTransactionObligations(
           transactionId: facts.transaction.id,
           type: "obligations_created",
           summary: `${created.length} compliance ${created.length === 1 ? "obligation" : "obligations"}: ${created
-            .map((o) => `${o.toSnapshot().title} due ${formatDate(o.toSnapshot().dueDate)}`)
+            .map((o) => `${o.toSnapshot().title} due ${formatPlainDate(o.toSnapshot().dueDate)}`)
             .join("; ")}`,
           data: { count: created.length, obligationIds: created.map((o) => o.id) },
         });

@@ -6,6 +6,7 @@ export * from "./jurisdiction";
 export * from "./jurisdiction-time";
 export * from "./messages";
 export * from "./canonical-json";
+export * from "./hash";
 export * from "./guards";
 export * from "./format";
 export * from "./errors";

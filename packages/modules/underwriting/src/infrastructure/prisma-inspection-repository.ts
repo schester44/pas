@@ -1,9 +1,9 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, jsonToDb, prismaTx } from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { Inspection, type InspectionId, type InspectionProps } from "../domain/inspection";
 import type { InspectionRepository } from "../ports/repositories";
-import { fromDb, json, revive, toDb } from "./json";
+import { revive } from "./json";
 
 type Row = Prisma.UnderwritingInspectionGetPayload<object>;
 
@@ -25,13 +25,13 @@ function toDomain(row: Row): Inspection {
     providerId: row.providerId,
     providerRef: row.providerRef,
     status: row.status as InspectionProps["status"],
-    scheduledFor: row.scheduledFor && fromDb(row.scheduledFor),
-    completedAt: row.completedAt && fromDb(row.completedAt),
+    scheduledFor: row.scheduledFor && instantFromDb(row.scheduledFor),
+    completedAt: row.completedAt && instantFromDb(row.completedAt),
     report: row.report as unknown as InspectionProps["report"],
     review: row.review ? revive(row.review, ["at"]) : null,
     history: (row.history as unknown[]).map((h) => revive(h, ["at"])),
-    createdAt: fromDb(row.createdAt),
-    updatedAt: fromDb(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -45,12 +45,12 @@ export class PrismaInspectionRepository implements InspectionRepository {
       providerId: s.providerId,
       providerRef: s.providerRef,
       status: s.status,
-      scheduledFor: s.scheduledFor && toDb(s.scheduledFor),
-      completedAt: s.completedAt && toDb(s.completedAt),
-      report: s.report ? json(s.report) : undefined,
-      review: s.review ? json(s.review) : undefined,
-      history: json(s.history),
-      updatedAt: toDb(s.updatedAt),
+      scheduledFor: s.scheduledFor && instantToDb(s.scheduledFor),
+      completedAt: s.completedAt && instantToDb(s.completedAt),
+      report: s.report ? jsonToDb(s.report) : undefined,
+      review: s.review ? jsonToDb(s.review) : undefined,
+      history: jsonToDb(s.history),
+      updatedAt: instantToDb(s.updatedAt),
     };
 
     await prismaTx(tx).underwritingInspection.upsert({
@@ -68,8 +68,8 @@ export class PrismaInspectionRepository implements InspectionRepository {
         type: s.type,
         timing: s.timing,
         reason: s.reason,
-        address: json(s.address),
-        createdAt: toDb(s.createdAt),
+        address: jsonToDb(s.address),
+        createdAt: instantToDb(s.createdAt),
       },
     });
   }

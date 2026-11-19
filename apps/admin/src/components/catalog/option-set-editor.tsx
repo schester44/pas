@@ -11,7 +11,7 @@ export type Amount = OptionSet["options"][number];
 
 export function formatAmount(amount: Amount): string {
   return amount.kind === "money"
-    ? formatMoney(amount.amount, amount.currency)
+    ? formatMoney(amount)
     : `${Number(amount.value).toLocaleString()}%`;
 }
 

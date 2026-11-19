@@ -140,9 +140,7 @@ function Summary({ submission, quote }: { submission: Submission; quote: StaffQu
         )}
         {quote && quote.status !== "declined" && (
           <Fact label="Total">
-            <span className="tabular-nums">
-              {formatMoney(quote.premium.total.amount, quote.premium.total.currency)}
-            </span>
+            <span className="tabular-nums">{formatMoney(quote.premium.total)}</span>
           </Fact>
         )}
         <Fact label="Insured">

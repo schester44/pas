@@ -5,7 +5,7 @@ import {
   textKey,
   type Verification,
 } from "@pas/addressing";
-import { newId } from "@pas/kernel";
+import { isRecord, newId } from "@pas/kernel";
 import type { Prisma, PrismaClient } from "../../generated/prisma/client";
 import { migration } from "../types";
 
@@ -15,9 +15,6 @@ interface Found {
   addressId: string;
   role: "location" | "mailing";
 }
-
-const isRecord = (value: unknown): value is Json =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isAddress = (value: unknown): value is AddressInput & Json =>
   isRecord(value) &&

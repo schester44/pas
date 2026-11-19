@@ -69,7 +69,7 @@ function difference(
   if (!first) return "–";
 
   const delta = first.difference
-    ? `${first.difference.startsWith("-") ? "" : "+"}${formatMoney(first.difference, currency)}`
+    ? `${first.difference.startsWith("-") ? "" : "+"}${formatMoney({ amount: first.difference, currency })}`
     : "missing";
 
   const premium = /^premium ([^@]+)(?:@(.+))?$/.exec(first.field);
@@ -209,7 +209,9 @@ export function GoldenCases({
                     {jurisdictionName(golden.input.jurisdiction)}
                   </td>
                   <td className="px-3 text-right tabular-nums">
-                    {golden.expected.total ? formatMoney(golden.expected.total, currency) : "–"}
+                    {golden.expected.total
+                      ? formatMoney({ amount: golden.expected.total, currency })
+                      : "–"}
                   </td>
                   <td
                     className={cn(
@@ -565,7 +567,7 @@ function CaseInspector({
                       />
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {got ? formatMoney(got.premium.amount, currency) : "–"}
+                      {got ? formatMoney({ amount: got.premium.amount, currency }) : "–"}
                     </td>
                     <td
                       className={cn(
@@ -575,7 +577,7 @@ function CaseInspector({
                     >
                       {delta === undefined || delta === 0
                         ? "–"
-                        : `${delta > 0 ? "+" : ""}${formatMoney(delta.toFixed(2), currency)}`}
+                        : `${delta > 0 ? "+" : ""}${formatMoney({ amount: delta.toFixed(2), currency })}`}
                     </td>
                   </tr>
                 );
@@ -601,7 +603,7 @@ function CaseInspector({
                   />
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
-                  {actual ? formatMoney(actual.total.amount, currency) : "–"}
+                  {actual ? formatMoney({ amount: actual.total.amount, currency }) : "–"}
                 </td>
                 <td className="pr-(--card-p)" />
               </tr>

@@ -7,7 +7,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "oxlint",
+    "lint": "oxlint && node scripts/check-duplicate-helpers.ts",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",

@@ -1,6 +1,8 @@
 import {
   asId,
   type ClockProvider,
+  formatMoney,
+  formatPlainDate,
   newId,
   notFound,
   type PlainDate,
@@ -17,7 +19,7 @@ import type { BillingDocuments } from "../ports/billing-documents";
 import type { BillingMail } from "../ports/billing-mail";
 import type { BillingScheduleRepository } from "../ports/billing-schedule-repository";
 import type { MortgageeBillRepository } from "../ports/mortgagee-bill-repository";
-import { type ApplyBillingEvent, type BillingEventDeps, formatMoney } from "./apply-billing-event";
+import { type ApplyBillingEvent, type BillingEventDeps } from "./apply-billing-event";
 
 type Deps = BillingEventDeps & {
   uow: UnitOfWork;
@@ -31,9 +33,6 @@ type Deps = BillingEventDeps & {
 };
 
 const SYSTEM = { type: "system" as const, name: "Billing" };
-
-const formatDate = (date: PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 const loanOf = (lender: Lender) => (lender.loanNumber ? ` · Loan ${lender.loanNumber}` : "");
 
@@ -149,7 +148,7 @@ export function makeMortgageeBilling(deps: Deps) {
         to: b.lender.email,
         tag: "mortgagee_invoice",
         subject: `${title}: policy ${b.policyNumber}${loanOf(b.lender)}`,
-        text: `${formatMoney(invoice.balance)} is due by ${formatDate(i.dueOn)} for policy ${b.policyNumber} (${i.number})${b.lender.loanNumber ? `, loan ${b.lender.loanNumber}` : ""}. The invoice, evidence of insurance and declarations are attached to the mailed packet.`,
+        text: `${formatMoney(invoice.balance)} is due by ${formatPlainDate(i.dueOn)} for policy ${b.policyNumber} (${i.number})${b.lender.loanNumber ? `, loan ${b.lender.loanNumber}` : ""}. The invoice, evidence of insurance and declarations are attached to the mailed packet.`,
       });
 
       sent.push(`emailed to ${b.lender.email}`);
@@ -264,7 +263,7 @@ export function makeMortgageeBilling(deps: Deps) {
               to: address,
               tag: "direct_bill_offer",
               subject: `Your lender hasn't paid the premium for policy ${b.policyNumber}`,
-              text: `We billed ${b.lender.name} ${formatMoney(invoice.balance)} for policy ${b.policyNumber} on ${formatDate(b.sentOn!)} and haven't received it. Ask your lender to pay, or pay it yourself to keep your coverage: ${link}`,
+              text: `We billed ${b.lender.name} ${formatMoney(invoice.balance)} for policy ${b.policyNumber} on ${formatPlainDate(b.sentOn!)} and haven't received it. Ask your lender to pay, or pay it yourself to keep your coverage: ${link}`,
             });
           }
 
@@ -368,7 +367,7 @@ export function makeMortgageeBilling(deps: Deps) {
           invoiceId: b.invoiceId,
           type: "billing_method_changed",
           actor: input.actor,
-          summary: `Billing switched from ${b.lender.name} to direct bill: ${invoice.toSnapshot().number} re-issued to the insured for ${formatMoney(invoice.balance)}, due ${formatDate(dueOn)}`,
+          summary: `Billing switched from ${b.lender.name} to direct bill: ${invoice.toSnapshot().number} re-issued to the insured for ${formatMoney(invoice.balance)}, due ${formatPlainDate(dueOn)}`,
           data: { from: "mortgagee", to: "direct", invoiceNumber: invoice.toSnapshot().number },
         });
 
@@ -383,7 +382,7 @@ export function makeMortgageeBilling(deps: Deps) {
           to,
           tag: "direct_bill_invoice",
           subject: `Your invoice for policy ${b.policyNumber}`,
-          text: `Your policy ${b.policyNumber} is now billed to you: ${formatMoney(switched.invoice.balance)} (${switched.invoice.toSnapshot().number}) is due by ${formatDate(switched.invoice.toSnapshot().dueOn)}. Pay online: ${link}`,
+          text: `Your policy ${b.policyNumber} is now billed to you: ${formatMoney(switched.invoice.balance)} (${switched.invoice.toSnapshot().number}) is due by ${formatPlainDate(switched.invoice.toSnapshot().dueOn)}. Pay online: ${link}`,
         });
       }
 

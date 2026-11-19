@@ -1,7 +1,6 @@
-export interface MoneyValue {
-  amount: string;
-  currency: string;
-}
+import type { MoneyValue } from "./format";
+
+export type { MoneyValue };
 
 export type CoverageAmount =
   | { kind: "money"; amount: string; currency: string }

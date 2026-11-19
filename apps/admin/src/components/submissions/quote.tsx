@@ -43,14 +43,11 @@ export type StaffQuote = NonNullable<AdminOutputs["submissions"]["quote"]>;
 type Amount = StaffQuote["coverages"][number]["limits"][number];
 type Reason = StaffQuote["evaluation"]["reasons"][number];
 
-const money = (value: { amount: string; currency: string }) =>
-  formatMoney(value.amount, value.currency);
-
 const amount = (value: Amount | null) =>
   !value ? (
     <span className="text-muted-foreground">–</span>
   ) : value.kind === "money" ? (
-    formatMoney(value.amount, value.currency)
+    formatMoney(value)
   ) : (
     `${value.value}%`
   );
@@ -99,14 +96,14 @@ export function QuotePremium({ quote }: { quote: StaffQuote }) {
               <td className="px-3 text-right tabular-nums">{amount(exposure.limit)}</td>
               <td className="px-3 text-right tabular-nums">{amount(exposure.deductible)}</td>
               <td className="pr-(--card-p) text-right tabular-nums">
-                {exposure.premium ? money(exposure.premium) : "–"}
+                {exposure.premium ? formatMoney(exposure.premium) : "–"}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       <dl className="m-0 grid gap-1.5 border-t bg-muted/40 px-(--card-p) py-3 text-sm">
-        <Line label="Written premium" value={money(quote.premium.written)} />
+        <Line label="Written premium" value={formatMoney(quote.premium.written)} />
         {quote.premium.taxesFees.map((line) => (
           <Line
             key={line.code}
@@ -117,12 +114,12 @@ export function QuotePremium({ quote }: { quote: StaffQuote }) {
             ]
               .filter(Boolean)
               .join(" ")}
-            value={money(line.amount)}
+            value={formatMoney(line.amount)}
           />
         ))}
         <div className="flex items-baseline gap-3 border-t pt-2 font-semibold">
           <dt className="flex-1">Total</dt>
-          <dd className="m-0 tabular-nums">{money(quote.premium.total)}</dd>
+          <dd className="m-0 tabular-nums">{formatMoney(quote.premium.total)}</dd>
         </div>
       </dl>
     </Panel>

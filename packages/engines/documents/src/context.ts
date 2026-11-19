@@ -1,4 +1,5 @@
 import type { AddressValue, RiskSchema, SchemaNode } from "@pas/forms-core";
+import { jurisdictionCode } from "@pas/kernel";
 import type { TransactionType } from "./model";
 
 export interface Jurisdiction {
@@ -87,8 +88,6 @@ export interface ScheduleContext {
   coverages: readonly string[];
   risk: Record<string, unknown>;
 }
-
-export const jurisdictionCode = (j: Jurisdiction) => j.subdivision ?? j.country;
 
 export function scheduleData(context: ScheduleContext): Record<string, unknown> {
   return {

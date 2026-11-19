@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { TenantContext, Transaction } from "@pas/kernel";
 import type { MailType } from "../ports/adapters";
 import type {
@@ -8,7 +8,7 @@ import type {
   MailReference,
   TrackingEntry,
 } from "../ports/mail-pieces";
-import { json, toDate, toInstant } from "./mappers";
+import { json } from "./mappers";
 
 export class PrismaMailPieces implements MailPieces {
   async find(tx: Transaction, ctx: TenantContext, providerId: string, providerRef: string) {
@@ -30,8 +30,8 @@ export class PrismaMailPieces implements MailPieces {
         trackingNumber: row.trackingNumber,
         tracking: row.tracking as unknown as TrackingEntry[],
         proof: row.proof as unknown as MailProof | null,
-        createdAt: toInstant(row.createdAt),
-        updatedAt: toInstant(row.updatedAt),
+        createdAt: instantFromDb(row.createdAt),
+        updatedAt: instantFromDb(row.updatedAt),
       }
     );
   }
@@ -42,7 +42,7 @@ export class PrismaMailPieces implements MailPieces {
       trackingNumber: piece.trackingNumber,
       tracking: json(piece.tracking),
       proof: piece.proof ? json(piece.proof) : undefined,
-      updatedAt: toDate(piece.updatedAt),
+      updatedAt: instantToDb(piece.updatedAt),
     };
 
     await prismaTx(tx).mailPiece.upsert({
@@ -55,7 +55,7 @@ export class PrismaMailPieces implements MailPieces {
         providerRef: piece.providerRef,
         reference: json(piece.reference),
         mailType: piece.mailType,
-        createdAt: toDate(piece.createdAt),
+        createdAt: instantToDb(piece.createdAt),
         ...data,
       },
       update: data,

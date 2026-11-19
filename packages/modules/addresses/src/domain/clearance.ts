@@ -1,3 +1,4 @@
+import { isRecord } from "@pas/kernel";
 export const CLEARANCE_MODES = ["block", "warn", "off"] as const;
 
 export type ClearanceMode = (typeof CLEARANCE_MODES)[number];
@@ -26,9 +27,6 @@ export interface Clearance {
   outcome: "clear" | "warn" | "block";
   conflicts: AddressUsage[];
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The product's duplicate-risk setting from its lifecycle config (`clearance.duplicateRisk`). */
 export function clearanceModeFrom(lifecycle: Record<string, unknown>): ClearanceMode {

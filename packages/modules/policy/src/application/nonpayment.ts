@@ -1,4 +1,4 @@
-import { newId, type TenantContext } from "@pas/kernel";
+import { formatMoney, newId, type TenantContext } from "@pas/kernel";
 import type { PolicyScope } from "../domain/scope";
 import type { BillingStatus } from "../ports/notice-delivery";
 import {
@@ -13,11 +13,6 @@ const TENANT: PolicyScope = { kind: "tenant" };
 const NONPAYMENT = "nonpayment";
 
 type Deps = CancellationDeps & { billing: BillingStatus };
-
-const formatMoney = (money: { amount: string; currency: string }) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: money.currency }).format(
-    Number(money.amount),
-  );
 
 /**
  * A delinquent account starts nonpayment (PLAN §13, §17.3): a notice of intent to cancel, sent by

@@ -18,7 +18,6 @@ import type {
 } from "../ports/quote-desk";
 
 const STAFF = { kind: "tenant" } as const;
-const money = (m: { amount: string; currency: string }) => Money.of(m.amount, m.currency);
 
 const modificationsOf = (terms: UnderwriterTerms): ReferralModifications => ({
   coverages: terms.coverages,
@@ -74,9 +73,9 @@ export class SubmissionsQuoteDesk implements QuoteDesk {
     });
 
     return {
-      writtenPremium: money(preview.writtenPremium),
-      total: money(preview.total),
-      insuredValue: money(preview.insuredValue),
+      writtenPremium: Money.fromJSON(preview.writtenPremium),
+      total: Money.fromJSON(preview.total),
+      insuredValue: Money.fromJSON(preview.insuredValue),
     };
   }
 
@@ -132,9 +131,9 @@ function toFacts(submission: SubmissionDto, quote: StaffQuoteDto): QuoteFacts {
       agencyId: submission.producer.agencyId,
     },
     reasons: open ?? quote.evaluation.reasons,
-    writtenPremium: money(quote.premium.written),
-    total: money(quote.premium.total),
-    insuredValue: money(quote.insuredValue),
+    writtenPremium: Money.fromJSON(quote.premium.written),
+    total: Money.fromJSON(quote.premium.total),
+    insuredValue: Money.fromJSON(quote.insuredValue),
     reviewBy: quote.referral ? Temporal.Instant.from(quote.referral.reviewBy) : null,
     policy: quote.policy,
     boundAt: quote.boundAt ? Temporal.Instant.from(quote.boundAt) : null,

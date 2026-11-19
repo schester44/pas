@@ -5,6 +5,7 @@ import {
   type RiskSchema,
   type SchemaNode,
 } from "@pas/forms-core";
+import { isRecord } from "@pas/kernel";
 import type { UsageRole } from "./clearance";
 
 interface AddressField {
@@ -33,9 +34,6 @@ export function addressFieldsOf(schema: RiskSchema): AddressField[] {
 
   return found;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const isAddressValue = (value: unknown): value is AddressValue =>
   isRecord(value) && typeof value.line1 === "string" && typeof value.city === "string";

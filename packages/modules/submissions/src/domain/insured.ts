@@ -1,7 +1,5 @@
 import { type AddressValue, getAt } from "@pas/forms-core";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isRecord } from "@pas/kernel";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 

@@ -19,8 +19,7 @@ import {
 } from "@pas/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen } from "lucide-react";
-import { formatDateTime } from "@/lib/environment";
-import { formatPlainDate } from "@/lib/format";
+import { formatDateTime, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 import { Amount } from "./shared";
 

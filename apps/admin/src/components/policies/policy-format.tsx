@@ -11,9 +11,6 @@ type Amount =
   | { kind: "money"; amount: string; currency: string }
   | { kind: "percent"; value: string };
 
-export const money = (value: { amount: string; currency: string }) =>
-  formatMoney(value.amount, value.currency);
-
 export const isZero = (value: { amount: string } | null | undefined) =>
   !value || Number(value.amount) === 0;
 
@@ -22,14 +19,8 @@ export function amount(value: unknown) {
 
   if (!a) return <span className="text-muted-foreground">–</span>;
 
-  return a.kind === "money" ? formatMoney(a.amount, a.currency) : `${a.value}%`;
+  return a.kind === "money" ? formatMoney(a) : `${a.value}%`;
 }
-
-export const exposureLabel = (exposure?: string) => {
-  const match = exposure ? /\[(\d+)\]$/.exec(exposure) : null;
-
-  return match ? `Location ${Number(match[1]) + 1}` : "Policy";
-};
 
 const TYPE_LABELS: Record<string, string> = {
   NEW_BUSINESS: "New business",

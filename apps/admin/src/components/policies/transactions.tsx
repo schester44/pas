@@ -6,15 +6,9 @@ import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 import { useState } from "react";
 import { humanize } from "@/components/decisions/jdm-edit";
-import { formatDate, formatPlainDate } from "@/lib/format";
-import {
-  exposureLabel,
-  money,
-  type Policy,
-  type Transaction,
-  transactionStatus,
-  transactionType,
-} from "./policy-format";
+import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
+import { exposureLabel } from "@pas/ui/lib/policy-change";
+import { type Policy, type Transaction, transactionStatus, transactionType } from "./policy-format";
 
 type Financial = Policy["financials"][number];
 
@@ -86,7 +80,7 @@ function TransactionRow({ transaction: t }: { transaction: Transaction }) {
           </span>
         </span>
         <span className="text-right text-sm whitespace-nowrap tabular-nums">
-          {money(t.premiumDelta)}
+          {formatMoney(t.premiumDelta)}
         </span>
       </Disclosure>
       {open && <TransactionDetail transaction={t} />}
@@ -121,9 +115,9 @@ function TransactionDetail({ transaction: t }: { transaction: Transaction }) {
           {changed.map((line) => (
             <Line
               key={`${line.coverage}@${line.exposure ?? ""}`}
-              label={`${line.name}${line.exposure ? ` · ${exposureLabel(line.exposure)}` : ""}`}
+              label={`${line.name}${line.exposure ? ` · ${exposureLabel(line.exposure) ?? "Policy"}` : ""}`}
             >
-              {money(line.amount)}
+              {formatMoney(line.amount)}
             </Line>
           ))}
         </Section>
@@ -132,7 +126,7 @@ function TransactionDetail({ transaction: t }: { transaction: Transaction }) {
         <Section title="Taxes and fees">
           {t.fees.map((fee) => (
             <Line key={fee.code} label={fee.label}>
-              {money(fee.amount)}
+              {formatMoney(fee.amount)}
             </Line>
           ))}
         </Section>
@@ -140,12 +134,12 @@ function TransactionDetail({ transaction: t }: { transaction: Transaction }) {
       <dl className="m-0 grid gap-1.5 border-t pt-3 text-sm">
         <div className="flex justify-between gap-4 font-medium">
           <dt>Total</dt>
-          <dd className="m-0 tabular-nums">{money(t.total)}</dd>
+          <dd className="m-0 tabular-nums">{formatMoney(t.total)}</dd>
         </div>
         {t.annualAfter && (
           <div className="flex justify-between gap-4 text-muted-foreground">
             <dt>Annual premium after</dt>
-            <dd className="m-0 tabular-nums">{money(t.annualAfter)}</dd>
+            <dd className="m-0 tabular-nums">{formatMoney(t.annualAfter)}</dd>
           </div>
         )}
       </dl>
@@ -167,7 +161,7 @@ function display(value: unknown) {
     const v = value as { kind?: string; amount?: string; currency?: string; value?: string };
 
     if (v.kind === "money" && v.amount && v.currency)
-      return money({ amount: v.amount, currency: v.currency });
+      return formatMoney({ amount: v.amount, currency: v.currency });
 
     if (v.kind === "percent") return `${v.value}%`;
 
@@ -247,7 +241,7 @@ function LedgerGroup({ lines, source }: { lines: Financial[]; source?: Transacti
           </span>
         </span>
         <span className="text-right text-sm whitespace-nowrap tabular-nums">
-          {money(sum(lines))}
+          {formatMoney(sum(lines))}
         </span>
       </Disclosure>
       {open && (
@@ -261,7 +255,10 @@ function LedgerGroup({ lines, source }: { lines: Financial[]; source?: Transacti
                 <span className="truncate">
                   {f.label}
                   {f.exposure && (
-                    <span className="text-muted-foreground"> · {exposureLabel(f.exposure)}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {exposureLabel(f.exposure) ?? "Policy"}
+                    </span>
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -269,7 +266,7 @@ function LedgerGroup({ lines, source }: { lines: Financial[]; source?: Transacti
                   {f.remitter && ` · remitted by ${humanize(f.remitter).toLowerCase()}`}
                 </span>
               </span>
-              <span className="tabular-nums">{money(f.amount)}</span>
+              <span className="tabular-nums">{formatMoney(f.amount)}</span>
             </li>
           ))}
         </ul>

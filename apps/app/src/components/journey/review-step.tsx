@@ -78,7 +78,10 @@ function SignPanel({ quote, submission, go }: StepProps) {
             </span>
             <p className="m-0 text-sm">
               {quote.signature.signerName} signed on{" "}
-              <span className="tabular-nums">{formatDateTime(quote.signature.signedAt)}</span>.
+              <span className="tabular-nums">
+                {formatDateTime(quote.signature.signedAt, { weekday: true })}
+              </span>
+              .
             </p>
           </div>
           <Button onClick={() => go("pay")}>

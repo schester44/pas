@@ -1,3 +1,4 @@
+import { isRecord } from "@pas/kernel";
 import type { FieldNode } from "./schema";
 
 export type Coerced = { ok: true; value: unknown } | { ok: false; message: string };
@@ -44,9 +45,6 @@ export const defaultMessages: Messages = {
   minItems: (count) => (count === 1 ? "Add at least one entry" : `Add at least ${count} entries`),
   maxItems: (count) => (count === 1 ? "Keep only one entry" : `Keep at most ${count} entries`),
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const blank = (value: unknown) => typeof value === "string" && value.trim() === "";
 

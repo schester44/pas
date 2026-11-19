@@ -8,8 +8,7 @@ import { useTRPC } from "@/lib/trpc";
 
 export type MoneyJson = { amount: string; currency: string };
 
-export const money = (value: MoneyJson) =>
-  formatMoney(Number(value.amount).toFixed(2), value.currency);
+export const money = (value: MoneyJson) => formatMoney(value, { cents: true });
 
 /** Right-aligned, tabular; zero is a muted dash (docs/design.md tables). */
 export function Amount({

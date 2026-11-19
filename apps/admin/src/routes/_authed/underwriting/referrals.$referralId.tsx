@@ -46,8 +46,8 @@ import {
   SubjectivityFields,
 } from "@/components/underwriting/conditions";
 import { type ReferralDetail, ReferralStatus } from "@/components/underwriting/labels";
-import { formatDateTime, useEnvironment } from "@/lib/environment";
-import { formatDate, formatMoney } from "@/lib/format";
+import { useEnvironment } from "@/lib/environment";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
@@ -58,11 +58,9 @@ export const Route = createFileRoute("/_authed/underwriting/referrals/$referralI
 type Referral = ReferralDetail["referral"];
 type Amount = StaffQuote["coverages"][number]["limits"][number];
 
-const money = (m: { amount: string; currency: string }) => formatMoney(m.amount, m.currency);
 const amountKey = (a: Amount | null) => (!a ? "" : a.kind === "money" ? a.amount : `${a.value}%`);
 
-const amountLabel = (a: Amount) =>
-  a.kind === "money" ? formatMoney(a.amount, a.currency) : `${a.value}%`;
+const amountLabel = (a: Amount) => (a.kind === "money" ? formatMoney(a) : `${a.value}%`);
 
 const IN_QUEUE = ["open", "escalated", "info_requested"];
 
@@ -286,7 +284,7 @@ function DecisionSummary({ decision }: { decision: NonNullable<Referral["decisio
       ))}
       {changes.writtenPremium && (
         <p className="m-0 text-muted-foreground tabular-nums">
-          Written premium on approval {money(changes.writtenPremium)}
+          Written premium on approval {formatMoney(changes.writtenPremium)}
         </p>
       )}
     </div>
@@ -505,10 +503,10 @@ function Facts({ detail, canDecide }: { detail: ReferralDetail; canDecide: boole
           {detail.me.profile?.name ?? <span className="text-muted-foreground">None</span>}
         </Fact>
         <Fact label="Written premium">
-          <span className="tabular-nums">{money(r.writtenPremium)}</span>
+          <span className="tabular-nums">{formatMoney(r.writtenPremium)}</span>
         </Fact>
         <Fact label="Total insured value">
-          <span className="tabular-nums">{money(r.insuredValue)}</span>
+          <span className="tabular-nums">{formatMoney(r.insuredValue)}</span>
         </Fact>
         <Fact label="Insured">
           {r.insuredName ?? <span className="text-muted-foreground">Not captured</span>}

@@ -27,7 +27,10 @@ export function jurisdiction(country: string, subdivision?: string | null): Juri
   return { country: c, subdivision: s };
 }
 
-export function jurisdictionCode(j: Jurisdiction): string {
+export function jurisdictionCode(j: {
+  readonly country: string;
+  readonly subdivision?: string | null;
+}): string {
   return j.subdivision ?? j.country;
 }
 

@@ -1,4 +1,4 @@
-import { DomainError, type PlainDate } from "@pas/kernel";
+import { DomainError, formatPlainDate, type PlainDate } from "@pas/kernel";
 
 /** One `notice_rules` decision result (PLAN §17.3). */
 export interface NoticeRule {
@@ -76,7 +76,7 @@ export function assertCancellationDate(requested: PlainDate, earliest: EarliestC
   if (compare(requested, earliest.date) < 0) {
     throw new DomainError(
       "precondition_failed",
-      `The earliest valid cancellation date is ${earliest.date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      `The earliest valid cancellation date is ${formatPlainDate(earliest.date)}`,
       { reason: "before_earliest_date", earliest: earliest.date.toString() },
     );
   }

@@ -13,15 +13,3 @@ export function useEnvironment() {
 
   return useQuery({ ...trpc.tenant.environment.queryOptions(), staleTime: 5_000 });
 }
-
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-export function formatDateTime(value: string): string {
-  return timeFormat.format(new Date(value));
-}

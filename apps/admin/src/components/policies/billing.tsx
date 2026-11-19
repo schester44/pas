@@ -11,6 +11,7 @@ import {
 } from "@pas/ui/components/sheet";
 import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
+import { exposureLabel } from "@pas/ui/lib/policy-change";
 
 type Billing = AdminOutputs["policies"]["billing"];
 export type Invoice = Billing["invoices"][number];
@@ -22,15 +23,6 @@ const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   partially_paid: { label: "Partially paid", tone: "warning" },
   paid: { label: "Paid", tone: "success" },
   void: { label: "Void", tone: "neutral" },
-};
-
-const money = (value: { amount: string; currency: string }) =>
-  formatMoney(value.amount, value.currency);
-
-const exposureLabel = (exposure: string) => {
-  const match = /\[(\d+)\]$/.exec(exposure);
-
-  return match ? `Location ${Number(match[1]) + 1}` : exposure;
 };
 
 const CREDIT_STATUS: Record<string, { label: string; tone: StatusTone }> = {
@@ -93,7 +85,7 @@ export function BillingPanel({
           <span className="text-sm text-muted-foreground">
             Due now{" "}
             <span className="font-medium text-foreground tabular-nums">
-              {money(billing.balance)}
+              {formatMoney(billing.balance)}
             </span>
           </span>
         )
@@ -140,7 +132,7 @@ export function BillingPanel({
                       {formatDate(payment.receivedAt)} · {invoice?.number}
                     </span>
                   </span>
-                  <span className="tabular-nums">{money(payment.amount)}</span>
+                  <span className="tabular-nums">{formatMoney(payment.amount)}</span>
                 </li>
               );
             })}
@@ -191,7 +183,7 @@ function InvoiceList({
               </span>
               <InvoiceStatus status={invoice.status} kind={invoice.kind} />
               <span className="text-right text-sm whitespace-nowrap tabular-nums">
-                {money(invoice.total)}
+                {formatMoney(invoice.total)}
               </span>
             </button>
             {onPay && isPayable(invoice) && invoice.status !== "scheduled" && (
@@ -244,11 +236,11 @@ export function InvoiceSheet({
                         {line.exposure && (
                           <span className="text-muted-foreground">
                             {" "}
-                            · {exposureLabel(line.exposure)}
+                            · {exposureLabel(line.exposure) ?? line.exposure}
                           </span>
                         )}
                       </td>
-                      <td className="text-right tabular-nums">{money(line.amount)}</td>
+                      <td className="text-right tabular-nums">{formatMoney(line.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -256,21 +248,21 @@ export function InvoiceSheet({
               <dl className="m-0 grid gap-1.5 border-t pt-4 text-sm">
                 <div className="flex justify-between font-semibold">
                   <dt>Total</dt>
-                  <dd className="m-0 tabular-nums">{money(invoice.total)}</dd>
+                  <dd className="m-0 tabular-nums">{formatMoney(invoice.total)}</dd>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <dt>Paid</dt>
-                  <dd className="m-0 tabular-nums">{money(invoice.amountPaid)}</dd>
+                  <dd className="m-0 tabular-nums">{formatMoney(invoice.amountPaid)}</dd>
                 </div>
                 {Number(invoice.amountCredited.amount) !== 0 && (
                   <div className="flex justify-between text-muted-foreground">
                     <dt>Credited</dt>
-                    <dd className="m-0 tabular-nums">{money(invoice.amountCredited)}</dd>
+                    <dd className="m-0 tabular-nums">{formatMoney(invoice.amountCredited)}</dd>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <dt>Balance</dt>
-                  <dd className="m-0 tabular-nums">{money(invoice.balance)}</dd>
+                  <dd className="m-0 tabular-nums">{formatMoney(invoice.balance)}</dd>
                 </div>
               </dl>
             </SheetBody>

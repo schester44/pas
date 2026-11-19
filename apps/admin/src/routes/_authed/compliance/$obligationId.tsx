@@ -325,14 +325,12 @@ function Filed({ obligation: o }: { obligation: ObligationDetail }) {
         </Row>
         {r.premium && (
           <Row label="Premium">
-            <span className="tabular-nums">
-              {formatMoney(r.premium.amount, r.premium.currency)}
-            </span>
+            <span className="tabular-nums">{formatMoney(r.premium)}</span>
           </Row>
         )}
         {r.taxesFees.map((t) => (
           <Row key={t.code} label={t.label}>
-            <span className="tabular-nums">{formatMoney(t.amount.amount, t.amount.currency)}</span>
+            <span className="tabular-nums">{formatMoney(t.amount)}</span>
           </Row>
         ))}
         {affidavit?.declinations && (
@@ -383,21 +381,15 @@ function Remittance({ obligation: o }: { obligation: ObligationDetail }) {
             <span className="tabular-nums">{s.transactions}</span>
           </Row>
           <Row label="Premium">
-            <span className="tabular-nums">
-              {formatMoney(s.premium.amount, s.premium.currency)}
-            </span>
+            <span className="tabular-nums">{formatMoney(s.premium)}</span>
           </Row>
           {s.taxes.map((t) => (
             <Row key={t.code} label={t.label}>
-              <span className="tabular-nums">
-                {formatMoney(t.amount.amount, t.amount.currency)}
-              </span>
+              <span className="tabular-nums">{formatMoney(t.amount)}</span>
             </Row>
           ))}
           <Row label="Total to remit">
-            <span className="font-semibold tabular-nums">
-              {formatMoney(s.total.amount, s.total.currency)}
-            </span>
+            <span className="font-semibold tabular-nums">{formatMoney(s.total)}</span>
           </Row>
         </dl>
       )}

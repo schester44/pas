@@ -20,10 +20,10 @@ import {
   type SimulationTarget,
   useSimulation,
 } from "@/components/billing/simulate-billing-event";
-import { money, type Statement, StatementStatus } from "@/components/billing/statements";
+import { type Statement, StatementStatus } from "@/components/billing/statements";
 import { RecordPaymentDialog } from "@/components/ledger/record-payment-dialog";
 import { useLedgerOverview } from "@/components/ledger/shared";
-import { formatPlainDate } from "@/lib/format";
+import { formatMoney, formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
@@ -152,11 +152,11 @@ function StatementPage() {
 
 function Summary({ statement: s }: { statement: Statement }) {
   const facts = [
-    ["Gross", money(s.totals.gross)],
-    ["Commission", money(s.totals.commission)],
-    [s.remittanceBasis === "net" ? "Net due" : "Due", money(s.totals.due)],
-    ["Paid", money(s.totals.paid)],
-    ["Balance", money(s.totals.balance)],
+    ["Gross", formatMoney(s.totals.gross)],
+    ["Commission", formatMoney(s.totals.commission)],
+    [s.remittanceBasis === "net" ? "Net due" : "Due", formatMoney(s.totals.due)],
+    ["Paid", formatMoney(s.totals.paid)],
+    ["Balance", formatMoney(s.totals.balance)],
   ] as const;
 
   return (
@@ -235,16 +235,18 @@ function Items({ statement: s }: { statement: Statement }) {
                 <TableCell className="tabular-nums">
                   {formatPlainDate(item.effectiveDate)}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{money(item.gross)}</TableCell>
-                <TableCell className="text-right tabular-nums">{money(item.commission)}</TableCell>
-                <TableCell className="text-right tabular-nums">{money(item.due)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatMoney(item.gross)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatMoney(item.commission)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{formatMoney(item.due)}</TableCell>
                 <TableCell className="text-right tabular-nums">
                   {applied === 0
                     ? dash
-                    : money({ amount: applied.toFixed(2), currency: item.due.currency })}
+                    : formatMoney({ amount: applied.toFixed(2), currency: item.due.currency })}
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">
-                  {Number(item.open.amount) === 0 ? dash : money(item.open)}
+                  {Number(item.open.amount) === 0 ? dash : formatMoney(item.open)}
                 </TableCell>
               </TableRow>
             );

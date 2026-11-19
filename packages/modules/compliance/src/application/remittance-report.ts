@@ -1,9 +1,6 @@
-import { conflict, type TenantContext } from "@pas/kernel";
+import { conflict, type TenantContext, toCsv } from "@pas/kernel";
 import { remittanceReport } from "../domain/remittance";
 import { type ComplianceDeps, loadObligation } from "./deps";
-
-const csvCell = (value: string) =>
-  /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 
 /** The remittance statement for a period obligation, as CSV for the licensee's tax filing (PLAN §17.2.8). */
 export function makeRemittanceReport(deps: Pick<ComplianceDeps, "uow" | "obligations">) {
@@ -80,7 +77,7 @@ export function makeRemittanceReport(deps: Pick<ComplianceDeps, "uow" | "obligat
       return {
         fileName: `${state}-${licensee}-${period.subject.periodStart}-remittance.csv`,
         contentType: "text/csv",
-        body: new TextEncoder().encode(`${rows.map((r) => r.map(csvCell).join(",")).join("\n")}\n`),
+        body: new TextEncoder().encode(toCsv(rows)),
         summary: {
           transactions: report.lines.length,
           premium: report.premium.round(2).toJSON(),

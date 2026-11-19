@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import {
   type BillingSchedule as Row,
   type PaymentMethod as MethodRow,
@@ -14,8 +14,6 @@ import {
 import type { PayerDetails } from "../domain/invoice";
 import type { BillingScheduleRepository } from "../ports/billing-schedule-repository";
 
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 export class PrismaBillingScheduleRepository implements BillingScheduleRepository {
@@ -30,7 +28,7 @@ export class PrismaBillingScheduleRepository implements BillingScheduleRepositor
       payerRef: s.payer.payerRef,
       payerName: s.payer.payerName,
       payerAddress: s.payer.payerAddress ? json(s.payer.payerAddress) : Prisma.DbNull,
-      updatedAt: toDate(s.updatedAt),
+      updatedAt: instantToDb(s.updatedAt),
     };
 
     await prismaTx(tx).billingSchedule.upsert({
@@ -44,7 +42,7 @@ export class PrismaBillingScheduleRepository implements BillingScheduleRepositor
         termId: s.termId,
         plan: json(s.plan),
         dunning: json(s.dunning),
-        createdAt: toDate(s.createdAt),
+        createdAt: instantToDb(s.createdAt),
       },
       update: data,
     });
@@ -76,7 +74,7 @@ export class PrismaBillingScheduleRepository implements BillingScheduleRepositor
   }
 
   async savePaymentMethod(tx: Transaction, ctx: TenantContext, method: SavedPaymentMethod) {
-    const data = { status: method.status, updatedAt: toDate(method.updatedAt) };
+    const data = { status: method.status, updatedAt: instantToDb(method.updatedAt) };
 
     await prismaTx(tx).paymentMethod.upsert({
       where: { id: method.id },
@@ -93,7 +91,7 @@ export class PrismaBillingScheduleRepository implements BillingScheduleRepositor
         expMonth: method.expMonth,
         expYear: method.expYear,
         consent: json(method.consent),
-        createdAt: toDate(method.createdAt),
+        createdAt: instantToDb(method.createdAt),
       },
       update: data,
     });
@@ -126,8 +124,8 @@ function toSchedule(row: Row): BillingSchedule {
     dunning: billingConfigOf({ dunning: row.dunning }).dunning,
     status: row.status as "active" | "closed",
     paymentMethodId: row.paymentMethodId,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -144,7 +142,7 @@ function toMethod(row: MethodRow): SavedPaymentMethod {
     expYear: row.expYear,
     consent: row.consent as SavedPaymentMethod["consent"],
     status: row.status as SavedPaymentMethod["status"],
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   };
 }

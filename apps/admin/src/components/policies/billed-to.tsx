@@ -13,11 +13,11 @@ import {
 } from "@/components/billing/simulate-billing-event";
 import { RecordPaymentDialog } from "@/components/ledger/record-payment-dialog";
 import { useLedgerOverview } from "@/components/ledger/shared";
-import { formatPlainDate } from "@/lib/format";
+import { formatMoney, formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 import { isPayable } from "./billing";
-import { type Billing, money } from "./policy-format";
+import { type Billing } from "./policy-format";
 
 const METHOD: Record<string, string> = {
   direct: "Direct bill",
@@ -193,7 +193,7 @@ export function BilledTo({ policyId, billing }: { policyId: string; billing: Bil
         </Notice>
       ) : mortgagee?.canSwitchToDirect && payable ? (
         <p className="m-0 text-sm text-muted-foreground tabular-nums">
-          {money(payable.balance)} on {payable.number} is due from the lender by{" "}
+          {formatMoney(payable.balance)} on {payable.number} is due from the lender by{" "}
           {formatPlainDate(payable.dueOn)}. Switching re-issues it to the insured with a pay link.
         </p>
       ) : (

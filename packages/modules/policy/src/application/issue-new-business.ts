@@ -10,12 +10,12 @@ import {
   type UnitOfWork,
   type ClockProvider,
 } from "@pas/kernel";
+import type { Dunning, MortgageeFollowUp, PayPlan } from "@pas/pay-plans";
 import { type BillingMethod, type NewBusinessLine, Policy } from "../domain/policy";
 import { categoryOf } from "../domain/policy-event";
 import { formatPolicyNumber } from "../domain/policy-number";
 import type { PolicyEventType, TimelineActor } from "../domain/policy-event";
 import type { BillingPayer, InvoiceIssuer } from "../ports/invoice-issuer";
-import type { Dunning, MortgageeFollowUp, PayPlan } from "@pas/pay-plans";
 import { transactionInvoice } from "./pricing";
 import type { InsuredParty, PolicyParties } from "../ports/policy-parties";
 import type { PolicyRepository } from "../ports/policy-repository";
@@ -66,8 +66,6 @@ export interface IssuedPolicyDto {
   invoice: { id: string; number: string; total: MoneyJson };
 }
 
-const money = (json: MoneyJson) => Money.of(json.amount, json.currency);
-
 /**
  * Policy, term, NEW_BUSINESS transaction, TermVersion and financial transactions in one unit of
  * work (PLAN §7.2). Idempotent on the quote: binding twice returns the policy already issued.
@@ -84,7 +82,7 @@ export function makeIssueNewBusiness(deps: {
     ctx: TenantContext,
     input: IssueNewBusinessInput,
   ): Promise<IssuedPolicyDto> {
-    const written = money(input.writtenPremium);
+    const written = Money.fromJSON(input.writtenPremium);
 
     const lines: NewBusinessLine[] = [
       ...input.coverages.map((c) => ({
@@ -93,14 +91,14 @@ export function makeIssueNewBusiness(deps: {
         label: c.name,
         coverage: c.coverage,
         ...(c.exposure && { exposure: c.exposure }),
-        amount: money(c.premium),
+        amount: Money.fromJSON(c.premium),
       })),
       ...input.taxesFees.map((t) => ({
         kind: "tax_fee" as const,
         code: t.code,
         label: t.label,
         remitter: t.remitter,
-        amount: money(t.amount),
+        amount: Money.fromJSON(t.amount),
       })),
     ];
 

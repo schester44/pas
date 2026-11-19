@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, plainDateFromDb, plainDateToDb, prismaTx } from "@pas/db";
 import type {
   AgencyMembership as MembershipRow,
   Appointment as AppointmentRow,
@@ -9,7 +9,7 @@ import { asId, newId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { License } from "../domain/license";
 import type { Appointment, MembershipRole, Producer, ProducerStatus } from "../domain/producer";
 import type { ProducerRepository } from "../ports/producer-repository";
-import { dateFromDb, dateToDb, optionalDate, toDate, toInstant } from "./mappers";
+import { optionalDate } from "./mappers";
 
 const toProducer = (row: ProducerRow, memberships: readonly MembershipRow[]): Producer => ({
   id: asId(row.id),
@@ -28,8 +28,8 @@ const toProducer = (row: ProducerRow, memberships: readonly MembershipRow[]): Pr
       role: m.role as MembershipRole,
       primary: m.primary,
     })),
-  createdAt: toInstant(row.createdAt),
-  updatedAt: toInstant(row.updatedAt),
+  createdAt: instantFromDb(row.createdAt),
+  updatedAt: instantFromDb(row.updatedAt),
 });
 
 const toLicense = (row: LicenseRow): License => ({
@@ -40,12 +40,12 @@ const toLicense = (row: LicenseRow): License => ({
   subdivision: row.subdivision,
   licenseNumber: row.licenseNumber,
   linesOfAuthority: row.linesOfAuthority,
-  effectiveDate: dateFromDb(row.effectiveDate),
+  effectiveDate: plainDateFromDb(row.effectiveDate),
   expirationDate: optionalDate(row.expirationDate),
   status: row.status as License["status"],
   source: row.source as License["source"],
-  verifiedAt: row.verifiedAt ? toInstant(row.verifiedAt) : null,
-  updatedAt: toInstant(row.updatedAt),
+  verifiedAt: row.verifiedAt ? instantFromDb(row.verifiedAt) : null,
+  updatedAt: instantFromDb(row.updatedAt),
 });
 
 const toAppointment = (row: AppointmentRow): Appointment => ({
@@ -56,9 +56,9 @@ const toAppointment = (row: AppointmentRow): Appointment => ({
   country: row.country,
   subdivision: row.subdivision,
   status: row.status as Appointment["status"],
-  effectiveDate: dateFromDb(row.effectiveDate),
+  effectiveDate: plainDateFromDb(row.effectiveDate),
   terminatedDate: optionalDate(row.terminatedDate),
-  createdAt: toInstant(row.createdAt),
+  createdAt: instantFromDb(row.createdAt),
 });
 
 export class PrismaProducerRepository implements ProducerRepository {
@@ -125,7 +125,7 @@ export class PrismaProducerRepository implements ProducerRepository {
       producerNumber: producer.producerNumber,
       npn: producer.npn,
       status: producer.status,
-      updatedAt: toDate(producer.updatedAt),
+      updatedAt: instantToDb(producer.updatedAt),
     };
 
     await db.producer.upsert({
@@ -135,7 +135,7 @@ export class PrismaProducerRepository implements ProducerRepository {
         ...data,
         id: producer.id,
         tenantId: ctx.tenantId,
-        createdAt: toDate(producer.createdAt),
+        createdAt: instantToDb(producer.createdAt),
       },
     });
 
@@ -164,7 +164,7 @@ export class PrismaProducerRepository implements ProducerRepository {
           producerId: producer.id,
           role: m.role,
           primary: m.primary,
-          createdAt: toDate(producer.updatedAt),
+          createdAt: instantToDb(producer.updatedAt),
         },
       });
     }
@@ -180,7 +180,7 @@ export class PrismaProducerRepository implements ProducerRepository {
   }
 
   async saveLicense(tx: Transaction, ctx: TenantContext, license: License): Promise<void> {
-    const now = toDate(license.updatedAt);
+    const now = instantToDb(license.updatedAt);
 
     const data = {
       npn: license.npn,
@@ -188,11 +188,11 @@ export class PrismaProducerRepository implements ProducerRepository {
       subdivision: license.subdivision,
       licenseNumber: license.licenseNumber,
       linesOfAuthority: license.linesOfAuthority,
-      effectiveDate: dateToDb(license.effectiveDate),
-      expirationDate: license.expirationDate ? dateToDb(license.expirationDate) : null,
+      effectiveDate: plainDateToDb(license.effectiveDate),
+      expirationDate: license.expirationDate ? plainDateToDb(license.expirationDate) : null,
       status: license.status,
       source: license.source,
-      verifiedAt: license.verifiedAt ? toDate(license.verifiedAt) : null,
+      verifiedAt: license.verifiedAt ? instantToDb(license.verifiedAt) : null,
       updatedAt: now,
     };
 
@@ -255,9 +255,9 @@ export class PrismaProducerRepository implements ProducerRepository {
         country: a.country,
         subdivision: a.subdivision,
         status: a.status,
-        effectiveDate: dateToDb(a.effectiveDate),
-        terminatedDate: a.terminatedDate ? dateToDb(a.terminatedDate) : null,
-        createdAt: toDate(a.createdAt),
+        effectiveDate: plainDateToDb(a.effectiveDate),
+        terminatedDate: a.terminatedDate ? plainDateToDb(a.terminatedDate) : null,
+        createdAt: instantToDb(a.createdAt),
       },
     });
   }

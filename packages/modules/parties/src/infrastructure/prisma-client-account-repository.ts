@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { ClientAccount as Row, Prisma } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import {
@@ -9,9 +9,6 @@ import {
 } from "../domain/client-account";
 import { addressKey, type ContactKeys, nameKey, type PostalAddress } from "../domain/contact";
 import type { ClientAccountRepository } from "../ports/client-account-repository";
-
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
 
 type EmailJson = { address: string; key: string; verifiedAt: string | null };
 
@@ -32,9 +29,9 @@ function restore(row: Row): ClientAccount {
     mailingAddress: (row.mailingAddress as PostalAddress | null) ?? null,
     status: row.status as "active" | "merged",
     mergedIntoId: row.mergedIntoId ? asId(row.mergedIntoId) : null,
-    invitedAt: row.invitedAt ? toInstant(row.invitedAt) : null,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    invitedAt: row.invitedAt ? instantFromDb(row.invitedAt) : null,
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -60,14 +57,14 @@ export class PrismaClientAccountRepository implements ClientAccountRepository {
       addressKey: addressKey(a.mailingAddress),
       status: a.status,
       mergedIntoId: a.mergedIntoId,
-      invitedAt: a.invitedAt ? toDate(a.invitedAt) : null,
-      updatedAt: toDate(a.updatedAt),
+      invitedAt: a.invitedAt ? instantToDb(a.invitedAt) : null,
+      updatedAt: instantToDb(a.updatedAt),
     };
 
     await prismaTx(tx).clientAccount.upsert({
       where: { id: a.id },
       update: data,
-      create: { ...data, id: a.id, tenantId: a.tenantId, createdAt: toDate(a.createdAt) },
+      create: { ...data, id: a.id, tenantId: a.tenantId, createdAt: instantToDb(a.createdAt) },
     });
   }
 

@@ -74,7 +74,7 @@ export function UnderwriterMessages({ submissionId }: { submissionId: string }) 
               <span className="font-medium text-foreground">
                 {m.author.role === "producer" ? "You" : m.author.name}
               </span>
-              <span className="tabular-nums">{formatDateTime(m.at)}</span>
+              <span className="tabular-nums">{formatDateTime(m.at, { weekday: true })}</span>
             </span>
             <span className="whitespace-pre-wrap">{m.body}</span>
           </li>

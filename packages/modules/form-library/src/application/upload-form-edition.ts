@@ -1,11 +1,12 @@
 import {
+  type ClockProvider,
   conflict,
   invalid,
   newId,
   type Outbox,
+  sha256,
   type TenantContext,
   type UnitOfWork,
-  type ClockProvider,
 } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { editionLabel, parseEdition } from "../domain/edition";
@@ -26,12 +27,6 @@ export interface UploadFormEditionInput {
 }
 
 const PDF_MAGIC = "%PDF-";
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>);
-
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 export function makeUploadFormEdition(deps: {
   uow: UnitOfWork;

@@ -33,7 +33,7 @@ function Amount({ value }: { value: { amount: string; currency: string } }) {
   return Number(value.amount) === 0 ? (
     <span className="text-muted-foreground">—</span>
   ) : (
-    <>{formatMoney(value.amount, value.currency)}</>
+    <>{formatMoney(value)}</>
   );
 }
 
@@ -77,9 +77,7 @@ export function AgencyStatement({
             ).map(([label, value]) => (
               <div key={label} className="grid gap-0.5 sm:text-right">
                 <dt className="text-xs text-muted-foreground">{label}</dt>
-                <dd className="m-0 font-semibold tabular-nums">
-                  {formatMoney(value.amount, value.currency)}
-                </dd>
+                <dd className="m-0 font-semibold tabular-nums">{formatMoney(value)}</dd>
               </div>
             ))}
           </dl>
@@ -192,8 +190,7 @@ export function AgencyStatement({
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {TRANSACTION_LABELS[entry.transactionType] ?? entry.transactionType} ·{" "}
-                  {formatMoney(entry.premium.amount, entry.premium.currency)} at{" "}
-                  {Number(entry.rate)}%
+                  {formatMoney(entry.premium)} at {Number(entry.rate)}%
                 </span>
               </li>
             ))}

@@ -1,4 +1,4 @@
-import { canonicalJson, type WorkflowStep } from "@pas/kernel";
+import { canonicalJson, toPlainJson, type WorkflowStep } from "@pas/kernel";
 import type { ConnectorDefinition } from "../domain/connector";
 import type { Fixture } from "../domain/fixture";
 import type { FlowIO, OutgoingRequest } from "../ports/flow-io";
@@ -13,7 +13,7 @@ function replaySteps(callbacks: Fixture["callbacks"]): WorkflowStep {
 
   return {
     run: async (id, fn) => {
-      if (!memo.has(id)) memo.set(id, JSON.parse(JSON.stringify((await fn()) ?? null)));
+      if (!memo.has(id)) memo.set(id, toPlainJson(await fn()));
 
       return memo.get(id) as never;
     },

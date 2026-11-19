@@ -19,8 +19,6 @@ export interface InboundBillingEvent {
   reason?: string;
 }
 
-const money = (json: MoneyJson) => Money.of(json.amount, json.currency);
-
 /** Maps an inbound event from a billing system install onto the one application path. */
 export function billingEventFrom(installId: string, event: InboundBillingEvent): BillingEvent {
   return fromSource(`install:${installId}`, event);
@@ -43,7 +41,7 @@ function fromSource(source: string, event: InboundBillingEvent): BillingEvent {
     ...(event.invoiceId && { invoiceId: event.invoiceId }),
     ...(event.statementId && { statementId: event.statementId }),
     ...(event.policyNumber && { policyNumber: event.policyNumber }),
-    ...(event.amount && { amount: money(event.amount) }),
+    ...(event.amount && { amount: Money.fromJSON(event.amount) }),
     ...(event.reference && { reference: event.reference }),
     ...(event.method && { method: event.method }),
     ...(event.creditNoteId && { creditNoteId: event.creditNoteId }),
@@ -52,7 +50,7 @@ function fromSource(source: string, event: InboundBillingEvent): BillingEvent {
         kind: "written_premium" as const,
         code: line.code,
         label: line.label,
-        amount: money(line.amount),
+        amount: Money.fromJSON(line.amount),
       })),
     }),
     ...(event.reason && { reason: event.reason }),

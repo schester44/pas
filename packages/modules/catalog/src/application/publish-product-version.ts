@@ -1,9 +1,10 @@
 import {
   canonicalJson,
+  type ClockProvider,
   type Outbox,
+  sha256,
   type TenantContext,
   type UnitOfWork,
-  type ClockProvider,
 } from "@pas/kernel";
 import { checkVersion } from "../domain/checks";
 import { ProductRelease } from "../domain/product-release";
@@ -66,12 +67,6 @@ export function makePublishProductVersion(
       return { version: toVersionDto(version), releases: releases.map(toReleaseDto) };
     });
   };
-}
-
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export type PublishProductVersion = ReturnType<typeof makePublishProductVersion>;

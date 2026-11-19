@@ -6,9 +6,9 @@ import { cn } from "@pas/ui/lib/utils";
 import type * as React from "react";
 import type { Coverage } from "@/components/catalog/version-editor";
 import { formatMoney } from "@/lib/format";
+import { formatMessage } from "@/lib/messages";
 import { coverageLabel, exposureLabel } from "./model";
 import type { RatingPreview } from "./use-rating";
-import { formatMessage } from "@/lib/messages";
 
 const NUMBER = /^-?\d+(\.\d+)?$/;
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
@@ -92,7 +92,7 @@ function WorksheetBody({
     groups.set(key, [...(groups.get(key) ?? []), line]);
   }
 
-  const money = (amount: string) => formatMoney(amount, result.currency);
+  const money = (amount: string) => formatMoney({ amount, currency: result.currency });
 
   return (
     <>

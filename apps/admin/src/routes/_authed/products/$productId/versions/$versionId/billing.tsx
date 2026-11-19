@@ -57,7 +57,7 @@ function number(value: string, min = 0) {
   return Number.isFinite(parsed) ? Math.max(min, parsed) : min;
 }
 
-const money = (amount: Money) => formatMoney(amount.toString(), amount.currency);
+const money = (amount: Money) => formatMoney(amount.toJSON());
 
 function downPaymentLabel(plan: PayPlan) {
   if (plan.installments <= 1) return "Pay in full";
@@ -71,7 +71,7 @@ function eligibilityLabel(plan: PayPlan) {
   const rules = plan.eligibility;
 
   const parts = [
-    rules.minPremium && `≥ ${formatMoney(rules.minPremium, CURRENCY)}`,
+    rules.minPremium && `≥ ${formatMoney({ amount: rules.minPremium, currency: CURRENCY })}`,
     rules.jurisdictions?.length && rules.jurisdictions.join(", "),
     rules.channels?.length && rules.channels.join(", "),
     rules.when?.trim() && "Expression",
@@ -165,7 +165,7 @@ function BillingTab() {
                   <TableCell>{downPaymentLabel(plan)}</TableCell>
                   <TableCell className="tabular-nums">
                     {plan.installmentFee && Number(plan.installmentFee) > 0 ? (
-                      formatMoney(plan.installmentFee, CURRENCY)
+                      formatMoney({ amount: plan.installmentFee, currency: CURRENCY })
                     ) : (
                       <span className="text-muted-foreground">–</span>
                     )}

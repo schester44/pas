@@ -1,8 +1,9 @@
 import { evaluate } from "@pas/expressions";
 import { getAt, isField, type RiskSchema, type SchemaNode } from "@pas/forms-core";
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { formatMoney } from "@pas/kernel";
 import type { DocumentContext, SelectedCoverage } from "../context";
-import { DASH, formatAddress, formatAmount, formatMoney, formatValue } from "../format";
+import { DASH, formatAddress, formatAmount, formatValue } from "../format";
 import { createResolver, type Resolver } from "../merge";
 import type {
   Block,
@@ -382,7 +383,9 @@ function CoverageSchedule({
                 <Text style={[s.td, s.num]}>{formatAmount(row.deductible)}</Text>
               )}
               {block.premium && (
-                <Text style={[s.td, s.num]}>{row.premium ? formatMoney(row.premium) : DASH}</Text>
+                <Text style={[s.td, s.num]}>
+                  {row.premium ? formatMoney(row.premium, { cents: "auto" }) : DASH}
+                </Text>
               )}
             </View>
           ))}
@@ -397,7 +400,7 @@ function CoverageSchedule({
         <View style={s.total} wrap={false}>
           <Text style={s.totalLabel}>Total premium</Text>
           <Text style={[s.num, s.bold]}>
-            {context.premium ? formatMoney(context.premium.total) : DASH}
+            {context.premium ? formatMoney(context.premium.total, { cents: "auto" }) : DASH}
           </Text>
         </View>
       )}

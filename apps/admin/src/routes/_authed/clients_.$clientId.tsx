@@ -110,7 +110,7 @@ function ClientPage() {
                           </span>
                           <span className="flex shrink-0 items-center gap-4">
                             <span className="hidden text-sm tabular-nums sm:inline">
-                              {formatMoney(p.total.amount, p.total.currency)}
+                              {formatMoney(p.total)}
                             </span>
                             <PolicyStatus status={p.status} />
                           </span>

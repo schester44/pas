@@ -88,9 +88,7 @@ export function PayDialog({
             }}
           >
             <DialogHeader>
-              <DialogTitle>
-                Pay {formatMoney(invoice.balance.amount, invoice.balance.currency)}
-              </DialogTitle>
+              <DialogTitle>Pay {formatMoney(invoice.balance)}</DialogTitle>
               <DialogDescription className="tabular-nums">{invoice.number}</DialogDescription>
             </DialogHeader>
             {(declined ?? pay.error?.message) && (
@@ -143,8 +141,7 @@ export function PayDialog({
             </div>
             <DialogFooter>
               <Button type="submit" disabled={!ready || pay.isPending}>
-                {pay.isPending && <Spinner />} Pay{" "}
-                {formatMoney(invoice.balance.amount, invoice.balance.currency)}
+                {pay.isPending && <Spinner />} Pay {formatMoney(invoice.balance)}
               </Button>
             </DialogFooter>
           </form>

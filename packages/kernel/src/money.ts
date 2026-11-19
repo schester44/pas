@@ -25,6 +25,10 @@ export class Money {
     return new Money(new Decimal(amount), currency);
   }
 
+  static fromJSON(json: { readonly amount: string; readonly currency: CurrencyCode }): Money {
+    return Money.of(json.amount, json.currency);
+  }
+
   static zero(currency: CurrencyCode = "USD"): Money {
     return new Money(new Decimal(0), currency);
   }

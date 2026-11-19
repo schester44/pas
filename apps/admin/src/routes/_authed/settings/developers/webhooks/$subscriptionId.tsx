@@ -60,8 +60,7 @@ import {
   SubscriptionForm,
   useEventCatalog,
 } from "@/components/events/subscriptions";
-import { formatDateTime } from "@/lib/environment";
-import { formatRelative } from "@/lib/format";
+import { formatDateTime, formatRelative } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/settings/developers/webhooks/$subscriptionId")({

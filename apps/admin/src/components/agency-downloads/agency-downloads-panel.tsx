@@ -10,9 +10,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Inbox, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { formatDateTime, useEnvironment } from "@/lib/environment";
+import { useEnvironment } from "@/lib/environment";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
+import { formatDateTime } from "@/lib/format";
 import { BatchSheet } from "./batch-sheet";
 import { BatchStatus, type Enrollment, ItemStatus, mailboxOf, TRIGGER_LABELS } from "./shared";
 

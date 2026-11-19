@@ -1,9 +1,8 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { ProductStatus as DbProductStatus, Product as ProductRow } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { Product, type ProductId, type ProductStatus } from "../domain/product";
 import type { ProductRepository } from "../ports/product-repository";
-import { toDate, toInstant } from "./mappers";
 
 const toDbStatus = (s: ProductStatus): DbProductStatus => s.toUpperCase() as DbProductStatus;
 const fromDbStatus = (s: DbProductStatus): ProductStatus => s.toLowerCase() as ProductStatus;
@@ -18,8 +17,8 @@ export class PrismaProductRepository implements ProductRepository {
       name: p.name,
       lineOfBusiness: p.lineOfBusiness,
       status: toDbStatus(p.status),
-      createdAt: toDate(p.createdAt),
-      updatedAt: toDate(p.updatedAt),
+      createdAt: instantToDb(p.createdAt),
+      updatedAt: instantToDb(p.updatedAt),
     };
 
     await prismaTx(tx).product.upsert({
@@ -70,7 +69,7 @@ function toProduct(row: ProductRow): Product {
     name: row.name,
     lineOfBusiness: row.lineOfBusiness,
     status: fromDbStatus(row.status),
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }

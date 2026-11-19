@@ -18,7 +18,7 @@ import { ChevronRight, MapPin, Plus } from "lucide-react";
 import { useState } from "react";
 import { AvailabilityDialog } from "@/components/catalog/availability-dialog";
 import { useVersionEditor } from "@/components/catalog/version-editor";
-import { formatDate, formatDateWindow, formatRelative } from "@/lib/format";
+import { formatDate, formatDateWindow, formatRelative, plural } from "@/lib/format";
 import { jurisdictionCode, jurisdictionName, jurisdictionShort } from "@pas/ui/lib/jurisdictions";
 import { useTRPC } from "@/lib/trpc";
 
@@ -34,8 +34,6 @@ function countFields(nodes: readonly SchemaNode[]): number {
     0,
   );
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 function OverviewTab() {
   return (

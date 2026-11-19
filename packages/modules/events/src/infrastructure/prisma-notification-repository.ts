@@ -1,8 +1,8 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import { newId, type Instant, type TenantContext, type Transaction } from "@pas/kernel";
 import type { SubjectKind } from "../domain/event-types";
 import type { NotificationRecord, NotificationRepository } from "../ports/notification-repository";
-import { maybeInstant, toDate, toInstant } from "./mappers";
+import { maybeInstant } from "./mappers";
 
 export class PrismaNotificationRepository implements NotificationRepository {
   async add(
@@ -24,7 +24,7 @@ export class PrismaNotificationRepository implements NotificationRepository {
         subjectKind: n.subject?.kind ?? null,
         subjectId: n.subject?.id ?? null,
         readAt: null,
-        createdAt: toDate(n.createdAt),
+        createdAt: instantToDb(n.createdAt),
       })),
       skipDuplicates: true,
     });
@@ -57,7 +57,7 @@ export class PrismaNotificationRepository implements NotificationRepository {
           ? { kind: row.subjectKind as SubjectKind, id: row.subjectId }
           : null,
       readAt: maybeInstant(row.readAt),
-      createdAt: toInstant(row.createdAt),
+      createdAt: instantFromDb(row.createdAt),
     }));
   }
 
@@ -79,7 +79,7 @@ export class PrismaNotificationRepository implements NotificationRepository {
         readAt: null,
         ...(input.ids !== "all" && { id: { in: [...input.ids] } }),
       },
-      data: { readAt: toDate(input.at) },
+      data: { readAt: instantToDb(input.at) },
     });
   }
 
@@ -105,9 +105,9 @@ export class PrismaNotificationRepository implements NotificationRepository {
         tenantId: ctx.tenantId,
         userId: input.userId,
         eventTypes: input.eventTypes,
-        updatedAt: toDate(input.at),
+        updatedAt: instantToDb(input.at),
       },
-      update: { eventTypes: input.eventTypes, updatedAt: toDate(input.at) },
+      update: { eventTypes: input.eventTypes, updatedAt: instantToDb(input.at) },
     });
   }
 }

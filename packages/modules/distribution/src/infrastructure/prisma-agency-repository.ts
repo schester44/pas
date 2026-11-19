@@ -1,6 +1,6 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, moneyFromDb, prismaTx } from "@pas/db";
 import type { Agency as AgencyRow, Prisma } from "@pas/db/client";
-import { asId, Money, type TenantContext, type Transaction } from "@pas/kernel";
+import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import type {
   Agency,
   AgencyAddress,
@@ -9,7 +9,6 @@ import type {
   RemittanceBasis,
 } from "../domain/agency";
 import type { AgencyRepository } from "../ports/agency-repository";
-import { toDate, toInstant } from "./mappers";
 
 const toAgency = (row: AgencyRow): Agency => ({
   id: asId(row.id),
@@ -26,7 +25,7 @@ const toAgency = (row: AgencyRow): Agency => ({
   billing: {
     eligible: row.agencyBillEligible,
     remittanceDays: row.remittanceDays,
-    creditLimit: row.creditLimit ? Money.of(row.creditLimit.toString(), row.currency) : null,
+    creditLimit: row.creditLimit ? moneyFromDb(row.creditLimit, row.currency) : null,
     remittanceBasis: row.remittanceBasis as RemittanceBasis,
     commissionBasis: (row.commissionBasis as CommissionBasis | null) ?? null,
     statementDay: row.statementDay,
@@ -34,11 +33,14 @@ const toAgency = (row: AgencyRow): Agency => ({
     suspendAfterDays: row.suspendAfterDays,
     nonpaymentCancels: row.nonpaymentCancels,
     suspension: row.agencyBillSuspendedAt
-      ? { at: toInstant(row.agencyBillSuspendedAt), reason: row.agencyBillSuspendedReason ?? "" }
+      ? {
+          at: instantFromDb(row.agencyBillSuspendedAt),
+          reason: row.agencyBillSuspendedReason ?? "",
+        }
       : null,
   },
-  createdAt: toInstant(row.createdAt),
-  updatedAt: toInstant(row.updatedAt),
+  createdAt: instantFromDb(row.createdAt),
+  updatedAt: instantFromDb(row.updatedAt),
 });
 
 export class PrismaAgencyRepository implements AgencyRepository {
@@ -79,10 +81,10 @@ export class PrismaAgencyRepository implements AgencyRepository {
       suspendAfterDays: agency.billing.suspendAfterDays,
       nonpaymentCancels: agency.billing.nonpaymentCancels,
       agencyBillSuspendedAt: agency.billing.suspension
-        ? toDate(agency.billing.suspension.at)
+        ? instantToDb(agency.billing.suspension.at)
         : null,
       agencyBillSuspendedReason: agency.billing.suspension?.reason ?? null,
-      updatedAt: toDate(agency.updatedAt),
+      updatedAt: instantToDb(agency.updatedAt),
     };
 
     await prismaTx(tx).agency.upsert({
@@ -92,7 +94,7 @@ export class PrismaAgencyRepository implements AgencyRepository {
         ...data,
         id: agency.id,
         tenantId: agency.tenantId,
-        createdAt: toDate(agency.createdAt),
+        createdAt: instantToDb(agency.createdAt),
       },
     });
   }

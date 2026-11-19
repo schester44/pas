@@ -1,3 +1,4 @@
+import { jsonToDb } from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import { Money } from "@pas/kernel";
 import type { TransactionDetails } from "../domain/transaction";
@@ -5,11 +6,7 @@ import type { TransactionDetails } from "../domain/transaction";
 type Json = Record<string, unknown>;
 type MoneyJson = { amount: string; currency: string };
 
-const money = (value: unknown) => {
-  const m = value as MoneyJson;
-
-  return Money.of(m.amount, m.currency);
-};
+const money = (value: unknown) => Money.fromJSON(value as MoneyJson);
 
 const withMoney = <T extends Json>(row: T, keys: readonly string[]) =>
   Object.fromEntries(Object.entries(row).map(([k, v]) => [k, keys.includes(k) ? money(v) : v]));
@@ -17,7 +14,7 @@ const withMoney = <T extends Json>(row: T, keys: readonly string[]) =>
 export function detailsToJson(
   details: TransactionDetails | null,
 ): Prisma.InputJsonValue | undefined {
-  return details ? (JSON.parse(JSON.stringify(details)) as Prisma.InputJsonValue) : undefined;
+  return details ? jsonToDb(details) : undefined;
 }
 
 export function detailsFromJson(value: unknown): TransactionDetails | null {

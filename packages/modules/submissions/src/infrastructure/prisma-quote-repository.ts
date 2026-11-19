@@ -1,6 +1,13 @@
-import { prismaTx } from "@pas/db";
+import {
+  instantFromDb,
+  instantToDb,
+  jsonToDb,
+  plainDateFromDb,
+  plainDateToDb,
+  prismaTx,
+} from "@pas/db";
 import { Prisma, type QuoteStatus as DbQuoteStatus, type Quote as QuoteRow } from "@pas/db/client";
-import { asId, Money, type TenantContext, type Transaction } from "@pas/kernel";
+import { asId, Money, parseInstant, type TenantContext, type Transaction } from "@pas/kernel";
 import type { BindDetails } from "../domain/bind-details";
 import type { CoverageChoice } from "../domain/coverages";
 import {
@@ -17,17 +24,9 @@ import type { SubmissionId } from "../domain/submission";
 import type { PaymentAttempt, QuoteRepository } from "../ports/quote-repository";
 
 type MoneyJson = { amount: string; currency: string };
-type Json = Prisma.InputJsonValue;
 
 const toDb = (s: QuoteStatus) => s.toUpperCase() as DbQuoteStatus;
 const fromDb = (s: DbQuoteStatus) => s.toLowerCase() as QuoteStatus;
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
-const instant = (value: string) => Temporal.Instant.from(value);
-const plainDateToDb = (d: Temporal.PlainDate) => new Date(`${d.toString()}T00:00:00Z`);
-const plainDateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0, 10));
-const money = (json: MoneyJson) => Money.of(json.amount, json.currency);
-const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Json;
 
 type EvaluationJson = Omit<
   QuoteEvaluation,
@@ -44,13 +43,13 @@ type EvaluationJson = Omit<
 function evaluationFromJson({ adjustment, ...value }: EvaluationJson): QuoteEvaluation {
   return {
     ...value,
-    premium: value.premium.map((line) => ({ ...line, premium: money(line.premium) })),
-    writtenPremium: money(value.writtenPremium),
-    taxesFees: value.taxesFees.map((line) => ({ ...line, amount: money(line.amount) })),
-    total: money(value.total),
-    evaluatedAt: instant(value.evaluatedAt),
+    premium: value.premium.map((line) => ({ ...line, premium: Money.fromJSON(line.premium) })),
+    writtenPremium: Money.fromJSON(value.writtenPremium),
+    taxesFees: value.taxesFees.map((line) => ({ ...line, amount: Money.fromJSON(line.amount) })),
+    total: Money.fromJSON(value.total),
+    evaluatedAt: parseInstant(value.evaluatedAt),
     payPlans: value.payPlans ?? [],
-    ...(adjustment && { adjustment: { ...adjustment, amount: money(adjustment.amount) } }),
+    ...(adjustment && { adjustment: { ...adjustment, amount: Money.fromJSON(adjustment.amount) } }),
   };
 }
 
@@ -67,9 +66,12 @@ function referralFromJson(value: ReferralJson): Referral | null {
 
   return {
     reasons: value.reasons,
-    referredAt: instant(value.referredAt),
-    reviewBy: instant(value.reviewBy),
-    decision: value.decision && { ...value.decision, decidedAt: instant(value.decision.decidedAt) },
+    referredAt: parseInstant(value.referredAt),
+    reviewBy: parseInstant(value.reviewBy),
+    decision: value.decision && {
+      ...value.decision,
+      decidedAt: parseInstant(value.decision.decidedAt),
+    },
   };
 }
 
@@ -103,18 +105,18 @@ export class PrismaQuoteRepository implements QuoteRepository {
       premium: q.evaluation.writtenPremium.toString(),
       taxesAndFees: q.evaluation.total.minus(q.evaluation.writtenPremium).toString(),
       total: q.evaluation.total.toString(),
-      selection: json(q.selection),
-      evaluation: json(q.evaluation),
-      referral: referral ? json(referral) : DbNull,
-      details: q.details ? json(q.details) : DbNull,
-      signature: q.signature ? json(q.signature) : DbNull,
-      payment: q.payment ? json(q.payment) : DbNull,
+      selection: jsonToDb(q.selection),
+      evaluation: jsonToDb(q.evaluation),
+      referral: referral ? jsonToDb(referral) : DbNull,
+      details: q.details ? jsonToDb(q.details) : DbNull,
+      signature: q.signature ? jsonToDb(q.signature) : DbNull,
+      payment: q.payment ? jsonToDb(q.payment) : DbNull,
       payPlan: q.payPlan,
       policyId: q.policy?.id ?? null,
       policyNumber: q.policy?.number ?? null,
-      expiresAt: toDate(q.expiresAt),
-      updatedAt: toDate(q.updatedAt),
-      boundAt: q.boundAt ? toDate(q.boundAt) : null,
+      expiresAt: instantToDb(q.expiresAt),
+      updatedAt: instantToDb(q.updatedAt),
+      boundAt: q.boundAt ? instantToDb(q.boundAt) : null,
     };
 
     const activity = quote.pullActivity();
@@ -131,8 +133,8 @@ export class PrismaQuoteRepository implements QuoteRepository {
         productReleaseId: q.productReleaseId,
         termStart: plainDateToDb(q.termStart),
         termEnd: plainDateToDb(q.termEnd),
-        riskData: json(q.riskData),
-        createdAt: toDate(q.createdAt),
+        riskData: jsonToDb(q.riskData),
+        createdAt: instantToDb(q.createdAt),
       },
     });
 
@@ -144,10 +146,10 @@ export class PrismaQuoteRepository implements QuoteRepository {
           quoteId: q.id,
           type: a.type,
           category: a.category,
-          occurredAt: toDate(a.occurredAt),
-          actor: json(a.actor),
+          occurredAt: instantToDb(a.occurredAt),
+          actor: jsonToDb(a.actor),
           summary: a.summary,
-          data: json(a.data),
+          data: jsonToDb(a.data),
         })),
       });
     }
@@ -163,7 +165,7 @@ export class PrismaQuoteRepository implements QuoteRepository {
       id: row.id,
       type: row.type as QuoteActivity["type"],
       category: row.category as QuoteActivity["category"],
-      occurredAt: toInstant(row.occurredAt),
+      occurredAt: instantFromDb(row.occurredAt),
       actor: row.actor as unknown as QuoteActivity["actor"],
       summary: row.summary,
       data: row.data as Record<string, unknown>,
@@ -203,7 +205,7 @@ export class PrismaQuoteRepository implements QuoteRepository {
   }
 
   async savePayment(tx: Transaction, ctx: TenantContext, payment: PaymentAttempt): Promise<void> {
-    const at = toDate(payment.recordedAt);
+    const at = instantToDb(payment.recordedAt);
 
     await prismaTx(tx).quotePayment.create({
       data: {
@@ -215,7 +217,7 @@ export class PrismaQuoteRepository implements QuoteRepository {
         status: payment.status,
         amount: payment.amount.toString(),
         currency: payment.amount.currency,
-        method: json(payment.method),
+        method: jsonToDb(payment.method),
         failure: payment.failure,
         createdAt: at,
         updatedAt: at,
@@ -248,18 +250,18 @@ function toQuote(row: QuoteRow): Quote {
     approvedReasonCodes: referral?.approvedReasonCodes ?? [],
     referral: referral ? referralFromJson(referral) : null,
     details: row.details as unknown as BindDetails | null,
-    signature: signature && { ...signature, signedAt: instant(signature.signedAt) },
+    signature: signature && { ...signature, signedAt: parseInstant(signature.signedAt) },
     payPlan: row.payPlan,
     payment: payment && {
       ...payment,
-      amount: money(payment.amount),
-      capturedAt: instant(payment.capturedAt),
+      amount: Money.fromJSON(payment.amount),
+      capturedAt: parseInstant(payment.capturedAt),
     },
     policy:
       row.policyId && row.policyNumber ? { id: row.policyId, number: row.policyNumber } : null,
-    expiresAt: toInstant(row.expiresAt),
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
-    boundAt: row.boundAt ? toInstant(row.boundAt) : null,
+    expiresAt: instantFromDb(row.expiresAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
+    boundAt: row.boundAt ? instantFromDb(row.boundAt) : null,
   });
 }

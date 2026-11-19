@@ -1,5 +1,5 @@
 import type { FilingChannel, FilingRequest } from "@pas/compliance";
-import { newId } from "@pas/kernel";
+import { newId, toCsv } from "@pas/kernel";
 import { z } from "zod";
 import type { ProviderPackage, ProviderSettings } from "../../ports/provider-catalog";
 import { failure } from "./signing";
@@ -82,9 +82,6 @@ const exportConfig = z.object({
   }),
 });
 
-const csvCell = (value: string) =>
-  /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-
 const xmlText = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -162,12 +159,10 @@ export const fileExportFilingProvider: ProviderPackage<"filing"> = {
                     `  <filing>\n${COLUMNS.map(([name, read]) => `    <${name}>${xmlText(read(r))}</${name}>`).join("\n")}\n  </filing>`,
                 )
                 .join("\n")}\n</filings>\n`
-            : `${[
+            : toCsv([
                 COLUMNS.map(([name]) => name),
                 ...requests.map((r) => COLUMNS.map(([, read]) => read(r))),
-              ]
-                .map((row) => row.map(csvCell).join(","))
-                .join("\n")}\n`;
+              ]);
 
         return {
           fileName: `filings-${stamp}.${format}`,

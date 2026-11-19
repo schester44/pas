@@ -9,12 +9,11 @@ import { describeIssue } from "@/components/catalog/issues";
 import { useVersionEditor } from "@/components/catalog/version-editor";
 import { useTRPC } from "@/lib/trpc";
 import { formatMessage } from "@/lib/messages";
+import { plural } from "@/lib/format";
 
 export const Route = createFileRoute("/_authed/products/$productId/versions/$versionId/checks")({
   component: ChecksTab,
 });
-
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 function ChecksTab() {
   const trpc = useTRPC();

@@ -1,4 +1,4 @@
-import { instantFromDb, prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import { newId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { BillingEvent } from "../domain/billing-event";
@@ -23,7 +23,7 @@ export class PrismaBillingEventLog implements BillingEventLog {
     const inserted = await prismaTx(tx).$executeRaw`
       insert into billing_events (id, tenant_id, source, event_id, type, invoice_id, policy_id, payload, occurred_at, applied_at)
       values (${newId()}::uuid, ${ctx.tenantId}, ${source}, ${eventId}, ${type}, ${invoiceId}::uuid, ${policyId}::uuid,
-              ${JSON.stringify(payload)}::jsonb, ${new Date(occurredAt.epochMilliseconds)}, now())
+              ${JSON.stringify(payload)}::jsonb, ${instantToDb(occurredAt)}, now())
       on conflict (tenant_id, source, event_id) do nothing`;
 
     return inserted > 0;

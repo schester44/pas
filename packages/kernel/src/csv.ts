@@ -47,9 +47,9 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
-const cell = (value: string) =>
+export const csvCell = (value: string) =>
   /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 
 export function toCsv(rows: readonly (readonly string[])[]): string {
-  return `${rows.map((row) => row.map(cell).join(",")).join("\n")}\n`;
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
 }

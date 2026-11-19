@@ -1,4 +1,11 @@
-import { prismaTx } from "@pas/db";
+import {
+  instantFromDb,
+  instantToDb,
+  jsonToDb,
+  plainDateFromDb,
+  plainDateToDb,
+  prismaTx,
+} from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import type { ObligationKind } from "@pas/decisions-engine";
 import { asId, jurisdiction, type TenantContext, type Transaction } from "@pas/kernel";
@@ -16,12 +23,6 @@ import type {
   ObligationFilter,
   ObligationRepository,
 } from "../ports/obligation-repository";
-
-const dateToDb = (d: Temporal.PlainDate) => new Date(`${d.toString()}T00:00:00Z`);
-const dateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0, 10));
-const instantToDb = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const instantFromDb = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
-const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
 const include = {
   filings: { orderBy: { attempt: "asc" } },
@@ -59,7 +60,7 @@ function toDomain(row: Row): Obligation {
     channel: row.channel as ObligationProps["channel"],
     rule: row.rule as unknown as DueRule,
     timer: row.timer as unknown as ObligationProps["timer"],
-    dueDate: dateFromDb(row.dueDate),
+    dueDate: plainDateFromDb(row.dueDate),
     lateFrom: instantFromDb(row.lateFrom),
     escalation: row.escalation,
     data: row.data as Record<string, unknown>,
@@ -197,12 +198,12 @@ export class PrismaObligationRepository implements ObligationRepository {
     const fields = {
       status: s.status,
       title: s.title,
-      responsible: json(s.responsible),
+      responsible: jsonToDb(s.responsible),
       licenseeId: s.responsible.licensee?.id ?? null,
       escalation: s.escalation,
-      data: json(s.data),
-      proof: s.proof ? json(s.proof) : undefined,
-      waiver: s.waiver ? json(s.waiver) : undefined,
+      data: jsonToDb(s.data),
+      proof: s.proof ? jsonToDb(s.proof) : undefined,
+      waiver: s.waiver ? jsonToDb(s.waiver) : undefined,
       updatedAt: instantToDb(s.updatedAt),
       completedAt: s.completedAt && instantToDb(s.completedAt),
     };
@@ -223,13 +224,13 @@ export class PrismaObligationRepository implements ObligationRepository {
         policyId: s.subject.policyId,
         transactionId: s.subject.transactionId,
         anchorDate: new Date(`${anchor}T00:00:00Z`),
-        subject: json(s.subject),
+        subject: jsonToDb(s.subject),
         channel: s.channel,
-        rule: json(s.rule),
-        timer: json(s.timer),
-        dueDate: dateToDb(s.dueDate),
+        rule: jsonToDb(s.rule),
+        timer: jsonToDb(s.timer),
+        dueDate: plainDateToDb(s.dueDate),
         lateFrom: instantToDb(s.lateFrom),
-        source: json(s.source),
+        source: jsonToDb(s.source),
         createdAt: instantToDb(s.createdAt),
       },
     });
@@ -240,7 +241,7 @@ export class PrismaObligationRepository implements ObligationRepository {
         reference: f.reference,
         filingNumber: f.filingNumber,
         stampNumber: f.stampNumber,
-        reasons: json(f.reasons),
+        reasons: jsonToDb(f.reasons),
         submittedAt: instantToDb(f.submittedAt),
         respondedAt: f.respondedAt && instantToDb(f.respondedAt),
       };
@@ -271,9 +272,9 @@ export class PrismaObligationRepository implements ObligationRepository {
           obligationId: s.id,
           type: e.type,
           occurredAt: instantToDb(e.occurredAt),
-          actor: json(e.actor),
+          actor: jsonToDb(e.actor),
           summary: e.summary,
-          data: json(e.data),
+          data: jsonToDb(e.data),
         })),
       });
     }

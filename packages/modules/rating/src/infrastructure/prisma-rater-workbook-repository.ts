@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { Prisma, RaterWorkbook as RaterWorkbookRow } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { WorkbookReport } from "@pas/rating-engine";
@@ -22,7 +22,7 @@ export class PrismaRaterWorkbookRepository implements RaterWorkbookRepository {
         sizeBytes: w.file.sizeBytes,
         report: w.report as unknown as Prisma.InputJsonValue,
         createdBy: w.createdBy,
-        createdAt: new Date(w.createdAt.epochMilliseconds),
+        createdAt: instantToDb(w.createdAt),
       },
     });
   }
@@ -72,6 +72,6 @@ function toWorkbook(row: RaterWorkbookRow): RaterWorkbook {
     file: { storageKey: row.storageKey, sha256: row.contentSha256, sizeBytes: row.sizeBytes },
     report: row.report as unknown as WorkbookReport,
     createdBy: row.createdBy,
-    createdAt: Temporal.Instant.fromEpochMilliseconds(row.createdAt.getTime()),
+    createdAt: instantFromDb(row.createdAt),
   });
 }

@@ -107,8 +107,10 @@ export function ReferredScreen({ quote, submission, heading }: ScreenProps) {
       description={
         <>
           They'll respond by{" "}
-          <span className="text-foreground tabular-nums">{formatDateTime(referral.reviewBy)}</span>.
-          The quote is saved, and once it's approved you'll pick up right where you left off.
+          <span className="text-foreground tabular-nums">
+            {formatDateTime(referral.reviewBy, { weekday: true })}
+          </span>
+          . The quote is saved, and once it's approved you'll pick up right where you left off.
         </>
       }
       actions={<HomeButton />}
@@ -118,7 +120,7 @@ export function ReferredScreen({ quote, submission, heading }: ScreenProps) {
       <Facts
         facts={[
           ["Indicative total", formatMoney(quote.premium.total, { cents: true })],
-          ["Referred", formatDateTime(referral.referredAt)],
+          ["Referred", formatDateTime(referral.referredAt, { weekday: true })],
           ["Quote valid until", formatPlainDate(quote.expiresAt.slice(0, 10))],
         ]}
       />

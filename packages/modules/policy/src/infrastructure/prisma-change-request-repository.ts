@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import type { TenantContext, Transaction } from "@pas/kernel";
 import type { ChangeRequestProps } from "../domain/change-request";
@@ -16,7 +16,7 @@ export class PrismaChangeRequestRepository implements ChangeRequestRepository {
         status: request.status,
         requestedBy: request.requestedBy as unknown as Prisma.InputJsonValue,
         producerId: request.producerId,
-        createdAt: new Date(request.createdAt.epochMilliseconds),
+        createdAt: instantToDb(request.createdAt),
       },
     });
   }
@@ -39,7 +39,7 @@ export class PrismaChangeRequestRepository implements ChangeRequestRepository {
       status: row.status as ChangeRequestProps["status"],
       requestedBy: row.requestedBy as unknown as ChangeRequestProps["requestedBy"],
       producerId: row.producerId,
-      createdAt: Temporal.Instant.fromEpochMilliseconds(row.createdAt.getTime()),
+      createdAt: instantFromDb(row.createdAt),
     }));
   }
 }

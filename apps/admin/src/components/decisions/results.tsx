@@ -219,7 +219,7 @@ function TaxLines({ result }: { result: DecisionResult<"taxes_fees"> }) {
         value:
           line.rate !== undefined
             ? percent.format(Number(line.rate))
-            : formatMoney(line.amount!, line.currency!),
+            : formatMoney({ amount: line.amount!, currency: line.currency! }),
       }))}
     />
   );

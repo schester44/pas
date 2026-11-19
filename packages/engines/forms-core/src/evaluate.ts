@@ -1,4 +1,5 @@
 import { createScope, type ExpressionScope } from "@pas/expressions";
+import { isRecord } from "@pas/kernel";
 import type { FormDefinition, FormItem, FormSection, FormStep } from "./form";
 import { getAt, joinPath, setAt } from "./paths";
 import { indexSchema, isField, type RiskSchema, type SchemaIndex, type SchemaNode } from "./schema";
@@ -59,9 +60,6 @@ export function schemaIndex(schema: RiskSchema): SchemaIndex {
 
   return index;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 function expressionData(nodes: SchemaNode[], data: unknown): Record<string, unknown> {
   const source = isRecord(data) ? data : {};

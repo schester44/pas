@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRecord } from "@pas/kernel";
 import { DecisionError } from "./errors";
 
 type Row = z.ZodObject;
@@ -422,9 +423,6 @@ export function checkContractValue(
 
   return options ? `Use one of ${options.join(", ")}` : parsed.error.issues[0]?.message;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const withoutNulls = (row: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(row).filter(([, value]) => value != null));

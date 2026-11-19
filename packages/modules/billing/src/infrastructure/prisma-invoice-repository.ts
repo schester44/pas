@@ -1,11 +1,18 @@
-import { prismaTx } from "@pas/db";
+import {
+  instantFromDb,
+  instantToDb,
+  moneyFromDb,
+  plainDateFromDb,
+  plainDateToDb,
+  prismaTx,
+} from "@pas/db";
 import {
   type InvoiceStatus as DbInvoiceStatus,
   type Invoice as InvoiceRow,
   type InvoiceLine as LineRow,
   Prisma,
 } from "@pas/db/client";
-import { asId, Money, newId, type TenantContext, type Transaction } from "@pas/kernel";
+import { asId, newId, type TenantContext, type Transaction } from "@pas/kernel";
 import {
   Invoice,
   type InvoiceId,
@@ -15,12 +22,6 @@ import {
 } from "../domain/invoice";
 import type { ChargeKind } from "../domain/invoice-lines";
 import type { InvoiceRepository } from "../ports/invoice-repository";
-
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
-const dateToDb = (d: Temporal.PlainDate) => new Date(`${d.toString()}T00:00:00Z`);
-const dateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0, 10));
-const money = (amount: Prisma.Decimal, currency: string) => Money.of(amount.toString(), currency);
 
 export class PrismaInvoiceRepository implements InvoiceRepository {
   async save(tx: Transaction, invoice: Invoice): Promise<void> {
@@ -33,15 +34,15 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
       amountWrittenOff: i.amountWrittenOff.toString(),
       total: i.total.toString(),
       status: i.status.toUpperCase() as DbInvoiceStatus,
-      issuedOn: dateToDb(i.issuedOn),
-      dueOn: dateToDb(i.dueOn),
+      issuedOn: plainDateToDb(i.issuedOn),
+      dueOn: plainDateToDb(i.dueOn),
       payer: i.payer,
       payerRef: i.payerRef,
       payerName: i.payerName,
       payerAddress: i.payerAddress
         ? (i.payerAddress as unknown as Prisma.InputJsonValue)
         : Prisma.DbNull,
-      updatedAt: toDate(i.updatedAt),
+      updatedAt: instantToDb(i.updatedAt),
     };
 
     const existing = await db.invoice.findUnique({ where: { id: i.id }, select: { id: true } });
@@ -72,7 +73,7 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
         installment: i.installment,
         installments: i.installments,
         currency: i.total.currency,
-        createdAt: toDate(i.createdAt),
+        createdAt: instantToDb(i.createdAt),
       },
     });
 
@@ -163,7 +164,7 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
         method: payment.method as Prisma.InputJsonValue,
         currency: payment.amount.currency,
         amount: payment.amount.toString(),
-        receivedAt: toDate(payment.receivedAt),
+        receivedAt: instantToDb(payment.receivedAt),
       },
     });
   }
@@ -245,17 +246,17 @@ function toInvoice(row: InvoiceRow, lines: LineRow[]): Invoice {
       label: l.label,
       ...(l.coverage && { coverage: l.coverage }),
       ...(l.exposure && { exposure: l.exposure }),
-      amount: money(l.amount, row.currency),
+      amount: moneyFromDb(l.amount, row.currency),
     })),
-    total: money(row.total, row.currency),
-    amountPaid: money(row.amountPaid, row.currency),
-    amountCredited: money(row.amountCredited, row.currency),
-    amountWrittenOff: money(row.amountWrittenOff, row.currency),
+    total: moneyFromDb(row.total, row.currency),
+    amountPaid: moneyFromDb(row.amountPaid, row.currency),
+    amountCredited: moneyFromDb(row.amountCredited, row.currency),
+    amountWrittenOff: moneyFromDb(row.amountWrittenOff, row.currency),
     status: row.status.toLowerCase() as InvoiceStatus,
-    issuedOn: dateFromDb(row.issuedOn),
-    dueOn: dateFromDb(row.dueOn),
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    issuedOn: plainDateFromDb(row.issuedOn),
+    dueOn: plainDateFromDb(row.dueOn),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   };
 
   return Invoice.restore(props);
@@ -270,7 +271,7 @@ function toPayment(row: Prisma.PaymentGetPayload<object>): PaymentProps {
     provider: row.provider,
     providerRef: row.providerRef,
     method: row.method as Record<string, unknown>,
-    amount: money(row.amount, row.currency),
-    receivedAt: toInstant(row.receivedAt),
+    amount: moneyFromDb(row.amount, row.currency),
+    receivedAt: instantFromDb(row.receivedAt),
   };
 }

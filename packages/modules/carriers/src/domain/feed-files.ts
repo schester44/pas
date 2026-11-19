@@ -1,3 +1,4 @@
+import { csvCell } from "@pas/kernel";
 import type { FeedFormat } from "./feed";
 
 /** One issued transaction in a feed period. Amounts are decimal strings in `currency`. */
@@ -33,12 +34,12 @@ const COLUMNS: [keyof FeedRecord, string][] = [
   ["currency", "Currency"],
 ];
 
-const csvCell = (value: string | null) =>
-  value === null ? "" : /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-
 export function bordereauxCsv(records: readonly FeedRecord[]): string {
   const header = COLUMNS.map(([, label]) => csvCell(label)).join(",");
-  const rows = records.map((record) => COLUMNS.map(([key]) => csvCell(record[key])).join(","));
+
+  const rows = records.map((record) =>
+    COLUMNS.map(([key]) => csvCell(record[key] ?? "")).join(","),
+  );
 
   return `${[header, ...rows].join("\r\n")}\r\n`;
 }

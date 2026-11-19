@@ -181,8 +181,7 @@ function AgencySummary({ agency }: { agency: AgencyDetail }) {
               ? [
                   agency.billing.remittanceBasis === "net" ? "Net of commission" : "Gross",
                   agency.billing.remittanceDays !== null && `${agency.billing.remittanceDays} days`,
-                  agency.billing.creditLimit &&
-                    `${formatMoney(agency.billing.creditLimit.amount, agency.billing.creditLimit.currency)} limit`,
+                  agency.billing.creditLimit && `${formatMoney(agency.billing.creditLimit)} limit`,
                 ]
                   .filter(Boolean)
                   .join(" · ") || "Eligible"

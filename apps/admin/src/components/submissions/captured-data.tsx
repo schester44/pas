@@ -12,7 +12,8 @@ import {
 } from "@pas/forms-core";
 import { useExpressionsReady } from "@pas/forms-react";
 import { Panel } from "@pas/ui/components/panel";
-import { formatPlainDate } from "@/lib/format";
+import { formatMoney, formatPlainDate } from "@/lib/format";
+import { isRecord } from "@pas/kernel";
 
 interface CapturedDataProps {
   schema: RiskSchema;
@@ -107,9 +108,6 @@ function ReadyCapturedData({ schema, form, data }: CapturedDataProps) {
   });
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 function Value({ field, value }: { field: FieldNode; value: unknown }) {
   if (value === undefined || value === null || value === "") {
     return <span className="text-muted-foreground">—</span>;
@@ -129,10 +127,10 @@ function Value({ field, value }: { field: FieldNode; value: unknown }) {
     case "money":
       return (
         <span className="tabular-nums">
-          {new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency: field.currency ?? "USD",
-          }).format(Number(value))}
+          {formatMoney(
+            { amount: String(value), currency: field.currency ?? "USD" },
+            { cents: true },
+          )}
         </span>
       );
     case "number":

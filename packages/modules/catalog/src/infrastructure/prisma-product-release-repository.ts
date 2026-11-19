@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, plainDateFromDb, plainDateToDb, prismaTx } from "@pas/db";
 import type { Prisma, ProductRelease as ProductReleaseRow } from "@pas/db/client";
 import { asId, type Jurisdiction, type TenantContext, type Transaction } from "@pas/kernel";
 import type { ProductId } from "../domain/product";
@@ -9,7 +9,6 @@ import {
   type ReleaseManifest,
 } from "../domain/product-release";
 import type { ProductReleaseRepository } from "../ports/product-release-repository";
-import { plainDateFromDb, plainDateToDb, toDate, toInstant } from "./mappers";
 
 export class PrismaProductReleaseRepository implements ProductReleaseRepository {
   async insert(tx: Transaction, releases: readonly ProductRelease[]): Promise<void> {
@@ -33,7 +32,7 @@ export class PrismaProductReleaseRepository implements ProductReleaseRepository 
           renewalTo: r.renewal.to ? plainDateToDb(r.renewal.to) : null,
           manifest: r.manifest as unknown as Prisma.InputJsonValue,
           contentHash: r.contentHash,
-          publishedAt: toDate(r.publishedAt),
+          publishedAt: instantToDb(r.publishedAt),
         };
       }),
     });
@@ -114,6 +113,6 @@ function toRelease(row: ProductReleaseRow): ProductRelease {
     },
     manifest: completeManifest(row.manifest as unknown as ReleaseManifest),
     contentHash: row.contentHash,
-    publishedAt: toInstant(row.publishedAt),
+    publishedAt: instantFromDb(row.publishedAt),
   });
 }

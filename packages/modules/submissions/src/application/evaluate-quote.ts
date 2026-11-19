@@ -2,13 +2,14 @@ import { carrierAssignmentOf } from "@pas/carriers";
 import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
 import { currencyDecimals } from "@pas/forms-core";
 import {
+  type ClockProvider,
   DomainError,
   type Jurisdiction,
   jurisdictionCode,
   Money,
   type PlainDate,
   type TenantContext,
-  type ClockProvider,
+  toPlainJson,
 } from "@pas/kernel";
 import type { CoverageSelection, RatingInput, RatingResult } from "@pas/rating-engine";
 import type { Attestation, DiligentSearch } from "../domain/bind-requirements";
@@ -56,8 +57,6 @@ export interface EvaluationOutput {
   selection: CoverageChoice[];
 }
 
-const json = <T>(value: T): T => JSON.parse(JSON.stringify(value ?? null)) as T;
-
 /**
  * Auto-evaluation (PLAN §7.2): enrichment → eligibility and underwriting → coverage options →
  * rating → taxes and fees, plus the bind-side decisions. Each decision keeps its trace.
@@ -91,8 +90,8 @@ export async function evaluateQuote(
           ref,
           kind,
           name: rule.name,
-          result: json(evaluation.result),
-          ...(evaluation.trace && { trace: json(evaluation.trace) }),
+          result: toPlainJson(evaluation.result),
+          ...(evaluation.trace && { trace: toPlainJson(evaluation.trace) }),
           durationMs: evaluation.durationMs,
         });
 
@@ -238,9 +237,9 @@ async function price(
 
   const rating: RatingRecord = {
     artifact: result.artifact,
-    worksheet: json(result.worksheet),
-    factors: json(result.factors),
-    adjustments: json(result.adjustments),
+    worksheet: toPlainJson(result.worksheet),
+    factors: toPlainJson(result.factors),
+    adjustments: toPlainJson(result.adjustments),
     warnings: result.warnings.map(({ code, message }) => ({ code, message })),
     durationMs: performance.now() - started,
   };

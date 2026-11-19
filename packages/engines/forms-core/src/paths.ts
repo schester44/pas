@@ -1,3 +1,4 @@
+import { isRecord } from "@pas/kernel";
 export type Segment = string | number;
 
 export function parsePath(path: string): Segment[] {
@@ -25,9 +26,6 @@ export function joinPath(base: string, child: string): string {
 export function canonicalPath(path: string): string {
   return path.replace(/\[\d+\]/g, "[]");
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export function getAt(data: unknown, path: string): unknown {
   let current: unknown = data;

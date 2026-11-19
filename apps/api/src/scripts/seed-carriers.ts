@@ -13,7 +13,8 @@ import {
   MOCK_CARRIER_CALLBACK_SECRET,
   MockCarrier,
 } from "@pas/carriers/infrastructure";
-import { asId, newId, type TenantContext, type WorkflowStep } from "@pas/kernel";
+import { asId, newId, type TenantContext, toPlainJson, type WorkflowStep } from "@pas/kernel";
+import { jsonToDb } from "@pas/db";
 import { compose } from "../composition";
 
 const TENANT_SLUG = "acme-mga";
@@ -262,7 +263,7 @@ async function record(
 
   const step: WorkflowStep = {
     run: async (id, fn) => {
-      if (!memo.has(id)) memo.set(id, JSON.parse(JSON.stringify((await fn()) ?? null)));
+      if (!memo.has(id)) memo.set(id, toPlainJson(await fn()));
 
       return memo.get(id) as never;
     },
@@ -438,10 +439,10 @@ async function recordFixtures(carrierId: string) {
         carrierId,
         capability,
         name,
-        input: JSON.parse(JSON.stringify(input)),
-        exchanges: JSON.parse(JSON.stringify(run.exchanges)),
-        callbacks: JSON.parse(JSON.stringify(run.callbacks)),
-        expected: JSON.parse(JSON.stringify(run.result.outcome)),
+        input: jsonToDb(input),
+        exchanges: jsonToDb(run.exchanges),
+        callbacks: jsonToDb(run.callbacks),
+        expected: jsonToDb(run.result.outcome),
         createdAt: new Date(),
       },
     });
@@ -462,7 +463,7 @@ async function recordWith(mock: MockCarrier, capability: Capability, input: Cano
   const result = await runFlow(
     {
       run: async (id, fn) => {
-        if (!memo.has(id)) memo.set(id, JSON.parse(JSON.stringify((await fn()) ?? null)));
+        if (!memo.has(id)) memo.set(id, toPlainJson(await fn()));
 
         return memo.get(id) as never;
       },

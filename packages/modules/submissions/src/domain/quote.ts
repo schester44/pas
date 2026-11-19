@@ -3,9 +3,9 @@ import {
   canonicalJson,
   type Clock,
   conflict,
+  formatMoney,
   type Id,
   type Instant,
-  formatMoney,
   Money,
   newId,
   type PlainDate,
@@ -681,12 +681,7 @@ export class Quote extends AggregateRoot {
     if (status === "quoted") {
       const total = evaluation.total;
 
-      const amount = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: total.currency,
-      });
-
-      this.log("quoted", now, actor, `${verb} at ${amount.format(Number(total.toString()))}`, {
+      this.log("quoted", now, actor, `${verb} at ${formatMoney(total)}`, {
         revision: this.props.revision,
         total: total.toJSON(),
       });

@@ -1,6 +1,6 @@
 import { Button } from "@pas/ui/components/button";
 import { Panel } from "@pas/ui/components/panel";
-import { daysUntil } from "@pas/ui/lib/policy-change";
+import { daysUntil, exposureLabel } from "@pas/ui/lib/policy-change";
 import { cn } from "@pas/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -10,7 +10,7 @@ import { useState } from "react";
 import { PolicyObligations } from "@/components/compliance/policy-obligations";
 import { humanize } from "@/components/decisions/jdm-edit";
 import { InspectionsPanel, SubjectivitiesPanel } from "@/components/underwriting/conditions";
-import { formatDate, formatPlainDate } from "@/lib/format";
+import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 import { PolicyClients } from "./clients";
@@ -18,9 +18,7 @@ import { RescindDialog } from "./policy-actions";
 import {
   amount,
   type Billing,
-  exposureLabel,
   isZero,
-  money,
   type Policy,
   transactionStatus,
   transactionType,
@@ -146,9 +144,9 @@ function StatusPanel({ policy, billing }: { policy: Policy; billing?: Billing })
               <Callout tone="danger">
                 <span className="font-medium">
                   {pastDue
-                    ? `${money(pastDue)} past due`
+                    ? `${formatMoney(pastDue)} past due`
                     : owed
-                      ? `${money(owed)} due`
+                      ? `${formatMoney(owed)} due`
                       : "Nonpayment cancellation pending"}
                 </span>
                 <span className="text-muted-foreground">
@@ -183,7 +181,7 @@ function StatusPanel({ policy, billing }: { policy: Policy; billing?: Billing })
                 </span>
                 <span className="text-muted-foreground">
                   {" "}
-                  · effective {formatPlainDate(open.effectiveDate)} · {money(open.total)}
+                  · effective {formatPlainDate(open.effectiveDate)} · {formatMoney(open.total)}
                 </span>
               </Callout>
             )}
@@ -252,7 +250,9 @@ function KeyCoverages({ policy }: { policy: Policy }) {
           >
             <span className="grid min-w-0 flex-1 gap-0.5">
               <span className="truncate text-sm font-medium">{c.name}</span>
-              <span className="text-xs text-muted-foreground">{exposureLabel(c.exposure)}</span>
+              <span className="text-xs text-muted-foreground">
+                {exposureLabel(c.exposure) ?? "Policy"}
+              </span>
             </span>
             <span className="grid justify-items-end gap-0.5 text-right">
               <span className="text-sm tabular-nums">{amount(c.limit)}</span>
@@ -279,7 +279,7 @@ function keyDates(policy: Policy, billing?: Billing): KeyDate[] {
 
   if (billing?.nextDue)
     dates.push({
-      label: `${billing.nextDue.number} due · ${money(billing.nextDue.amount)}`,
+      label: `${billing.nextDue.number} due · ${formatMoney(billing.nextDue.amount)}`,
       date: billing.nextDue.dueOn,
       ...(daysUntil(billing.nextDue.dueOn) < 0 && { tone: "danger" as const }),
     });

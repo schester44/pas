@@ -1,12 +1,9 @@
 import type { AddressComponents, GeocodePrecision } from "@pas/addressing";
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { AddressRecord as Row, Prisma } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { AddressRecord } from "../domain/address-record";
 import type { AddressRepository } from "../ports/address-repository";
-
-const toInstant = (date: Date) => Temporal.Instant.fromEpochMilliseconds(date.getTime());
-const toDate = (instant: Temporal.Instant) => new Date(instant.epochMilliseconds);
 
 function toDomain(row: Row): AddressRecord {
   return AddressRecord.restore({
@@ -43,9 +40,9 @@ function toDomain(row: Row): AddressRecord {
       vacant: row.vacant,
       deliverable: row.deliverable,
     },
-    verifiedAt: row.verifiedAt ? toInstant(row.verifiedAt) : null,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    verifiedAt: row.verifiedAt ? instantFromDb(row.verifiedAt) : null,
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -77,9 +74,9 @@ function toRow(record: AddressRecord): Prisma.AddressRecordUncheckedCreateInput 
     dpvMatch: r.dpv.match,
     vacant: r.dpv.vacant,
     deliverable: r.dpv.deliverable,
-    verifiedAt: r.verifiedAt ? toDate(r.verifiedAt) : null,
-    createdAt: toDate(r.createdAt),
-    updatedAt: toDate(r.updatedAt),
+    verifiedAt: r.verifiedAt ? instantToDb(r.verifiedAt) : null,
+    createdAt: instantToDb(r.createdAt),
+    updatedAt: instantToDb(r.updatedAt),
   };
 }
 

@@ -4,6 +4,7 @@ import {
   type Clock,
   conflict,
   type DomainEvent,
+  formatPlainDate,
   type Id,
   type Instant,
   invalid,
@@ -190,9 +191,6 @@ export type NewObligation = Omit<
   | "completedAt"
 >;
 
-const formatDate = (date: PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
 const SYSTEM: ObligationActor = { type: "system", name: "Compliance" };
 
 /** One regulatory or contractual duty: what is owed, by whom, by when and how it was met (PLAN §17.1). */
@@ -220,7 +218,7 @@ export class Obligation extends AggregateRoot {
       completedAt: null,
     });
 
-    obligation.log("created", now, SYSTEM, `Due ${formatDate(input.dueDate)}`, {
+    obligation.log("created", now, SYSTEM, `Due ${formatPlainDate(input.dueDate)}`, {
       decision: input.source.decision,
     });
 
@@ -486,7 +484,7 @@ export class Obligation extends AggregateRoot {
 
     this.props.escalation = level;
 
-    const due = formatDate(this.props.dueDate);
+    const due = formatPlainDate(this.props.dueDate);
 
     if (level === 1) this.log("reminded", now, SYSTEM, `Due ${due}; nothing submitted yet`, {});
 

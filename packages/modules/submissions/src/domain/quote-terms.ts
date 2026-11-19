@@ -1,3 +1,4 @@
+import { isRecord } from "@pas/kernel";
 export interface QuoteTerms {
   validityDays: number;
   referralReviewHours: number;
@@ -5,9 +6,6 @@ export interface QuoteTerms {
 }
 
 const FALLBACK: QuoteTerms = { validityDays: 30, referralReviewHours: 24, termMonths: 12 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const positive = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;

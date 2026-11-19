@@ -261,7 +261,7 @@ function Queue() {
                   {r.assignee?.name ?? "Unassigned"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatMoney(r.writtenPremium.amount, r.writtenPremium.currency)}
+                  {formatMoney(r.writtenPremium)}
                 </TableCell>
                 <TableCell
                   className={cn("text-right tabular-nums", r.overdue && "font-medium text-red-700")}

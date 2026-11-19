@@ -38,7 +38,6 @@ const money = z.object({
   currency: z.string().length(3),
 });
 
-const toMoney = (m: z.infer<typeof money>) => Money.of(m.amount, m.currency);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const idempotencyKey = z.string().min(8).max(200).optional();
 
@@ -76,11 +75,11 @@ const targetOf = (t: Target) =>
         kind: t.kind,
         allocations: t.allocations.map((a) => ({
           invoiceId: a.invoiceId,
-          amount: toMoney(a.amount),
+          amount: Money.fromJSON(a.amount),
         })),
       }
     : t.kind === "statement"
-      ? { kind: t.kind, statementId: t.statementId, amount: toMoney(t.amount) }
+      ? { kind: t.kind, statementId: t.statementId, amount: Money.fromJSON(t.amount) }
       : { kind: t.kind, ...(t.invoiceIds && { invoiceIds: t.invoiceIds }) };
 
 const REPORTS = [
@@ -249,7 +248,7 @@ export const ledgerRouter = router({
       uc(ctx).recordPayment(ctx.tenant, {
         rail: input.rail,
         payer: input.payer,
-        amount: toMoney(input.amount),
+        amount: Money.fromJSON(input.amount),
         receivedOn: Temporal.PlainDate.from(input.receivedOn),
         reference: input.reference || null,
         memo: input.memo || null,
@@ -320,7 +319,7 @@ export const ledgerRouter = router({
     .mutation(({ ctx, input }) =>
       uc(ctx).refund(ctx.tenant, {
         source: input.source,
-        amount: toMoney(input.amount),
+        amount: Money.fromJSON(input.amount),
         method: input.method,
         ...meta(ctx, input.idempotencyKey),
       }),
@@ -354,7 +353,7 @@ export const ledgerRouter = router({
     .mutation(({ ctx, input }) =>
       uc(ctx).requestWriteOff(ctx.tenant, {
         invoiceId: input.invoiceId,
-        amount: toMoney(input.amount),
+        amount: Money.fromJSON(input.amount),
         reason: input.reason,
         ...meta(ctx, input.idempotencyKey),
       }),
@@ -388,7 +387,7 @@ export const ledgerRouter = router({
       uc(ctx).applyCredit(ctx.tenant, {
         creditNoteId: input.creditNoteId,
         invoiceId: input.invoiceId,
-        amount: toMoney(input.amount),
+        amount: Money.fromJSON(input.amount),
         ...meta(ctx, input.idempotencyKey),
       }),
     ),
@@ -448,7 +447,7 @@ export const ledgerRouter = router({
     .mutation(({ ctx, input }) =>
       uc(ctx).updateSettings(ctx.tenant, {
         smallBalanceWriteOff: input.smallBalanceWriteOff
-          ? toMoney(input.smallBalanceWriteOff)
+          ? Money.fromJSON(input.smallBalanceWriteOff)
           : null,
         ...meta(ctx, input.idempotencyKey),
       }),

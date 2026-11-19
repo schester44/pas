@@ -4,10 +4,12 @@ import {
   conflict,
   DomainError,
   type DomainEvent,
+  formatMoney,
+  formatPlainDate,
   type Id,
   type Instant,
-  type Jurisdiction,
   invalid,
+  type Jurisdiction,
   Money,
   newId,
   type PlainDate,
@@ -204,9 +206,6 @@ const compare = Temporal.PlainDate.compare;
 
 const listOf = (items: string[]) => new Intl.ListFormat("en-US").format(items);
 
-const formatDate = (date: PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
 const LABELS: Record<TransactionType, string> = {
   NEW_BUSINESS: "new business",
   ENDORSEMENT: "endorsement",
@@ -264,7 +263,7 @@ function transactionSummary(t: PolicyTransactionProps): string {
         ? ` · minimum earned premium ${formatMoney(c.minimumEarned.retained)} retained`
         : "";
 
-      return `Cancelled ${why}, effective ${formatDate(t.effectiveDate)}: ${money}${kept}`;
+      return `Cancelled ${why}, effective ${formatPlainDate(t.effectiveDate)}: ${money}${kept}`;
     }
     case "CANCELLATION_RESCISSION":
       return `Pending cancellation rescinded; coverage continues${t.details?.note ? `. ${t.details.note}` : ""}`;
@@ -272,11 +271,6 @@ function transactionSummary(t: PolicyTransactionProps): string {
       return `Reinstated ${t.details?.reinstatement?.lapse ? "with a lapse in coverage" : "without a lapse"}: ${money}`;
   }
 }
-
-const formatMoney = (money: Money) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: money.currency }).format(
-    Number(money.toString()),
-  );
 
 /** A policy across its terms, with its issued transactions and their money (PLAN §7.3–7.4, §13). */
 export class Policy extends AggregateRoot {
@@ -406,7 +400,7 @@ export class Policy extends AggregateRoot {
       occurredAt: now,
       effectiveDate: input.effectiveDate,
       actor: input.actor,
-      summary: `Bound as ${input.number}, effective ${input.effectiveDate.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      summary: `Bound as ${input.number}, effective ${formatPlainDate(input.effectiveDate)}`,
       data: { status: payload.status },
     });
 
@@ -609,7 +603,7 @@ export class Policy extends AggregateRoot {
     if (latest && compare(effectiveDate, latest.effectiveDate) < 0) {
       throw new DomainError(
         "precondition_failed",
-        `Out-of-sequence changes aren't supported yet: this policy already has ${article(label(latest.type))} effective ${formatDate(latest.effectiveDate)}. Pick that date or later.`,
+        `Out-of-sequence changes aren't supported yet: this policy already has ${article(label(latest.type))} effective ${formatPlainDate(latest.effectiveDate)}. Pick that date or later.`,
         { reason: "out_of_sequence", latest: latest.effectiveDate.toString() },
       );
     }
@@ -832,7 +826,7 @@ export class Policy extends AggregateRoot {
       occurredAt: clock.now(),
       effectiveDate: transaction.effectiveDate,
       actor,
-      summary: `Cancellation scheduled for ${formatDate(transaction.effectiveDate)}: ${cancellation.reasonLabel.toLowerCase()}`,
+      summary: `Cancellation scheduled for ${formatPlainDate(transaction.effectiveDate)}: ${cancellation.reasonLabel.toLowerCase()}`,
       data: {
         transactionId: id,
         reason: cancellation.reason,
@@ -958,7 +952,9 @@ export class Policy extends AggregateRoot {
     this.assertBase(transaction);
 
     if (transaction.type === "CANCELLATION" && compare(today, transaction.effectiveDate) < 0) {
-      throw conflict(`This cancellation takes effect on ${formatDate(transaction.effectiveDate)}`);
+      throw conflict(
+        `This cancellation takes effect on ${formatPlainDate(transaction.effectiveDate)}`,
+      );
     }
 
     const now = clock.now();
@@ -1189,7 +1185,7 @@ export class Policy extends AggregateRoot {
       occurredAt: now,
       effectiveDate: input.effectiveDate,
       actor: input.actor,
-      summary: `Producer of record changed from ${describe(before)} to ${describe(after)}, effective ${formatDate(input.effectiveDate)}`,
+      summary: `Producer of record changed from ${describe(before)} to ${describe(after)}, effective ${formatPlainDate(input.effectiveDate)}`,
       data: { before, after, reason: input.reason },
     });
 

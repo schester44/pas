@@ -1,3 +1,4 @@
+import { formatMoney, formatPlainDate, jurisdictionCode } from "@pas/kernel";
 import type { EventSubject, PublicEventType } from "../domain/event-types";
 import type {
   EventData,
@@ -21,24 +22,9 @@ export interface CatalogEntry<T extends PublicEventType = PublicEventType> {
   message(data: EventData<T>): { title: string; body: string };
 }
 
-export const formatMoney = (value: MoneyValue | null) =>
-  value
-    ? new Intl.NumberFormat("en-US", { style: "currency", currency: value.currency }).format(
-        Number(value.amount),
-      )
-    : "";
-
-const formatDate = (iso: string) =>
-  Temporal.PlainDate.from(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+const moneyText = (value: MoneyValue | null) => (value ? formatMoney(value) : "");
 
 const amount = (value: MoneyValue | null) => (value ? Number(value.amount) : null);
-
-const jurisdictionCode = (j: { country: string; subdivision: string | null }) =>
-  j.subdivision ?? j.country;
 
 const join = (...parts: (string | null | undefined | false)[]) => parts.filter(Boolean).join(" · ");
 
@@ -78,11 +64,11 @@ const quoteLine = (data: { submission: SubmissionSnapshot; quote: QuoteSnapshot 
   join(
     data.submission.insuredName,
     data.submission.product.name,
-    formatMoney(data.quote.premium.total),
+    moneyText(data.quote.premium.total),
   );
 
 const policyLine = (policy: PolicySnapshot) =>
-  join(policy.insuredName, policy.product.name, formatMoney(policy.writtenPremium));
+  join(policy.insuredName, policy.product.name, moneyText(policy.writtenPremium));
 
 const sampleSubmission: SubmissionSnapshot = {
   id: "0199a3f0-1c2d-7e4f-8a1b-2c3d4e5f6a7b",
@@ -174,7 +160,7 @@ const transactionEntry = <
       title: `${data.policy.number} ${verb}`,
       body: join(
         policyLine(data.policy),
-        `effective ${formatDate(data.transaction.effectiveDate)}`,
+        `effective ${formatPlainDate(data.transaction.effectiveDate)}`,
       ),
     }),
   };
@@ -310,7 +296,7 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
       title: `${data.policy.number} cancellation scheduled`,
       body: join(
         policyLine(data.policy),
-        `effective ${formatDate(data.cancellation.effectiveDate)}`,
+        `effective ${formatPlainDate(data.cancellation.effectiveDate)}`,
       ),
     }),
   },
@@ -347,8 +333,8 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
       title: `Invoice ${data.invoice.number} issued`,
       body: join(
         data.policy.number,
-        formatMoney(data.invoice.total),
-        `due ${formatDate(data.invoice.dueOn)}`,
+        moneyText(data.invoice.total),
+        `due ${formatPlainDate(data.invoice.dueOn)}`,
       ),
     }),
   },
@@ -364,7 +350,7 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
       title: `Invoice ${data.invoice.number} is past due`,
       body: join(
         data.policy.number,
-        `${formatMoney(data.invoice.balance)} was due ${formatDate(data.invoice.dueOn)}`,
+        `${moneyText(data.invoice.balance)} was due ${formatPlainDate(data.invoice.dueOn)}`,
       ),
     }),
   },
@@ -382,7 +368,7 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
     facets: (data) => policyFacets(data, { amount: amount(data.payment.amount) }),
     message: (data) => ({
       title: `Payment received for ${data.invoice.number}`,
-      body: join(data.policy.number, formatMoney(data.payment.amount)),
+      body: join(data.policy.number, moneyText(data.payment.amount)),
     }),
   },
   "payment.failed": {
@@ -402,7 +388,7 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
       body: join(
         data.policy.insuredName,
         data.invoice.number,
-        formatMoney(data.payment.amount),
+        moneyText(data.payment.amount),
         data.payment.reason,
       ),
     }),
@@ -424,7 +410,7 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
       body: join(
         data.obligation.policy?.number,
         data.obligation.jurisdiction,
-        `was due ${formatDate(data.obligation.dueDate)}`,
+        `was due ${formatPlainDate(data.obligation.dueDate)}`,
       ),
     }),
   },

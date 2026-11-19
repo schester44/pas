@@ -41,7 +41,8 @@ type Settings = AdminOutputs["underwriting"]["settings"]["get"];
 type Profile = Settings["authorityProfiles"][number];
 type Reason = Settings["declineReasons"][number];
 
-const limit = (value: string | null) => (value === null ? "No limit" : formatMoney(value, "USD"));
+const limit = (value: string | null) =>
+  value === null ? "No limit" : formatMoney({ amount: value, currency: "USD" });
 
 const blankProfile = (level: number): Profile => ({
   key: "",

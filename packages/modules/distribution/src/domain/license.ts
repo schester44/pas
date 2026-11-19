@@ -1,4 +1,4 @@
-import type { Instant, PlainDate } from "@pas/kernel";
+import { formatPlainDate, type Instant, type PlainDate } from "@pas/kernel";
 
 export type LicenseSource = "manual" | "nipr";
 export type LicenseStatus = "active" | "inactive";
@@ -30,9 +30,6 @@ export type LicenseCheck =
     };
 
 const normalized = (line: string) => line.trim().toLowerCase();
-
-const formatDate = (date: PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 /**
  * PLAN §11: the producer holds a license in the risk's subdivision, active and in force on the
@@ -69,7 +66,7 @@ export function checkLicense(
     return {
       ok: false,
       reason: "not_yet_effective",
-      message: `isn't licensed in ${input.place} until ${formatDate(active[0]!.effectiveDate)}`,
+      message: `isn't licensed in ${input.place} until ${formatPlainDate(active[0]!.effectiveDate)}`,
     };
   }
 
@@ -86,7 +83,7 @@ export function checkLicense(
     return {
       ok: false,
       reason: "expired",
-      message: `has a ${input.place} license that expired on ${formatDate(lapsed)}`,
+      message: `has a ${input.place} license that expired on ${formatPlainDate(lapsed)}`,
     };
   }
 

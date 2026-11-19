@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, plainDateFromDb, plainDateToDb, prismaTx } from "@pas/db";
 import type { MortgageeBill as Row, Prisma } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { MortgageeFollowUp } from "@pas/pay-plans";
@@ -10,8 +10,6 @@ import {
 } from "../domain/mortgagee-bill";
 import type { MortgageeBillRepository } from "../ports/mortgagee-bill-repository";
 
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 export class PrismaMortgageeBillRepository implements MortgageeBillRepository {
@@ -24,9 +22,9 @@ export class PrismaMortgageeBillRepository implements MortgageeBillRepository {
       lenderAddress: b.lender.address ? json(b.lender.address) : undefined,
       lenderEmail: b.lender.email,
       status: b.status,
-      sentOn: b.sentOn ? new Date(`${b.sentOn.toString()}T00:00:00Z`) : null,
+      sentOn: b.sentOn ? plainDateToDb(b.sentOn) : null,
       history: json(b.history),
-      updatedAt: toDate(b.updatedAt),
+      updatedAt: instantToDb(b.updatedAt),
     };
 
     await prismaTx(tx).mortgageeBill.upsert({
@@ -41,7 +39,7 @@ export class PrismaMortgageeBillRepository implements MortgageeBillRepository {
         termId: b.termId,
         invoiceId: b.invoiceId,
         followUp: json(b.followUp),
-        createdAt: toDate(b.createdAt),
+        createdAt: instantToDb(b.createdAt),
       },
     });
   }
@@ -88,9 +86,9 @@ function toBill(row: Row): MortgageeBill {
     },
     followUp: row.followUp as unknown as MortgageeFollowUp,
     status: row.status as MortgageeBillStatus,
-    sentOn: row.sentOn ? Temporal.PlainDate.from(row.sentOn.toISOString().slice(0, 10)) : null,
+    sentOn: row.sentOn ? plainDateFromDb(row.sentOn) : null,
     history: row.history as unknown as MortgageeHistoryEntry[],
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }

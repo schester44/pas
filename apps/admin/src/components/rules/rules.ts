@@ -12,6 +12,8 @@ import { subdivisionsOf } from "@pas/ui/lib/jurisdictions";
 import type { Contents, DecisionTest, VersionDecision } from "@/components/catalog/version-editor";
 import { humanize, newId, tableDecision } from "@/components/decisions/jdm-edit";
 import { OUTCOMES } from "@/components/decisions/results";
+import { toPlainJson } from "@pas/kernel";
+import { plural } from "@/lib/format";
 
 export const KIND_COPY: Record<DecisionKind, string> = {
   underwriting: "Refers, declines or asks for more information about a risk.",
@@ -132,7 +134,7 @@ export function evaluate(
   try {
     const { result } = evaluateDecision(kind, decision, input);
 
-    return { status: "ok", result: JSON.parse(JSON.stringify(result ?? null)) };
+    return { status: "ok", result: toPlainJson(result) };
   } catch (error) {
     return { status: "error", message: (error as Error).message };
   }
@@ -145,8 +147,6 @@ export function runTest(decision: VersionDecision, test: DecisionTest): TestRun 
 
   return { passed: actual.status === "ok" && sameResult(actual.result, test.expected), actual };
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function summarize(kind: DecisionKind, result: unknown): string {
   if (result === null || result === undefined) return "No result";

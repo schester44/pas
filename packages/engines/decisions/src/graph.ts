@@ -1,4 +1,5 @@
 import { createScope, type ExpressionScope } from "@pas/expressions";
+import { isRecord } from "@pas/kernel";
 import { DecisionError } from "./errors";
 import {
   type DecisionTableContent,
@@ -40,9 +41,6 @@ export interface NodeTrace {
 export type DecisionTrace = Record<string, NodeTrace>;
 
 type Json = unknown;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export function parseJdm(artifact: unknown): JdmGraph {
   const parsed = jdmSchema.safeParse(artifact);

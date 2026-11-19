@@ -1,8 +1,6 @@
+import { instantFromDb } from "@pas/db";
 import { asId } from "@pas/kernel";
 import { type OrganizationRef, TenantProfile } from "../domain/tenant-profile";
-
-export const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-export const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
 
 export interface ProfileRow {
   id: string;
@@ -31,8 +29,8 @@ export function toProfile(
     customDomains: domains.map((d) => d.hostname).toSorted(),
     supportEmail: row.supportEmail,
     supportPhone: row.supportPhone,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -42,5 +40,10 @@ export function toOrganizationRef(row: {
   slug: string;
   createdAt: Date;
 }): OrganizationRef {
-  return { id: asId(row.id), name: row.name, slug: row.slug, createdAt: toInstant(row.createdAt) };
+  return {
+    id: asId(row.id),
+    name: row.name,
+    slug: row.slug,
+    createdAt: instantFromDb(row.createdAt),
+  };
 }

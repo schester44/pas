@@ -1,9 +1,16 @@
-import { prismaTx } from "@pas/db";
+import {
+  instantFromDb,
+  instantToDb,
+  jsonToDb,
+  plainDateFromDb,
+  plainDateToDb,
+  prismaTx,
+} from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { Subjectivity, type SubjectivityId, type SubjectivityProps } from "../domain/subjectivity";
 import type { SubjectivityRepository } from "../ports/repositories";
-import { dateFromDb, dateToDb, fromDb, json, revive, toDb } from "./json";
+import { revive } from "./json";
 
 type Row = Prisma.UnderwritingSubjectivityGetPayload<object>;
 
@@ -23,16 +30,16 @@ function toDomain(row: Row): Subjectivity {
     description: row.description,
     timing: row.timing as SubjectivityProps["timing"],
     dueDays: row.dueDays,
-    dueDate: row.dueDate && dateFromDb(row.dueDate),
+    dueDate: row.dueDate && plainDateFromDb(row.dueDate),
     owner: row.owner as SubjectivityProps["owner"],
     source: row.source as SubjectivityProps["source"],
     consequence: row.consequence,
     status: row.status as SubjectivityProps["status"],
     documents: (row.documents as unknown[]).map((d) => revive(d, ["uploadedAt"])),
     history: (row.history as unknown[]).map((h) => revive(h, ["at"])),
-    overdueAt: row.overdueAt && fromDb(row.overdueAt),
-    createdAt: fromDb(row.createdAt),
-    updatedAt: fromDb(row.updatedAt),
+    overdueAt: row.overdueAt && instantFromDb(row.overdueAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -47,14 +54,14 @@ export class PrismaSubjectivityRepository implements SubjectivityRepository {
       description: s.description,
       timing: s.timing,
       dueDays: s.dueDays,
-      dueDate: s.dueDate && dateToDb(s.dueDate),
+      dueDate: s.dueDate && plainDateToDb(s.dueDate),
       owner: s.owner,
       consequence: s.consequence,
       status: s.status,
-      documents: json(s.documents),
-      history: json(s.history),
-      overdueAt: s.overdueAt && toDb(s.overdueAt),
-      updatedAt: toDb(s.updatedAt),
+      documents: jsonToDb(s.documents),
+      history: jsonToDb(s.history),
+      overdueAt: s.overdueAt && instantToDb(s.overdueAt),
+      updatedAt: instantToDb(s.updatedAt),
     };
 
     await prismaTx(tx).underwritingSubjectivity.upsert({
@@ -71,7 +78,7 @@ export class PrismaSubjectivityRepository implements SubjectivityRepository {
         inspectionId: s.inspectionId,
         code: s.code,
         source: s.source,
-        createdAt: toDb(s.createdAt),
+        createdAt: instantToDb(s.createdAt),
       },
     });
   }

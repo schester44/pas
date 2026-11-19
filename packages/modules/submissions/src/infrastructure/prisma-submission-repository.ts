@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, plainDateFromDb, plainDateToDb, prismaTx } from "@pas/db";
 import type {
   Prisma,
   SubmissionStatus as DbSubmissionStatus,
@@ -18,10 +18,6 @@ import type { SubmissionRepository } from "../ports/submission-repository";
 
 const toDbStatus = (s: SubmissionStatus) => s.toUpperCase() as DbSubmissionStatus;
 const fromDbStatus = (s: DbSubmissionStatus) => s.toLowerCase() as SubmissionStatus;
-const toDate = (i: Temporal.Instant) => new Date(i.epochMilliseconds);
-const toInstant = (d: Date) => Temporal.Instant.fromEpochMilliseconds(d.getTime());
-const plainDateToDb = (d: Temporal.PlainDate) => new Date(`${d.toString()}T00:00:00Z`);
-const plainDateFromDb = (d: Date) => Temporal.PlainDate.from(d.toISOString().slice(0, 10));
 
 function scoped(ctx: TenantContext, scope: SubmissionScope): Prisma.SubmissionWhereInput {
   switch (scope.kind) {
@@ -42,9 +38,9 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
       riskData: s.riskData as Prisma.InputJsonValue,
       insuredName: s.insuredName,
       status: toDbStatus(s.status),
-      updatedAt: toDate(s.updatedAt),
-      submittedAt: s.submittedAt ? toDate(s.submittedAt) : null,
-      withdrawnAt: s.withdrawnAt ? toDate(s.withdrawnAt) : null,
+      updatedAt: instantToDb(s.updatedAt),
+      submittedAt: s.submittedAt ? instantToDb(s.submittedAt) : null,
+      withdrawnAt: s.withdrawnAt ? instantToDb(s.withdrawnAt) : null,
     };
 
     await prismaTx(tx).submission.upsert({
@@ -68,7 +64,7 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
         producerId: s.producer.userId,
         producerName: s.producer.name,
         agencyId: s.producer.agencyId,
-        createdAt: toDate(s.createdAt),
+        createdAt: instantToDb(s.createdAt),
       },
     });
   }
@@ -133,9 +129,9 @@ function toSubmission(row: SubmissionRow): Submission {
     riskData: row.riskData as RiskData,
     insuredName: row.insuredName,
     status: fromDbStatus(row.status),
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
-    submittedAt: row.submittedAt ? toInstant(row.submittedAt) : null,
-    withdrawnAt: row.withdrawnAt ? toInstant(row.withdrawnAt) : null,
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
+    submittedAt: row.submittedAt ? instantFromDb(row.submittedAt) : null,
+    withdrawnAt: row.withdrawnAt ? instantFromDb(row.withdrawnAt) : null,
   });
 }

@@ -6,7 +6,7 @@ import {
   type RiskSchema,
   type SchemaNode,
 } from "@pas/forms-core";
-import { invalid } from "@pas/kernel";
+import { invalid, isRecord } from "@pas/kernel";
 import type { FieldChange } from "./transaction";
 
 function clean(value: unknown): unknown {
@@ -27,9 +27,6 @@ export const sameValue = (a: unknown, b: unknown) =>
   JSON.stringify(clean(a) ?? null) === JSON.stringify(clean(b) ?? null);
 
 const same = sameValue;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * Applies only the RiskSchema's `endorsable` fields from `proposed` onto `current` (PLAN §7.4).

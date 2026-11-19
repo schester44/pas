@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { newId, type TenantContext } from "@pas/kernel";
+import { newId, sha256, type TenantContext } from "@pas/kernel";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import type {
   ESignGateway,
@@ -25,7 +24,7 @@ export class ClickToSignGateway implements ESignGateway {
     evidence: SignatureEvidence,
   ): Promise<SignedDocument> {
     const envelopeId = `env_${newId()}`;
-    const originalHash = sha256(request.document);
+    const originalHash = await sha256(request.document);
     const pdf = await PDFDocument.load(request.document, { ignoreEncryption: true });
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -87,16 +86,12 @@ export class ClickToSignGateway implements ESignGateway {
 
     const bytes = await pdf.save();
 
-    return { envelopeId, document: bytes, sha256: sha256(bytes) };
+    return { envelopeId, document: bytes, sha256: await sha256(bytes) };
   }
 }
 
 // Standard PDF fonts only encode WinAnsi; anything else would throw while drawing.
 const printable = (text: string) => text.replace(/[^\x20-\x7e\xa0-\xff\u2013\u2014\u00b7]/g, "?");
-
-function sha256(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
 
 function wrap(text: string, width: number): string[] {
   const words = text.split(/\s+/);

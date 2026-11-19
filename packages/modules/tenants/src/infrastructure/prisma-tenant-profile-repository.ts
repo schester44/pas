@@ -1,9 +1,9 @@
-import { prismaTx } from "@pas/db";
+import { instantToDb, prismaTx } from "@pas/db";
 import { Prisma } from "@pas/db/client";
 import { conflict, newId, notFound, type TenantContext, type Transaction } from "@pas/kernel";
 import type { OrganizationRef, TenantProfile } from "../domain/tenant-profile";
 import type { TenantProfileRepository } from "../ports/tenant-profile-repository";
-import { toDate, toOrganizationRef, toProfile } from "./mappers";
+import { toOrganizationRef, toProfile } from "./mappers";
 
 export class PrismaTenantProfileRepository implements TenantProfileRepository {
   async find(tx: Transaction, ctx: TenantContext): Promise<TenantProfile | null> {
@@ -43,13 +43,13 @@ export class PrismaTenantProfileRepository implements TenantProfileRepository {
       appSubdomain: p.appSubdomain,
       supportEmail: p.supportEmail,
       supportPhone: p.supportPhone,
-      updatedAt: toDate(p.updatedAt),
+      updatedAt: instantToDb(p.updatedAt),
     };
 
     try {
       await db.tenantProfile.upsert({
         where: { tenantId: p.tenantId },
-        create: { id: p.id, tenantId: p.tenantId, createdAt: toDate(p.createdAt), ...data },
+        create: { id: p.id, tenantId: p.tenantId, createdAt: instantToDb(p.createdAt), ...data },
         update: data,
       });
 
@@ -71,7 +71,7 @@ export class PrismaTenantProfileRepository implements TenantProfileRepository {
             id: newId(),
             tenantId: p.tenantId,
             hostname,
-            createdAt: toDate(p.updatedAt),
+            createdAt: instantToDb(p.updatedAt),
           })),
         });
       }

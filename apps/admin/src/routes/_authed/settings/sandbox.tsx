@@ -21,8 +21,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CalendarClock, FlaskConical, History } from "lucide-react";
 import { useId, useState } from "react";
 import { authClient } from "@/lib/auth";
-import { formatDateTime, useEnvironment } from "@/lib/environment";
-import { formatDate } from "@/lib/format";
+import { useEnvironment } from "@/lib/environment";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { useSwitchOrganization } from "@/lib/session";
 import { useTRPC } from "@/lib/trpc";
 

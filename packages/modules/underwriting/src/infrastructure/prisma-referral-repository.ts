@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, jsonToDb, prismaTx } from "@pas/db";
 import { Prisma } from "@pas/db/client";
 import { asId, jurisdiction, Money, type TenantContext, type Transaction } from "@pas/kernel";
 import {
@@ -8,7 +8,7 @@ import {
   type ReferralProps,
 } from "../domain/referral";
 import type { ReferralFilter, ReferralRepository } from "../ports/repositories";
-import { fromDb, json, revive, toDb } from "./json";
+import { revive } from "./json";
 
 const include = {
   entries: { orderBy: { at: "asc" } },
@@ -27,8 +27,6 @@ interface QuoteJson extends Omit<
   dueAt: string;
 }
 
-const money = (m: MoneyJson) => Money.of(m.amount, m.currency);
-
 function toDomain(row: Row): Referral {
   const quote = row.quote as unknown as QuoteJson;
 
@@ -46,9 +44,9 @@ function toDomain(row: Row): Referral {
     status: row.status as ReferralProps["status"],
     quote: {
       ...quote,
-      writtenPremium: money(quote.writtenPremium),
-      total: money(quote.total),
-      insuredValue: money(quote.insuredValue),
+      writtenPremium: Money.fromJSON(quote.writtenPremium),
+      total: Money.fromJSON(quote.total),
+      insuredValue: Money.fromJSON(quote.insuredValue),
       dueAt: Temporal.Instant.from(quote.dueAt),
     },
     requiredLevel: row.requiredLevel,
@@ -63,10 +61,10 @@ function toDomain(row: Row): Referral {
       ...(e.action && { action: e.action as ReferralEntry["action"] }),
       body: e.body,
       data: e.data as Record<string, unknown>,
-      at: fromDb(e.at),
+      at: instantFromDb(e.at),
     })),
-    openedAt: fromDb(row.openedAt),
-    updatedAt: fromDb(row.updatedAt),
+    openedAt: instantFromDb(row.openedAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -78,14 +76,14 @@ export class PrismaReferralRepository implements ReferralRepository {
     const fields = {
       status: r.status,
       insuredName: r.insuredName,
-      quote: json(r.quote),
+      quote: jsonToDb(r.quote),
       requiredLevel: r.requiredLevel,
       assigneeId: r.assignee?.id ?? null,
-      assignee: r.assignee ? json(r.assignee) : Prisma.DbNull,
-      escalation: r.escalation ? json(r.escalation) : undefined,
-      decision: r.decision ? json(r.decision) : undefined,
-      dueAt: toDb(r.quote.dueAt),
-      updatedAt: toDb(r.updatedAt),
+      assignee: r.assignee ? jsonToDb(r.assignee) : Prisma.DbNull,
+      escalation: r.escalation ? jsonToDb(r.escalation) : undefined,
+      decision: r.decision ? jsonToDb(r.decision) : undefined,
+      dueAt: instantToDb(r.quote.dueAt),
+      updatedAt: instantToDb(r.updatedAt),
     };
 
     await db.underwritingReferral.upsert({
@@ -102,8 +100,8 @@ export class PrismaReferralRepository implements ReferralRepository {
         productName: r.productName,
         country: r.jurisdiction.country,
         subdivision: r.jurisdiction.subdivision ?? null,
-        producer: json(r.producer),
-        openedAt: toDb(r.openedAt),
+        producer: jsonToDb(r.producer),
+        openedAt: instantToDb(r.openedAt),
       },
     });
 
@@ -118,10 +116,10 @@ export class PrismaReferralRepository implements ReferralRepository {
           kind: e.kind,
           visibility: e.visibility,
           action: e.action ?? null,
-          author: json(e.author),
+          author: jsonToDb(e.author),
           body: e.body,
-          data: json(e.data),
-          at: toDb(e.at),
+          data: jsonToDb(e.data),
+          at: instantToDb(e.at),
         })),
       });
     }
@@ -176,7 +174,7 @@ export class PrismaReferralRepository implements ReferralRepository {
         ...(country && { country }),
         ...(subdivision && { subdivision }),
         ...(filter.assigneeId !== undefined && { assigneeId: filter.assigneeId }),
-        ...(filter.openedBefore && { openedAt: { lte: toDb(filter.openedBefore) } }),
+        ...(filter.openedBefore && { openedAt: { lte: instantToDb(filter.openedBefore) } }),
       },
       include,
       orderBy: { dueAt: "asc" },

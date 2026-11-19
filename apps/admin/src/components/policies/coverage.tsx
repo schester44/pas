@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Money } from "@pas/kernel";
 import { CapturedData } from "@/components/submissions/captured-data";
 import { useTRPC } from "@/lib/trpc";
-import { amount, type Coverage, exposureLabel, money, type Policy } from "./policy-format";
+import { formatMoney } from "@/lib/format";
+import { exposureLabel } from "@pas/ui/lib/policy-change";
+import { amount, type Coverage, type Policy } from "./policy-format";
 
 /** Coverages by exposure with limits, deductibles and premium, then the risk as last issued. */
 export function PolicyCoverage({ policy }: { policy: Policy }) {
@@ -32,13 +34,13 @@ function CoverageGroup({ exposure, coverages }: { exposure: string; coverages: C
 
   return (
     <Panel
-      title={exposureLabel(exposure || undefined)}
+      title={exposureLabel(exposure || undefined) ?? "Policy"}
       description={`${coverages.length} ${coverages.length === 1 ? "coverage" : "coverages"}`}
       action={
         premium && (
           <span className="text-sm text-muted-foreground">
             Premium{" "}
-            <span className="font-medium text-foreground tabular-nums">{money(premium)}</span>
+            <span className="font-medium text-foreground tabular-nums">{formatMoney(premium)}</span>
           </span>
         )
       }
@@ -58,7 +60,7 @@ function CoverageGroup({ exposure, coverages }: { exposure: string; coverages: C
           >
             <span className="text-sm font-medium">{c.name}</span>
             <span className="text-sm tabular-nums sm:order-last sm:text-right">
-              {money(c.premium)}
+              {formatMoney(c.premium)}
             </span>
             <span className="col-span-2 text-xs text-muted-foreground tabular-nums sm:col-span-1 sm:text-right sm:text-sm sm:text-foreground">
               <span className="sm:hidden">Limit </span>

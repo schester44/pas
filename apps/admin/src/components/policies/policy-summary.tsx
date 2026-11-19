@@ -4,9 +4,9 @@ import { useTRPC } from "@/lib/trpc";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { daysUntil } from "@pas/ui/lib/policy-change";
 import type * as React from "react";
-import { formatPlainDate } from "@/lib/format";
+import { formatMoney, formatPlainDate, plural } from "@/lib/format";
 import { PolicyActions } from "./policy-actions";
-import { type Billing, isZero, money, type Policy } from "./policy-format";
+import { type Billing, isZero, type Policy } from "./policy-format";
 import { PolicyStatus } from "./policy-status";
 
 /** The facts people need at a glance: who, what, state, term, premium, balance, producer. */
@@ -36,14 +36,16 @@ export function PolicySummary({ policy, billing }: { policy: Policy; billing?: B
         </Fact>
         <Fact
           label="Written premium"
-          hint={!isZero(policy.taxesAndFees) && `+ ${money(policy.taxesAndFees)} taxes and fees`}
+          hint={
+            !isZero(policy.taxesAndFees) && `+ ${formatMoney(policy.taxesAndFees)} taxes and fees`
+          }
         >
-          {money(policy.writtenPremium)}
+          {formatMoney(policy.writtenPremium)}
         </Fact>
         <Fact label="Balance due" hint={billing && <BalanceHint billing={billing} />}>
           {billing ? (
             billing.balance ? (
-              money(billing.balance)
+              formatMoney(billing.balance)
             ) : (
               <span className="text-muted-foreground">–</span>
             )
@@ -74,14 +76,12 @@ function termHint(policy: Policy) {
   return left > 0 ? `Expires in ${plural(left, "day")}` : "Expired";
 }
 
-const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
-
 function BalanceHint({ billing }: { billing: Billing }) {
   if (billing.pastDue && !isZero(billing.pastDue))
     return (
       <span className="inline-flex items-center gap-1.5">
         <span aria-hidden className="size-1.5 rounded-full bg-red-500" />
-        {money(billing.pastDue)} past due
+        {formatMoney(billing.pastDue)} past due
       </span>
     );
 

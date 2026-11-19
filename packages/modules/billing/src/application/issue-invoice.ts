@@ -1,11 +1,12 @@
 import {
+  type ClockProvider,
   type DomainEvent,
+  formatPlainDate,
   Money,
   newId,
   parsePlainDate,
   type TenantContext,
   type Transaction,
-  type ClockProvider,
 } from "@pas/kernel";
 import {
   buildSchedule,
@@ -398,7 +399,7 @@ async function spreadOver(
 
   const premiumShares = spreadCharge(premium, remaining.length, ROUNDING);
   const taxShares = spreadCharge(taxes, remaining.length, ROUNDING);
-  const label = `Endorsement effective ${parsePlainDate(input.effectiveDate).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  const label = `Endorsement effective ${formatPlainDate(input.effectiveDate)}`;
   const clock = deps.clocks.forTenant(ctx.tenantId);
 
   for (const [index, invoice] of remaining.entries()) {

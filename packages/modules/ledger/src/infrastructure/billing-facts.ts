@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { BillingFact } from "../application/ingest-billing-fact";
 
 const money = z.object({ amount: z.string(), currency: z.string().length(3) });
-const toMoney = (m: z.infer<typeof money>) => Money.of(m.amount, m.currency);
 
 const charge = z.object({
   kind: z.enum(["written_premium", "tax_fee", "installment_fee"]),
@@ -98,7 +97,11 @@ export function parseBillingFact(type: string, data: unknown): BillingFact | nul
           issuedOn: parsePlainDate(i.issuedOn),
           dueOn: parsePlainDate(i.dueOn),
           status: i.status,
-          lines: i.lines.map((l) => ({ kind: l.kind, code: l.code, amount: toMoney(l.amount) })),
+          lines: i.lines.map((l) => ({
+            kind: l.kind,
+            code: l.code,
+            amount: Money.fromJSON(l.amount),
+          })),
         },
       };
     }
@@ -111,7 +114,7 @@ export function parseBillingFact(type: string, data: unknown): BillingFact | nul
         opened: {
           invoiceId: o.invoiceId,
           billedOn: parsePlainDate(o.billedOn),
-          fee: toMoney(o.fee),
+          fee: Money.fromJSON(o.fee),
         },
       };
     }
@@ -127,11 +130,11 @@ export function parseBillingFact(type: string, data: unknown): BillingFact | nul
           type: e.type,
           invoiceId: e.invoiceId,
           creditNoteId: e.creditNoteId ?? null,
-          amount: e.amount ? toMoney(e.amount) : null,
+          amount: e.amount ? Money.fromJSON(e.amount) : null,
           lines: (e.lines ?? []).map((l) => ({
             kind: chargeKind(l.kind),
             code: l.code,
-            amount: toMoney(l.amount),
+            amount: Money.fromJSON(l.amount),
           })),
           provider: e.provider ?? null,
           reference: e.reference ?? null,
@@ -167,7 +170,7 @@ export function parseBillingFact(type: string, data: unknown): BillingFact | nul
           commissionBasis: c.commissionBasis ?? null,
           lines: c.lines.map((l) => ({
             financialTransactionId: l.financialTransactionId,
-            amount: toMoney(l.amount),
+            amount: Money.fromJSON(l.amount),
           })),
         },
       };

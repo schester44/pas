@@ -1,4 +1,4 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import { Prisma as PrismaRuntime } from "@pas/db/client";
 import type {
   ProductVersionStatus as DbStatus,
@@ -20,7 +20,6 @@ import {
 } from "../domain/product-version";
 import type { VersionContents } from "../domain/version-contents";
 import type { ProductVersionRepository } from "../ports/product-version-repository";
-import { toDate, toInstant } from "./mappers";
 
 const toDbStatus = (s: ProductVersionStatus): DbStatus => s.toUpperCase() as DbStatus;
 const fromDbStatus = (s: DbStatus): ProductVersionStatus => s.toLowerCase() as ProductVersionStatus;
@@ -41,9 +40,9 @@ export class PrismaProductVersionRepository implements ProductVersionRepository 
       rules: json(v.contents.rules),
       rating: v.contents.rating === null ? PrismaRuntime.DbNull : json(v.contents.rating),
       billing: json(v.contents.billing),
-      updatedAt: toDate(v.updatedAt),
-      publishedAt: v.publishedAt ? toDate(v.publishedAt) : null,
-      retiredAt: v.retiredAt ? toDate(v.retiredAt) : null,
+      updatedAt: instantToDb(v.updatedAt),
+      publishedAt: v.publishedAt ? instantToDb(v.publishedAt) : null,
+      retiredAt: v.retiredAt ? instantToDb(v.retiredAt) : null,
     };
 
     await prismaTx(tx).productVersion.upsert({
@@ -54,7 +53,7 @@ export class PrismaProductVersionRepository implements ProductVersionRepository 
         productId: v.productId,
         version: v.version,
         basedOnId: v.basedOnId,
-        createdAt: toDate(v.createdAt),
+        createdAt: instantToDb(v.createdAt),
         ...data,
       },
       update: data,
@@ -122,9 +121,9 @@ function toVersion(row: ProductVersionRow): ProductVersion {
       billing: billingConfigOf(row.billing),
     },
     basedOnId: row.basedOnId ? asId(row.basedOnId) : null,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
-    publishedAt: row.publishedAt ? toInstant(row.publishedAt) : null,
-    retiredAt: row.retiredAt ? toInstant(row.retiredAt) : null,
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
+    publishedAt: row.publishedAt ? instantFromDb(row.publishedAt) : null,
+    retiredAt: row.retiredAt ? instantFromDb(row.retiredAt) : null,
   });
 }

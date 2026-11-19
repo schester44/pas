@@ -1,10 +1,11 @@
 import {
   asId,
   type ClockProvider,
+  formatMoney,
+  formatPlainDate,
   Money,
   newId,
   notFound,
-  type PlainDate,
   parsePlainDate,
   type TenantContext,
   type UnitOfWork,
@@ -27,7 +28,6 @@ import {
   applyBillingEventIn,
   type ApplyBillingEvent,
   type BillingEventDeps,
-  formatMoney,
 } from "./apply-billing-event";
 
 type MoneyDto = { amount: string; currency: string };
@@ -107,9 +107,6 @@ const TRANSACTION_LABELS: Record<string, string> = {
 };
 
 const transactionLabel = (type: string) => TRANSACTION_LABELS[type] ?? type.replaceAll("_", " ");
-
-const formatDate = (date: PlainDate) =>
-  date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 export function toStatementDto(statement: AgencyStatement): AgencyStatementDto {
   const s = statement.toSnapshot();
@@ -362,7 +359,7 @@ export function makeAgencyStatements(deps: Deps) {
             invoiceId: item.invoiceId,
             type: "statement_issued",
             actor: SYSTEM,
-            summary: `${item.invoiceNumber} billed to ${s.agencyName} on account current ${s.number} (${formatMoney(item.due)}${s.remittanceBasis === "net" ? " net of commission" : ""}), due ${formatDate(s.dueOn)}`,
+            summary: `${item.invoiceNumber} billed to ${s.agencyName} on account current ${s.number} (${formatMoney(item.due)}${s.remittanceBasis === "net" ? " net of commission" : ""}), due ${formatPlainDate(s.dueOn)}`,
             data: {
               statementId: s.id,
               statementNumber: s.number,
@@ -442,8 +439,8 @@ export function makeAgencyStatements(deps: Deps) {
       const sentTo = await notifyAgency(
         ctx,
         terms,
-        `Account current ${s.number}: ${formatMoney(t.due)} due ${formatDate(s.dueOn)}`,
-        `Your account current ${s.number} for ${formatDate(s.periodStart)} – ${formatDate(s.periodEnd)} is ready: ${s.items.length} ${s.items.length === 1 ? "item" : "items"}, gross ${formatMoney(t.gross)}, commission ${formatMoney(t.commission)}, ${formatMoney(t.due)} due by ${formatDate(s.dueOn)}${s.remittanceBasis === "net" ? " (net of commission)" : ""}. View and download it at ${link}.`,
+        `Account current ${s.number}: ${formatMoney(t.due)} due ${formatPlainDate(s.dueOn)}`,
+        `Your account current ${s.number} for ${formatPlainDate(s.periodStart)} – ${formatPlainDate(s.periodEnd)} is ready: ${s.items.length} ${s.items.length === 1 ? "item" : "items"}, gross ${formatMoney(t.gross)}, commission ${formatMoney(t.commission)}, ${formatMoney(t.due)} due by ${formatPlainDate(s.dueOn)}${s.remittanceBasis === "net" ? " (net of commission)" : ""}. View and download it at ${link}.`,
         "agency_statement",
       );
 
@@ -497,7 +494,7 @@ export function makeAgencyStatements(deps: Deps) {
             ctx,
             terms,
             `Account current ${s.number} is past due`,
-            `${balance} on account current ${s.number} was due ${formatDate(s.dueOn)}. Please remit it now to keep agency billing.`,
+            `${balance} on account current ${s.number} was due ${formatPlainDate(s.dueOn)}. Please remit it now to keep agency billing.`,
             "agency_statement_reminder",
           );
 
@@ -522,7 +519,7 @@ export function makeAgencyStatements(deps: Deps) {
                 payload: {
                   statementId: s.id,
                   agencyId: s.agencyId,
-                  reason: `Account current ${s.number} unpaid: ${balance} past due since ${formatDate(s.dueOn)}`,
+                  reason: `Account current ${s.number} unpaid: ${balance} past due since ${formatPlainDate(s.dueOn)}`,
                 },
               },
             ]),

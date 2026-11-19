@@ -1,10 +1,10 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { EventEnvelope } from "../application/payloads";
 import { type AttemptTrigger, Delivery, type DeliveryStatus } from "../domain/delivery";
 import type { SubjectKind } from "../domain/event-types";
 import type { AttemptRecord, EventLog, OutboundEventRecord } from "../ports/event-log";
-import { json, maybeDate, maybeInstant, toDate, toInstant } from "./mappers";
+import { json, maybeDate, maybeInstant } from "./mappers";
 
 type Db = ReturnType<typeof prismaTx>;
 type DeliveryRow = Awaited<ReturnType<Db["eventDelivery"]["findFirstOrThrow"]>>;
@@ -21,8 +21,8 @@ const toDelivery = (row: DeliveryRow) =>
     nextAttemptAt: maybeInstant(row.nextAttemptAt),
     lastAttemptAt: maybeInstant(row.lastAttemptAt),
     lastStatusCode: row.lastStatusCode,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 
 const deliveryData = (delivery: Delivery) => {
@@ -34,7 +34,7 @@ const deliveryData = (delivery: Delivery) => {
     nextAttemptAt: maybeDate(d.nextAttemptAt),
     lastAttemptAt: maybeDate(d.lastAttemptAt),
     lastStatusCode: d.lastStatusCode,
-    updatedAt: toDate(d.updatedAt),
+    updatedAt: instantToDb(d.updatedAt),
   };
 };
 
@@ -56,8 +56,8 @@ export class PrismaEventLog implements EventLog {
           subjectKind: event.subject?.kind ?? null,
           subjectId: event.subject?.id ?? null,
           envelope: json(event.envelope),
-          occurredAt: toDate(event.occurredAt),
-          createdAt: toDate(event.createdAt),
+          occurredAt: instantToDb(event.occurredAt),
+          createdAt: instantToDb(event.createdAt),
         },
       ],
       skipDuplicates: true,
@@ -83,8 +83,8 @@ export class PrismaEventLog implements EventLog {
             ? { kind: row.subjectKind as SubjectKind, id: row.subjectId }
             : null,
         envelope: row.envelope as EventEnvelope,
-        occurredAt: toInstant(row.occurredAt),
-        createdAt: toInstant(row.createdAt),
+        occurredAt: instantFromDb(row.occurredAt),
+        createdAt: instantFromDb(row.createdAt),
       }
     );
   }
@@ -99,7 +99,7 @@ export class PrismaEventLog implements EventLog {
         subscriptionId: d.subscriptionId,
         eventId: d.eventId,
         eventType: d.eventType,
-        createdAt: toDate(d.createdAt),
+        createdAt: instantToDb(d.createdAt),
         ...deliveryData(delivery),
       },
     });
@@ -149,7 +149,7 @@ export class PrismaEventLog implements EventLog {
         responseBody: attempt.responseBody,
         error: attempt.error,
         durationMs: attempt.durationMs,
-        attemptedAt: toDate(attempt.attemptedAt),
+        attemptedAt: instantToDb(attempt.attemptedAt),
       },
     });
   }
@@ -170,7 +170,7 @@ export class PrismaEventLog implements EventLog {
       responseBody: row.responseBody,
       error: row.error,
       durationMs: row.durationMs,
-      attemptedAt: toInstant(row.attemptedAt),
+      attemptedAt: instantFromDb(row.attemptedAt),
     }));
   }
 }

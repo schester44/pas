@@ -1,8 +1,8 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import { asId, type TenantContext, type Transaction } from "@pas/kernel";
 import { Subscription, type SigningSecrets } from "../domain/subscription";
 import type { SubscriptionRepository } from "../ports/subscription-repository";
-import { json, maybeDate, maybeInstant, toDate, toInstant } from "./mappers";
+import { json, maybeDate, maybeInstant } from "./mappers";
 
 type StoredSecrets = {
   current: Record<string, string>;
@@ -39,8 +39,8 @@ function toDomain(row: Row): Subscription {
     failingSince: maybeInstant(row.failingSince),
     lastSuccessAt: maybeInstant(row.lastSuccessAt),
     createdBy: row.createdBy,
-    createdAt: toInstant(row.createdAt),
-    updatedAt: toInstant(row.updatedAt),
+    createdAt: instantFromDb(row.createdAt),
+    updatedAt: instantFromDb(row.updatedAt),
   });
 }
 
@@ -85,7 +85,7 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       secretHint: s.secretHint,
       failingSince: maybeDate(s.failingSince),
       lastSuccessAt: maybeDate(s.lastSuccessAt),
-      updatedAt: toDate(s.updatedAt),
+      updatedAt: instantToDb(s.updatedAt),
     };
 
     await prismaTx(tx).eventSubscription.upsert({
@@ -94,7 +94,7 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
         id: s.id,
         tenantId: s.tenantId,
         createdBy: s.createdBy,
-        createdAt: toDate(s.createdAt),
+        createdAt: instantToDb(s.createdAt),
         ...data,
       },
       update: data,

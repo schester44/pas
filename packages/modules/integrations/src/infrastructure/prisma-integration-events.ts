@@ -1,7 +1,7 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import type { TenantContext, Transaction } from "@pas/kernel";
 import type { IntegrationEventRecord, IntegrationEvents } from "../ports/integration-events";
-import { json, toDate, toInstant } from "./mappers";
+import { json } from "./mappers";
 
 export class PrismaIntegrationEvents implements IntegrationEvents {
   async add(tx: Transaction, ctx: TenantContext, event: IntegrationEventRecord): Promise<boolean> {
@@ -17,7 +17,7 @@ export class PrismaIntegrationEvents implements IntegrationEvents {
       summary: event.summary,
       externalId: event.externalId,
       data: json(event.data),
-      occurredAt: toDate(event.occurredAt),
+      occurredAt: instantToDb(event.occurredAt),
     };
 
     if (!event.externalId) {
@@ -47,7 +47,7 @@ export class PrismaIntegrationEvents implements IntegrationEvents {
       summary: row.summary,
       externalId: row.externalId,
       data: row.data as Record<string, unknown>,
-      occurredAt: toInstant(row.occurredAt),
+      occurredAt: instantFromDb(row.occurredAt),
     }));
   }
 }

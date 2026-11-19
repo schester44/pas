@@ -26,9 +26,6 @@ const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   credit: { label: "Credit", tone: "neutral" },
 };
 
-export const money = (value: { amount: string; currency: string }) =>
-  formatMoney(value.amount, value.currency);
-
 export function StatementStatus({ status }: { status: string }) {
   const { label, tone } = STATUS[status] ?? { label: status, tone: "neutral" as const };
 
@@ -38,7 +35,7 @@ export function StatementStatus({ status }: { status: string }) {
 const dash = <span className="text-muted-foreground">—</span>;
 
 const amountOrDash = (value: { amount: string; currency: string }) =>
-  Number(value.amount) === 0 ? dash : money(value);
+  Number(value.amount) === 0 ? dash : formatMoney(value);
 
 /** Account current statements, newest first; rows open the statement. */
 export function StatementsTable({ agencyId }: { agencyId?: string }) {
@@ -96,11 +93,15 @@ export function StatementsTable({ agencyId }: { agencyId?: string }) {
                     {formatPlainDate(s.periodStart)} – {formatPlainDate(s.periodEnd)}
                   </TableCell>
                   <TableCell className="tabular-nums">{formatPlainDate(s.dueOn)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{money(s.totals.gross)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatMoney(s.totals.gross)}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {amountOrDash(s.totals.commission)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{money(s.totals.due)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatMoney(s.totals.due)}
+                  </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
                     {amountOrDash(s.totals.balance)}
                   </TableCell>
@@ -128,8 +129,8 @@ export function StatementsTable({ agencyId }: { agencyId?: string }) {
                     </span>
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    Due {formatPlainDate(s.dueOn)} · {money(s.totals.balance)} open of{" "}
-                    {money(s.totals.due)}
+                    Due {formatPlainDate(s.dueOn)} · {formatMoney(s.totals.balance)} open of{" "}
+                    {formatMoney(s.totals.due)}
                   </span>
                 </button>
               </li>
