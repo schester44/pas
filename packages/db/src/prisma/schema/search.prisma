@@ -1,0 +1,12 @@
+/// Records a user opened, for "recently viewed" in search on every device.
+model RecentView {
+  tenantId   String   @map("tenant_id")
+  userId     String   @map("user_id")
+  recordType String   @map("record_type")
+  recordId   String   @map("record_id") @db.Uuid
+  viewedAt   DateTime @map("viewed_at") @db.Timestamptz(6)
+
+  @@id([tenantId, userId, recordType, recordId])
+  @@index([tenantId, userId, viewedAt(sort: Desc)])
+  @@map("recent_views")
+}

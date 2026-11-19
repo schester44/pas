@@ -313,14 +313,14 @@ export function AddressField(props: AddressFieldProps) {
   );
 
   return (
-    <div ref={root} className="grid gap-3" onBlur={onBlurGroup}>
-      <div className="grid gap-3 sm:grid-cols-6">
-        {field("line1", "sm:col-span-4", "address-line1", listbox)}
-        {field("line2", "sm:col-span-2", "address-line2")}
-        {field("city", "sm:col-span-2", "address-level2")}
-        {field("region", "sm:col-span-2", "address-level1")}
-        {field("postalCode", "sm:col-span-2", "postal-code")}
-        {!country && field("country", "sm:col-span-2", "country")}
+    <div ref={root} className="@container grid gap-3" onBlur={onBlurGroup}>
+      <div className="grid gap-3 @lg:grid-cols-6">
+        {field("line1", "@lg:col-span-4", "address-line1", listbox)}
+        {field("line2", "@lg:col-span-2", "address-line2")}
+        {field("city", "@lg:col-span-2", "address-level2")}
+        {field("region", "@lg:col-span-2", "address-level1")}
+        {field("postalCode", "@lg:col-span-2", "postal-code")}
+        {!country && field("country", "@lg:col-span-2", "country")}
       </div>
       {lookup && (
         <AddressStatus

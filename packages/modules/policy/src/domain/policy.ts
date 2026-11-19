@@ -27,6 +27,7 @@ import {
   OPEN_STATUSES,
   type PolicyTransactionProps,
   premiumOf,
+  type CarrierHandling,
   type TransactionDetails,
   type TransactionType,
 } from "./transaction";
@@ -707,6 +708,83 @@ export class Policy extends AggregateRoot {
       transactionId: id,
       type: transaction.type,
       number: this.number,
+    });
+  }
+
+  /** A carrier-owned change waits for the carrier (PLAN §12); issuing resumes on its answer. */
+  holdForCarrier(id: string, carrier: CarrierHandling, actor: TimelineActor, clock: Clock): void {
+    const transaction = this.transaction(id);
+
+    if (transaction.status === "pending_carrier") return;
+
+    this.move(transaction, "pending_carrier", clock);
+    transaction.details = { ...transaction.details!, carrier };
+
+    this.addToTimeline({
+      type: "carrier_submitted",
+      termId: transaction.termId,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: clock.now(),
+      effectiveDate: transaction.effectiveDate,
+      actor,
+      summary: `${capitalize(label(transaction.type))} sent to ${carrier.name}`,
+      data: { transactionId: id, type: transaction.type, flowRunId: carrier.flowRunId },
+    });
+  }
+
+  /** The carrier confirmed; its figures (when they win) replace ours before issuing. */
+  confirmByCarrier(id: string, details: TransactionDetails, clock: Clock): void {
+    const transaction = this.transaction(id);
+
+    if (transaction.status !== "pending_carrier")
+      throw conflict("This change isn't waiting for the carrier");
+
+    const currency = this.term(transaction.termId).writtenPremium.currency;
+
+    transaction.details = details;
+    transaction.premiumDelta = premiumOf(details, currency);
+    transaction.updatedAt = clock.now();
+    this.touched.add(id);
+
+    this.addToTimeline({
+      type: "carrier_confirmed",
+      termId: transaction.termId,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: clock.now(),
+      effectiveDate: transaction.effectiveDate,
+      actor: { type: "system", name: details.carrier?.name ?? "Carrier" },
+      summary: `${details.carrier?.name ?? "The carrier"} confirmed the ${label(transaction.type)}${details.carrier?.reference ? ` (${details.carrier.reference})` : ""}`,
+      data: { transactionId: id, ...(details.carrier?.diff && { diff: details.carrier.diff }) },
+    });
+  }
+
+  /** The carrier refused or the flow failed: back to quoted with the carrier's reason. */
+  rejectByCarrier(id: string, message: string, clock: Clock): void {
+    const transaction = this.transaction(id);
+
+    if (transaction.status !== "pending_carrier") return;
+
+    this.move(transaction, "quoted", clock);
+
+    const carrier = transaction.details?.carrier;
+
+    transaction.details = {
+      ...transaction.details!,
+      ...(carrier && { carrier: { ...carrier, message } }),
+    };
+
+    this.addToTimeline({
+      type: "carrier_failed",
+      termId: transaction.termId,
+      transactionId: null,
+      invoiceId: null,
+      occurredAt: clock.now(),
+      effectiveDate: transaction.effectiveDate,
+      actor: { type: "system", name: carrier?.name ?? "Carrier" },
+      summary: `${carrier?.name ?? "The carrier"} didn't confirm the ${label(transaction.type)}: ${message}`,
+      data: { transactionId: id },
     });
   }
 

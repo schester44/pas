@@ -10,11 +10,13 @@ import type { ProductVersion } from "../domain/product-version";
 import type { FormEditionDirectory } from "../ports/form-edition-directory";
 import type { ProductVersionRepository } from "../ports/product-version-repository";
 import type { RatingVerifier } from "../ports/rating-verifier";
+import type { CarrierVerifier } from "../ports/carrier-verifier";
 import { loadVersion } from "./load";
 
 export interface ReferenceDeps {
   formEditions: FormEditionDirectory;
   rating: RatingVerifier;
+  carriers?: CarrierVerifier;
 }
 
 export function makeCheckProductVersion(
@@ -44,16 +46,17 @@ export async function resolveReferences(
 ): Promise<ResolvedReferences> {
   const { contents } = version;
 
-  const [formEditions, rating] = await Promise.all([
+  const [formEditions, rating, carrier] = await Promise.all([
     deps.formEditions.existing(ctx, scheduledEditionIds(contents.documents)),
     deps.rating.verify(ctx, {
       rating: contents.rating,
       riskSchema: contents.riskSchema,
       coverageCodes: contents.coverages.map((coverage) => coverage.code),
     }),
+    deps.carriers ? deps.carriers.verify(ctx, contents.lifecycle) : [],
   ]);
 
-  return { formEditions, rating };
+  return { formEditions, rating, carrier };
 }
 
 export async function publishedSiblings(

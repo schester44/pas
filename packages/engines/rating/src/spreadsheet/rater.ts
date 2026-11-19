@@ -9,6 +9,7 @@ import {
   type WorksheetStep,
 } from "../contract";
 import { exposuresOf, fromFloat, ratingContext, readPath, toDecimal } from "../context";
+import { rootOf } from "../plan/check";
 import type { CellLocation, WorkbookEngine } from "./engine";
 import {
   bindingManifestSchema,
@@ -142,10 +143,26 @@ export function createSpreadsheetRater(workbook: WorkbookModel, source: BindingM
     const worksheet: WorksheetStep[] = [];
     const where = { exposure };
 
+    const selected = new Set(
+      input.coverages.filter((s) => s.exposure === exposure).map((s) => s.coverage),
+    );
+
+    const appliesHere = (path: string) => {
+      const root = rootOf(path);
+
+      if (root === "exposure") return exposure !== undefined;
+
+      if (root === "coverages") return selected.has(/^coverages\.([^.[]+)/.exec(path)?.[1] ?? "");
+
+      return true;
+    };
+
     for (const { binding, location } of inputs) {
       const raw = readPath(context, binding.path);
       const value = transformed(binding, raw);
       session.setKey(location.key, value);
+
+      if (!appliesHere(binding.path)) continue;
 
       worksheet.push({
         ...where,
@@ -157,10 +174,6 @@ export function createSpreadsheetRater(workbook: WorkbookModel, source: BindingM
     }
 
     session.recalculate();
-
-    const selected = new Set(
-      input.coverages.filter((s) => s.exposure === exposure).map((s) => s.coverage),
-    );
 
     const traced = new Set<number>();
 

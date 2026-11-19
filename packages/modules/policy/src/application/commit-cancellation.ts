@@ -115,6 +115,7 @@ export async function commitCancellation(
     notice?: NoticeKind;
   },
 ): Promise<TransactionDto> {
+  const clock = deps.clocks.forTenant(ctx.tenantId);
   const policy = await loadPolicy(deps, ctx, scope, input.policyId);
   const term = policy.currentTerm;
   const base = policy.latestVersion(term.id).version;
@@ -145,14 +146,10 @@ export async function commitCancellation(
         },
         actor: input.actor,
       },
-      deps.clocks.forTenant(ctx.tenantId),
+      clock,
     );
 
-    current.scheduleCancellation(
-      transaction.id,
-      input.approvedBy ?? input.actor,
-      deps.clocks.forTenant(ctx.tenantId),
-    );
+    current.scheduleCancellation(transaction.id, input.approvedBy ?? input.actor, clock);
 
     current.attachDocument(
       {
@@ -162,17 +159,13 @@ export async function commitCancellation(
         storageKey: key,
         sizeBytes: notice.pdf.byteLength,
       },
-      deps.clocks.forTenant(ctx.tenantId),
+      clock,
     );
 
-    const now = today(deps.clocks.forTenant(ctx.tenantId));
+    const now = today(clock);
 
     if (Temporal.PlainDate.compare(input.pricing.effectiveDate, now) <= 0) {
-      const charges = current.issueTransaction(
-        transaction.id,
-        now,
-        deps.clocks.forTenant(ctx.tenantId),
-      );
+      const charges = current.issueTransaction(transaction.id, now, clock);
 
       await billIssued(
         deps,

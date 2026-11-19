@@ -1,10 +1,17 @@
 import type { AddressProvider } from "@pas/addressing";
+import type { AgencyDownloadChannel } from "@pas/agency-downloads";
 import type { FilingChannel } from "@pas/compliance";
 import type { DataProvider } from "@pas/enrichment";
 import type { Instant, Money, TenantContext } from "@pas/kernel";
 import type { InspectionProvider } from "@pas/underwriting";
 
-export type { AddressProvider, DataProvider, FilingChannel, InspectionProvider };
+export type {
+  AddressProvider,
+  AgencyDownloadChannel,
+  DataProvider,
+  FilingChannel,
+  InspectionProvider,
+};
 
 /** The published adapter contracts (PLAN §16): what a provider package implements per category. */
 
@@ -198,6 +205,7 @@ export interface CategoryAdapters {
   licensing: ProducerLicenseLookup;
   filing: FilingChannel;
   inspections: InspectionProvider;
+  agency_downloads: AgencyDownloadChannel;
 }
 
 export type AdapterCategory = keyof CategoryAdapters;

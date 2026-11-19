@@ -1,4 +1,4 @@
-import { newId, type TenantContext } from "@pas/kernel";
+import { newId, type Outbox, type TenantContext } from "@pas/kernel";
 import { commissionsOn, scheduleFor } from "../domain/commission";
 import type { CommissionRecord } from "../ports/commission-repository";
 import type { PolicyFinancials } from "../ports/policy-financials";
@@ -11,6 +11,8 @@ import type { DistributionDeps } from "./deps";
 export function makeRecordCommissions(
   deps: Pick<DistributionDeps, "uow" | "agencies" | "commissions" | "clocks"> & {
     financials: PolicyFinancials;
+    /** Publishes `distribution.commissions_recorded` so the billing system can book commission payable. */
+    outbox?: Outbox;
   },
 ) {
   return async function recordCommissions(
@@ -55,7 +57,33 @@ export function makeRecordCommissions(
         recordedAt: now,
       }));
 
-      return { recorded: await deps.commissions.record(tx, ctx, rows) };
+      const recorded = await deps.commissions.record(tx, ctx, rows);
+
+      if (deps.outbox && recorded > 0) {
+        await deps.outbox.add(tx, [
+          {
+            id: newId(),
+            type: "distribution.commissions_recorded",
+            tenantId: ctx.tenantId,
+            aggregateType: "policy",
+            aggregateId: financials.policyId,
+            occurredAt: now,
+            payload: {
+              occurredAt: now.toString(),
+              policyId: financials.policyId,
+              transactionId: financials.transactionId,
+              agencyId: financials.agencyId,
+              commissionBasis: agency?.billing.commissionBasis ?? null,
+              lines: rows.map((r) => ({
+                financialTransactionId: r.financialTransactionId,
+                amount: r.amount.toJSON(),
+              })),
+            },
+          },
+        ]);
+      }
+
+      return { recorded };
     });
   };
 }

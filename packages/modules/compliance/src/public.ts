@@ -24,6 +24,11 @@ export {
 } from "./application/record-filing-response";
 export { makeCorrectObligation, type CorrectObligation } from "./application/correct-obligation";
 export { makeWaiveObligation, type WaiveObligation } from "./application/waive-obligation";
+export {
+  makeTrackObligations,
+  type TrackObligationInput,
+  type TrackObligations,
+} from "./application/track-obligations";
 export { makeRemittanceReport, type RemittanceReportFor } from "./application/remittance-report";
 export {
   makeManageLicensees,

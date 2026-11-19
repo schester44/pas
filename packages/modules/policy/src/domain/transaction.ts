@@ -9,19 +9,24 @@ export type TransactionType =
   | "CANCELLATION_RESCISSION"
   | "REINSTATEMENT";
 
-/** `scheduled` holds a cancellation between its notice and its effective date. */
+/**
+ * `scheduled` holds a cancellation between its notice and its effective date; `pending_carrier`
+ * holds a carrier-owned change until the carrier confirms it (PLAN §12).
+ */
 export type TransactionStatus =
   | "draft"
   | "quoted"
   | "pending_approval"
+  | "pending_carrier"
   | "scheduled"
   | "issued"
   | "discarded";
 
 const TRANSITIONS: Record<TransactionStatus, readonly TransactionStatus[]> = {
   draft: ["quoted", "discarded"],
-  quoted: ["quoted", "pending_approval", "scheduled", "issued", "discarded"],
-  pending_approval: ["quoted", "scheduled", "issued", "discarded"],
+  quoted: ["quoted", "pending_approval", "pending_carrier", "scheduled", "issued", "discarded"],
+  pending_approval: ["quoted", "pending_carrier", "scheduled", "issued", "discarded"],
+  pending_carrier: ["quoted", "scheduled", "issued", "discarded"],
   scheduled: ["issued", "discarded"],
   issued: [],
   discarded: [],
@@ -31,6 +36,7 @@ export const OPEN_STATUSES: readonly TransactionStatus[] = [
   "draft",
   "quoted",
   "pending_approval",
+  "pending_carrier",
   "scheduled",
 ];
 
@@ -87,6 +93,31 @@ export interface TransactionDetails {
   reinstatement?: { lapse: boolean; cancelledOn: string };
   note?: string;
   approvedBy?: TimelineActor;
+  carrier?: CarrierHandling;
+}
+
+/** The carrier's part in a delegated change: its run, reference and how its figures moved ours. */
+export interface CarrierHandling {
+  carrier: string;
+  name: string;
+  flowRunId: string;
+  /** Each hand-off to the carrier is a new attempt with its own idempotency key. */
+  attempt?: number;
+  reference?: string;
+  message?: string;
+  diff?: {
+    currency: string;
+    changes: {
+      key: string;
+      label: string;
+      pas: string | null;
+      carrier: string | null;
+      difference: string;
+    }[];
+    pasTotal: string;
+    carrierTotal: string;
+    difference: string;
+  };
 }
 
 export interface PolicyTransactionProps {

@@ -49,6 +49,10 @@ export const CATEGORIES: Record<string, { label: string; port: string }> = {
     label: "Inspections",
     port: "Orders property inspections that underwriting rules ask for, and returns the findings for review.",
   },
+  agency_downloads: {
+    label: "Agency downloads",
+    port: "Delivers issued transactions, documents and commission statements to enrolled agencies' management systems each night.",
+  },
   carrier: { label: "Carriers", port: "Exchanges policies with carriers." },
   billing: { label: "Billing", port: "Runs billing in an outside system." },
   llm: { label: "Language models", port: "Powers AI drafting." },

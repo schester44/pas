@@ -42,9 +42,23 @@ export function expressionLabel(expression: string, index: SchemaIndex): string 
     : `${aggregate} ${label}`;
 }
 
+const REFERENCE = /[A-Za-z_$][\w$]*(?:\[\d*\])?(?:\.[A-Za-z_$][\w$]*(?:\[\d*\])?)*/;
+
+function referenceLabel(expression: string, index: SchemaIndex): string {
+  const path = REFERENCE.exec(expression)?.[0];
+
+  if (!path) return "Rule input";
+
+  const canonical = path.replace(/\[\d*\]/g, "[]");
+
+  return index.has(canonical)
+    ? fieldLabel(index, canonical)
+    : humanize(canonical.split(".").at(-1)!.replace("[]", ""));
+}
+
 export function inputLabeler(schema: RiskSchema | undefined) {
   const index = schema ? indexSchema(schema) : new Map();
 
   return (expression: string, name?: string) =>
-    name?.trim() || expressionLabel(expression, index) || expression;
+    name?.trim() || expressionLabel(expression, index) || referenceLabel(expression, index);
 }

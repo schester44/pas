@@ -1,4 +1,5 @@
 import {
+  type DomainEvent,
   Money,
   newId,
   parsePlainDate,
@@ -35,6 +36,8 @@ export interface IssueInvoiceInput {
   transactionId: string;
   transactionType: string;
   effectiveDate: string;
+  /** The risk's jurisdiction code, so a billing system can hold taxes and fees per jurisdiction. */
+  jurisdiction?: string;
   currency: string;
   charges: {
     kind: ChargeKind;
@@ -146,6 +149,10 @@ async function issue(
 
   await deps.invoices.save(tx, invoice);
 
+  await deps.outbox.add(tx, [
+    invoiceIssued(ctx, invoice, input, deps.clocks.forTenant(ctx.tenantId).now()),
+  ]);
+
   if (payer?.payer === "agency" && payer.payerRef) {
     await deps.outbox.add(tx, [
       {
@@ -161,6 +168,62 @@ async function issue(
   }
 
   return invoice;
+}
+
+/** The outbound billing fact a billing system books the invoice from (PLAN §13 `BillingGateway`). */
+function invoiceIssued(
+  ctx: TenantContext,
+  invoice: Invoice,
+  input: IssueInvoiceInput,
+  now: Temporal.Instant,
+): DomainEvent {
+  const i = invoice.toSnapshot();
+
+  return {
+    id: newId(),
+    type: "billing.invoice_issued",
+    tenantId: ctx.tenantId,
+    aggregateType: "invoice",
+    aggregateId: i.id,
+    occurredAt: now,
+    payload: {
+      occurredAt: now.toString(),
+      invoice: {
+        ...toInvoiceDto(invoice),
+        jurisdiction: input.jurisdiction ?? null,
+        currency: i.total.currency,
+        lines: i.lines.map((line) => ({
+          kind: line.kind,
+          code: line.code,
+          amount: line.amount.toJSON(),
+        })),
+      },
+    },
+  };
+}
+
+/** A scheduled installment became a bill: its installment fee is owed from now. */
+export function invoiceOpened(
+  ctx: TenantContext,
+  invoice: Invoice,
+  now: Temporal.Instant,
+): DomainEvent {
+  const i = invoice.toSnapshot();
+
+  return {
+    id: newId(),
+    type: "billing.invoice_opened",
+    tenantId: ctx.tenantId,
+    aggregateType: "invoice",
+    aggregateId: i.id,
+    occurredAt: now,
+    payload: {
+      occurredAt: now.toString(),
+      invoiceId: i.id,
+      billedOn: i.issuedOn.toString(),
+      fee: invoice.installmentFee.toJSON(),
+    },
+  };
 }
 
 async function startSchedule(
@@ -456,6 +519,7 @@ async function netAgainstInstallments(
 
       invoice.billNow(today, clock);
       await deps.invoices.save(tx, invoice);
+      await deps.outbox.add(tx, [invoiceOpened(ctx, invoice, clock.now())]);
     }
 
     schedule.close(clock);

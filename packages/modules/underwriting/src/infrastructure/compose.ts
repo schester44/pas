@@ -4,6 +4,7 @@ import type { ObjectStorage } from "@pas/storage";
 import { makeApproveReferral } from "../application/approve-referral";
 import { makeAssignReferral } from "../application/assign-referral";
 import { makeNoteReferral, makeReplyToReferral, makeRequestInfo } from "../application/converse";
+import { makeClosePolicyConditions } from "../application/close-policy-conditions";
 import { makeDeclineReferral } from "../application/decline-referral";
 import type { UnderwritingDeps } from "../application/deps";
 import { makeGetReferral } from "../application/get-referral";
@@ -51,6 +52,7 @@ export function composeUnderwriting(input: {
   return {
     openReferral: makeOpenReferral(deps),
     closeReferrals: makeCloseReferrals(deps),
+    closePolicyConditions: makeClosePolicyConditions(deps),
     queue: makeListReferrals(deps),
     referral: makeGetReferral(deps),
     assign: makeAssignReferral(deps),

@@ -14,6 +14,10 @@ export function makeListInvoices(deps: { uow: UnitOfWork; invoices: InvoiceRepos
 
       return invoices.map(toInvoiceDto);
     },
+    /** Every invoice with its balance: what a billing system reconciles against. */
+    async all(ctx: TenantContext): Promise<InvoiceDto[]> {
+      return (await deps.uow.run(ctx, (tx) => deps.invoices.listAll(tx, ctx))).map(toInvoiceDto);
+    },
     async byId(ctx: TenantContext, input: { id: string }): Promise<InvoiceDto | null> {
       const invoice = await deps.uow.run(ctx, (tx) =>
         deps.invoices.findById(tx, ctx, asId(input.id)),

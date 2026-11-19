@@ -9,6 +9,7 @@ import { useTRPC } from "@/lib/trpc";
 import { SubmissionHeading } from "@/components/submission-heading";
 import { SubjectivitiesList, UnderwriterMessages } from "@/components/underwriting";
 import { BoundScreen } from "./bound-screen";
+import { CarrierBindFailed, CarrierBinding, CarrierQuote, withCarrier } from "./carrier";
 import { CustomizeStep } from "./customize-step";
 import { DetailsStep } from "./details-step";
 import { PayStep } from "./pay-step";
@@ -39,7 +40,13 @@ export function Journey({
 }) {
   const trpc = useTRPC();
   const navigate = useNavigate();
-  const quote = useQuery(trpc.quotes.get.queryOptions({ submissionId: submission.id }));
+
+  const quote = useQuery(
+    trpc.quotes.get.queryOptions(
+      { submissionId: submission.id },
+      { refetchInterval: (query) => (withCarrier(query.state.data) ? 2000 : false) },
+    ),
+  );
 
   const heading = (aside?: React.ReactNode) => (
     <SubmissionHeading submission={submission} aside={aside} />
@@ -82,6 +89,9 @@ export function Journey({
 
   if (q.status === "bound") return <BoundScreen {...props} />;
 
+  if (q.carrier?.bind?.status === "pending_carrier")
+    return <CarrierBinding quote={q} heading={heading()} />;
+
   if (q.status === "referred") return <ReferredScreen {...props} heading={heading()} />;
 
   if (q.status === "declined") return <DeclinedScreen {...props} heading={heading()} />;
@@ -119,6 +129,8 @@ export function Journey({
       {(current === "quote" || current === "pay") && (
         <SubjectivitiesList submissionId={submission.id} />
       )}
+      {(current === "quote" || current === "review") && <CarrierQuote quote={q} />}
+      {current === "pay" && <CarrierBindFailed quote={q} />}
       {current === "quote" && <QuoteStep {...props} />}
       {current === "customize" && <CustomizeStep {...props} />}
       {current === "details" && <DetailsStep {...props} />}

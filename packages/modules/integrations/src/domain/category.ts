@@ -10,6 +10,7 @@ export const INTEGRATION_CATEGORIES = [
   "licensing",
   "filing",
   "inspections",
+  "agency_downloads",
   "carrier",
   "billing",
   "llm",

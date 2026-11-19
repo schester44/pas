@@ -6,6 +6,26 @@ Tenants define their products in **admin**: risk data, intake forms, underwritin
 
 > Status: **Phase 0 scaffold**: the stack runs end to end with one example module (catalog → products). Read [`PLAN.md`](./PLAN.md) for where it's going.
 
+## Product tour
+
+What PAS does today, written for MGA, carrier and brokerage decision-makers, with screenshots of the real apps. Start at the [overview](./docs/product/README.md).
+
+- [Product builder and versioning](./docs/product/product-builder.md): versions per state with effective dates, immutable releases, publish checks
+- [Forms and intake](./docs/product/forms-and-intake.md): risk data dictionary, config-driven questions, address verification
+- [Rating](./docs/product/rating.md): rating plans with worksheets, spreadsheet raters, golden cases
+- [Rules and underwriting workbench](./docs/product/underwriting.md): decision tables, referrals, authority, subjectivities, inspections
+- [Quote to bind](./docs/product/quote-to-bind.md): the agent app from quote to bound policy
+- [Policy lifecycle](./docs/product/policy-lifecycle.md): endorsements, cancellations with notice rules and MEP, rescission, reinstatement
+- [Billing](./docs/product/billing.md): pay plans, installments, nonpayment, agency bill, mortgagee bill, bring your own billing
+- [Documents](./docs/product/documents.md): template editor, state clause variants, forms library
+- [Surplus lines and compliance](./docs/product/compliance.md): obligation engine, filings, remittance
+- [Distribution](./docs/product/distribution.md): agencies, producers, license checks, commissions
+- [Client portal](./docs/product/client-portal.md): one login per client across producers
+- [Sandboxes and time travel](./docs/product/sandboxes.md): test a year of policy life in an afternoon
+- [Integrations, events and webhooks](./docs/product/integrations.md): provider catalog, signed webhooks, notifications
+- [Security and multi-tenancy](./docs/product/security.md): row-level security, roles, book scoping
+- [**Technology**](./docs/product/technology.md): durable workflows, ports and adapters, the outbox, how it scales
+
 ## Surfaces
 
 | Surface          | Who                        | What                                                                                                      |

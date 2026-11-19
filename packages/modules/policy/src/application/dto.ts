@@ -1,7 +1,7 @@
 import type { Money } from "@pas/kernel";
 import type { Policy, PolicyTransactionProps, TermStatus } from "../domain/policy";
 import { annualOf, coveragesOf } from "../domain/term-state";
-import { chargesOf } from "../domain/transaction";
+import { type CarrierHandling, chargesOf } from "../domain/transaction";
 
 type MoneyDto = { amount: string; currency: string };
 
@@ -50,6 +50,7 @@ export interface PolicyDetailDto extends PolicySummaryDto {
   openTransaction: TransactionDto | null;
   financials: {
     id: string;
+    transactionId: string;
     kind: string;
     code: string;
     label: string;
@@ -60,7 +61,14 @@ export interface PolicyDetailDto extends PolicySummaryDto {
     effectiveDate: string;
     recordedAt: string;
   }[];
-  documents: { id: string; kind: string; title: string; sizeBytes: number; createdAt: string }[];
+  documents: {
+    id: string;
+    kind: string;
+    title: string;
+    sizeBytes: number;
+    createdAt: string;
+    transactionId: string;
+  }[];
   activatedAt: string | null;
   events: {
     id: string;
@@ -123,6 +131,7 @@ export interface TransactionDto {
   reinstatement: { lapse: boolean; cancelledOn: string } | null;
   note: string | null;
   approvedBy: string | null;
+  carrier: CarrierHandling | null;
 }
 
 export function toTransactionDto(t: PolicyTransactionProps): TransactionDto {
@@ -193,6 +202,7 @@ export function toTransactionDto(t: PolicyTransactionProps): TransactionDto {
     reinstatement: d?.reinstatement ?? null,
     note: d?.note ?? null,
     approvedBy: d?.approvedBy?.name ?? null,
+    carrier: d?.carrier ?? null,
   };
 }
 
@@ -261,6 +271,7 @@ export function toPolicyDetailDto(policy: Policy): PolicyDetailDto {
     openTransaction: open && toTransactionDto(open),
     financials: state.financials.map((f) => ({
       id: f.id,
+      transactionId: f.transactionId,
       kind: f.kind,
       code: f.code,
       label: f.label,
@@ -277,6 +288,7 @@ export function toPolicyDetailDto(policy: Policy): PolicyDetailDto {
       title: d.title,
       sizeBytes: d.sizeBytes,
       createdAt: d.createdAt.toString(),
+      transactionId: d.transactionId,
     })),
     activatedAt: term.activatedAt?.toString() ?? null,
     events: state.events

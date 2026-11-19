@@ -4,13 +4,15 @@ import { Panel } from "@pas/ui/components/panel";
 import { Spinner } from "@pas/ui/components/spinner";
 import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   SimulateBillingEvent,
   type SimulationTarget,
   useSimulation,
 } from "@/components/billing/simulate-billing-event";
+import { RecordPaymentDialog } from "@/components/ledger/record-payment-dialog";
+import { useLedgerOverview } from "@/components/ledger/shared";
 import { formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
@@ -64,7 +66,10 @@ export function BilledTo({ policyId, billing }: { policyId: string; billing: Bil
   const access = useAccess();
   const queryClient = useQueryClient();
   const simulation = useSimulation();
+  const navigate = useNavigate();
+  const native = useLedgerOverview().data?.native === true && access.billing.write;
   const [target, setTarget] = useState<SimulationTarget | null>(null);
+  const [recording, setRecording] = useState(false);
   const schedule = billing.schedule;
   const mortgagee = billing.mortgagee;
   const statement = billing.statements.at(-1);
@@ -124,7 +129,7 @@ export function BilledTo({ policyId, billing }: { policyId: string; billing: Bil
           : { label: "Paid", tone: "success" as const }
         : null;
 
-  if (method === "direct" && !mortgagee && !simulation) return null;
+  if (method === "direct" && !mortgagee && !simulation && !native) return null;
 
   return (
     <Panel
@@ -174,6 +179,11 @@ export function BilledTo({ policyId, billing }: { policyId: string; billing: Bil
               Simulate billing event
             </Button>
           )}
+          {native && payable && (
+            <Button size="sm" variant="ghost" onClick={() => setRecording(true)}>
+              Record payment
+            </Button>
+          )}
         </div>
       }
     >
@@ -195,6 +205,14 @@ export function BilledTo({ policyId, billing }: { policyId: string; billing: Bil
               : "The insured pays online, or the billing system reports payments."}
         </p>
       )}
+      <RecordPaymentDialog
+        open={recording}
+        onOpenChange={setRecording}
+        onRecorded={(paymentId) => {
+          setRecording(false);
+          void navigate({ to: "/billing/apply", search: { paymentId } });
+        }}
+      />
       <SimulateBillingEvent
         target={target}
         onOpenChange={(open) => !open && setTarget(null)}

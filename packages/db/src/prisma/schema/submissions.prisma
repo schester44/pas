@@ -37,6 +37,8 @@ model Submission {
   @@index([tenantId, producerId, updatedAt])
   @@index([tenantId, agencyId, updatedAt])
   @@index([tenantId, status, updatedAt])
+  @@index([insuredName(ops: raw("gin_trgm_ops"))], type: Gin, map: "submissions_insured_name_trgm")
+  @@index([number(ops: raw("gin_trgm_ops"))], type: Gin, map: "submissions_number_trgm")
   @@map("submissions")
 }
 

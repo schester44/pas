@@ -10,8 +10,7 @@ import type {
   AgencyBilling as DistributionAgencyBilling,
   ProducerOfRecordLookup,
 } from "@pas/distribution";
-import type { ProviderResolver } from "@pas/integrations";
-import type { ClockProvider, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { ClockProvider, UnitOfWork } from "@pas/kernel";
 import {
   makeGetEvidenceOfInsurance,
   makeGetTransactionFacts,
@@ -35,7 +34,6 @@ export function composeApiBillingMethods(deps: {
   producerOfRecord: ProducerOfRecordLookup;
   branding: Parameters<typeof composeBillingMethods>[0]["branding"];
   mail: Parameters<typeof portBillingMail>[0];
-  resolver: Pick<ProviderResolver, "powering" | "isSandbox">;
 }) {
   const facts = makeGetTransactionFacts({ uow: deps.uow, policies: deps.policies });
   const evidence = makeGetEvidenceOfInsurance({ uow: deps.uow, policies: deps.policies });
@@ -91,17 +89,5 @@ export function composeApiBillingMethods(deps: {
     },
   };
 
-  /**
-   * Simulated billing events are for the built-in billing (no external billing system) and
-   * sandboxes, where nothing else would post them.
-   */
-  const simulationAvailable = async (ctx: TenantContext) => {
-    if (await deps.resolver.isSandbox(ctx.tenantId)) return true;
-
-    const billingProviders = (await deps.resolver.powering(ctx)).get("billing") ?? [];
-
-    return billingProviders.every((p) => !p.installId);
-  };
-
-  return { ...billing, agencyBillCheck, simulationAvailable };
+  return { ...billing, agencyBillCheck };
 }

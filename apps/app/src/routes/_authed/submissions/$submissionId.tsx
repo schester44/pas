@@ -12,6 +12,7 @@ import { BackLink, SubmissionHeading as Heading } from "@/components/submission-
 import { isStep, type StepId } from "@/lib/quotes";
 import { useTRPC } from "@/lib/trpc";
 import { type SaveState, useAutosave } from "@/lib/use-autosave";
+import { useRecordView } from "@/lib/recent-views";
 
 export const Route = createFileRoute("/_authed/submissions/$submissionId")({
   validateSearch: (search: Record<string, unknown>): { step?: StepId } =>
@@ -27,6 +28,7 @@ const FLOW = "mx-auto grid w-full max-w-3xl gap-6";
 
 function SubmissionPage() {
   const { submissionId } = Route.useParams();
+  useRecordView("submission", submissionId);
   const trpc = useTRPC();
   const submission = useQuery(trpc.submissions.get.queryOptions({ id: submissionId }));
 

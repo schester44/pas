@@ -107,7 +107,7 @@ function RequirementRow({
           placeholder="Lines of authority"
           value={lines}
           disabled={mode === "off" || !access.agencies.write}
-          className="h-8 w-48"
+          className="h-8 min-w-0 flex-1 sm:w-48 sm:flex-none"
           onChange={(e) => setLines(e.target.value)}
         />
         {access.agencies.write && (

@@ -1,0 +1,81 @@
+/// An agency's enrollment for policy downloads to its agency management system mailbox (IVANS).
+model AgencyDownloadEnrollment {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  agencyId    String   @map("agency_id") @db.Uuid
+  /// The agency's IVANS account (Y-number).
+  accountCode String   @map("account_code")
+  mailbox     String?
+  /// [{ carrier, code }]: the agency's contract code per carrier/MGA relationship.
+  agencyCodes Json     @map("agency_codes")
+  enabled     Boolean
+  startDate   DateTime @map("start_date") @db.Date
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, agencyId])
+  @@map("agency_download_enrollments")
+}
+
+/// One thing owed to an agency's mailbox: an issued transaction or a commission statement.
+model AgencyDownloadItem {
+  id              String    @id @db.Uuid
+  tenantId        String    @map("tenant_id")
+  agencyId        String    @map("agency_id") @db.Uuid
+  kind            String
+  dedupeKey       String    @map("dedupe_key")
+  status          String
+  policyId        String?   @map("policy_id") @db.Uuid
+  policyNumber    String?   @map("policy_number")
+  transactionId   String?   @map("transaction_id") @db.Uuid
+  transactionType String?   @map("transaction_type")
+  effectiveDate   DateTime? @map("effective_date") @db.Date
+  title           String
+  /// The canonical ACORD-shaped record the formats serialize.
+  record          Json
+  batchId         String?   @map("batch_id") @db.Uuid
+  attempts        Int       @default(0)
+  lastError       String?   @map("last_error")
+  obligationId    String?   @map("obligation_id") @db.Uuid
+  createdAt       DateTime  @map("created_at") @db.Timestamptz(6)
+  deliveredAt     DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, status, agencyId])
+  @@index([tenantId, batchId])
+  @@index([tenantId, policyId])
+  @@map("agency_download_items")
+}
+
+/// One file delivered (or attempted) to an agency mailbox, with the file kept for resend and review.
+model AgencyDownloadBatch {
+  id          String    @id @db.Uuid
+  tenantId    String    @map("tenant_id")
+  agencyId    String    @map("agency_id") @db.Uuid
+  /// scheduled:<date>:<kind> for nightly runs; the batch id for resends.
+  runKey      String    @map("run_key")
+  kind        String
+  trigger     String
+  accountCode String    @map("account_code")
+  mailbox     String?
+  format      String
+  providerId  String    @map("provider_id")
+  transport   String
+  status      String
+  fileName    String    @map("file_name")
+  fileKey     String    @map("file_key")
+  contentType String    @map("content_type")
+  sizeBytes   Int       @map("size_bytes")
+  itemIds     Json      @map("item_ids")
+  itemCount   Int       @map("item_count")
+  reference   String?
+  error       String?
+  resendOf    String?   @map("resend_of") @db.Uuid
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, agencyId, runKey])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, agencyId, createdAt], map: "agency_download_batches_tenant_agency_created_idx")
+  @@map("agency_download_batches")
+}

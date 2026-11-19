@@ -18,8 +18,8 @@ export function StepIndicator({
   reachable = current,
 }: StepIndicatorProps) {
   return (
-    <nav aria-label={label} className="grid gap-3">
-      <p className="m-0 text-xs text-muted-foreground tabular-nums sm:hidden">{label}</p>
+    <nav aria-label={label} className="@container grid gap-3">
+      <p className="m-0 text-xs text-muted-foreground tabular-nums @md:hidden">{label}</p>
       <ol
         className="m-0 grid list-none gap-2 p-0"
         style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
@@ -41,7 +41,7 @@ export function StepIndicator({
                 aria-current={active ? "step" : undefined}
                 onClick={() => onSelect(index)}
                 className={cn(
-                  "hidden items-center gap-1.5 truncate rounded-sm text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:flex",
+                  "hidden items-center gap-1.5 truncate rounded-sm text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 @md:flex",
                   active ? "font-medium text-foreground" : "text-muted-foreground",
                   open && "cursor-pointer hover:text-foreground",
                 )}

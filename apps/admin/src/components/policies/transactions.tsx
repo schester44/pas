@@ -201,21 +201,9 @@ const sum = (lines: Financial[]) =>
     .reduce((a, b) => a.plus(b))
     .toJSON();
 
-function sourceOf(group: Financial[], transactions: Policy["transactions"]) {
-  const first = group[0]!;
-  const recorded = new Date(first.recordedAt).getTime();
-
-  return transactions
-    .filter((t) => t.issuedAt && t.effectiveDate === first.effectiveDate)
-    .toSorted(
-      (a, b) =>
-        Math.abs(new Date(a.issuedAt!).getTime() - recorded) -
-        Math.abs(new Date(b.issuedAt!).getTime() - recorded),
-    )[0];
-}
-
 function Ledger({ policy }: { policy: Policy }) {
-  const groups = [...Map.groupBy(policy.financials, (f) => f.recordedAt).values()].toReversed();
+  const groups = [...Map.groupBy(policy.financials, (f) => f.transactionId).values()].toReversed();
+  const transactions = new Map(policy.transactions.map((t) => [t.id, t]));
 
   if (groups.length === 0) return null;
 
@@ -228,9 +216,9 @@ function Ledger({ policy }: { policy: Policy }) {
       <ul className="m-0 list-none divide-y p-0">
         {groups.map((group) => (
           <LedgerGroup
-            key={group[0]!.recordedAt}
+            key={group[0]!.transactionId}
             lines={group}
-            source={sourceOf(group, policy.transactions)}
+            source={transactions.get(group[0]!.transactionId)}
           />
         ))}
       </ul>

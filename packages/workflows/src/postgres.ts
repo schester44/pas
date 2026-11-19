@@ -7,6 +7,7 @@ import {
   type WorkflowDefinition,
   type WorkflowRef,
   type WorkflowRunState,
+  type WorkflowRunStatus,
   type Workflows,
 } from "@pas/kernel";
 import { injectTraceContext, withExtractedContext, type Logger } from "@pas/observability";
@@ -36,6 +37,44 @@ export interface ScheduledTimer {
   input: unknown;
   /** Tenant time. */
   dueAt: Temporal.Instant;
+}
+
+export interface WorkflowRunFilter {
+  workflowIds?: readonly string[];
+  statuses?: readonly WorkflowRunStatus[];
+  subjects?: readonly string[];
+  before?: Temporal.Instant;
+  limit?: number;
+}
+
+export interface WorkflowRunSummary {
+  runId: string;
+  workflowId: string;
+  status: WorkflowRunStatus;
+  currentStep: string;
+  input: unknown;
+  subjects: string[];
+  error: string | null;
+  cancelReason: string | null;
+  createdAt: Temporal.Instant;
+  updatedAt: Temporal.Instant;
+  completedAt: Temporal.Instant | null;
+}
+
+export interface WorkflowRunDetail extends WorkflowRunSummary {
+  output: unknown;
+  attempts: number;
+  idempotencyKey: string | null;
+  steps: { stepId: string; result: unknown; completedAt: Temporal.Instant }[];
+  /** `wakeAt` is in tenant time, `wallWakeAt` when it fires on the wall clock. */
+  waits: {
+    stepId: string;
+    event: string | null;
+    wakeAt: Temporal.Instant | null;
+    wallWakeAt: Temporal.Instant | null;
+    since: Temporal.Instant;
+  }[];
+  signals: { name: string; data: unknown; consumedBy: string | null; at: Temporal.Instant }[];
 }
 
 const DEFAULT_RETRIES = 3;
@@ -117,6 +156,7 @@ export class PostgresWorkflows implements Workflows {
         input: parsed,
         trace: injectTraceContext(),
         idempotencyKey: options.idempotencyKey,
+        subjects: options.subjects ?? [],
       });
 
       if (run.created) await this.enqueue(client, { runId: run.id, tenantId: ctx.tenantId });
@@ -147,14 +187,100 @@ export class PostgresWorkflows implements Workflows {
     });
   }
 
-  async cancel(ctx: TenantContext, runId: string): Promise<void> {
+  async cancel(ctx: TenantContext, runId: string, reason?: string): Promise<void> {
     await this.open();
 
     const key = this.key(ctx, runId);
 
     if (!(await this.store.find(this.store.pool, key))) throw notFound("WorkflowRun", runId);
 
-    await this.store.cancel(key);
+    await this.store.cancel(key, reason ?? null);
+  }
+
+  async list(ctx: TenantContext, filter: WorkflowRunFilter = {}): Promise<WorkflowRunSummary[]> {
+    await this.open();
+
+    const rows = await this.store.list(ctx.tenantId, {
+      ...filter,
+      before: filter.before ? new Date(filter.before.epochMilliseconds) : undefined,
+      limit: filter.limit ?? 50,
+    });
+
+    return rows.map(toSummary);
+  }
+
+  /** Live runs tagged with any of `subjects`, for lifecycle cleanup. */
+  async liveRuns(ctx: TenantContext, subjects: readonly string[]): Promise<WorkflowRunSummary[]> {
+    if (subjects.length === 0) return [];
+
+    return this.list(ctx, { subjects, statuses: ["pending", "running", "waiting"], limit: 500 });
+  }
+
+  async detail(ctx: TenantContext, runId: string): Promise<WorkflowRunDetail> {
+    await this.open();
+
+    const key = this.key(ctx, runId);
+    const run = await this.store.find(this.store.pool, key);
+
+    if (!run) throw notFound("WorkflowRun", runId);
+
+    const [history, offsetMs] = await Promise.all([
+      this.store.history(key),
+      this.tenantTime.offsetMs(ctx.tenantId),
+    ]);
+
+    return {
+      ...toSummary(run),
+      input: run.input,
+      output: run.output,
+      attempts: run.attempts,
+      idempotencyKey: run.idempotency_key,
+      steps: history.steps.map((step) => ({
+        stepId: step.step_id,
+        result: step.result.value ?? null,
+        completedAt: toInstant(step.completed_at),
+      })),
+      waits: history.waits.map((wait) => ({
+        stepId: wait.step_id,
+        event: wait.event,
+        wakeAt: wait.wake_at ? toInstant(wait.wake_at) : null,
+        wallWakeAt: wait.wake_at ? toInstant(new Date(wait.wake_at.getTime() - offsetMs)) : null,
+        since: toInstant(wait.created_at),
+      })),
+      signals: history.events.map((event) => ({
+        name: event.name,
+        data: event.data,
+        consumedBy: event.consumed_by,
+        at: toInstant(event.created_at),
+      })),
+    };
+  }
+
+  /** Re-runs a failed run from its last memoized step. */
+  async retry(ctx: TenantContext, runId: string): Promise<boolean> {
+    await this.open();
+
+    const key = this.key(ctx, runId);
+
+    if (!(await this.store.retry(key))) return false;
+
+    await this.enqueue(this.store.pool, key);
+
+    return true;
+  }
+
+  /** Fires the run's timers now. Callers allow this only where time is simulated (sandboxes). */
+  async wakeNow(ctx: TenantContext, runId: string): Promise<boolean> {
+    await this.open();
+
+    const key = this.key(ctx, runId);
+    const moved = await this.store.wakeNow(key, await this.tenantTime.offsetMs(ctx.tenantId));
+
+    if (moved === 0) return false;
+
+    await this.enqueue(this.store.pool, key);
+
+    return true;
   }
 
   async status(ctx: TenantContext, runId: string): Promise<WorkflowRunState> {
@@ -367,6 +493,22 @@ function bossDb(db: Queryable): Db {
   return { executeSql: (text, values) => db.query(text, values) };
 }
 
+function toSummary(run: RunRow): WorkflowRunSummary {
+  return {
+    runId: run.id,
+    workflowId: run.workflow_id,
+    status: run.status,
+    currentStep: run.current_step,
+    input: run.input,
+    subjects: run.subjects,
+    error: run.error,
+    cancelReason: run.cancel_reason,
+    createdAt: toInstant(run.created_at),
+    updatedAt: toInstant(run.updated_at),
+    completedAt: run.completed_at ? toInstant(run.completed_at) : null,
+  };
+}
+
 function toRunState(run: RunRow): WorkflowRunState {
   return {
     runId: run.id,
@@ -375,6 +517,7 @@ function toRunState(run: RunRow): WorkflowRunState {
     currentStep: run.current_step,
     output: run.output,
     error: run.error,
+    cancelReason: run.cancel_reason,
     createdAt: toInstant(run.created_at),
     completedAt: run.completed_at ? toInstant(run.completed_at) : null,
   };

@@ -373,6 +373,26 @@ export function makeAgencyStatements(deps: Deps) {
           });
         }
 
+        await deps.outbox.add(tx, [
+          {
+            id: newId(),
+            type: "billing.statement_issued",
+            tenantId: ctx.tenantId,
+            aggregateType: "agency_statement",
+            aggregateId: s.id,
+            occurredAt: clock.now(),
+            payload: {
+              occurredAt: clock.now().toString(),
+              statementId: s.id,
+              number: s.number,
+              agencyId: s.agencyId,
+              dueOn: s.dueOn.toString(),
+              due: statement.totals.due.toJSON(),
+              invoiceIds: s.items.map((i) => i.invoiceId),
+            },
+          },
+        ]);
+
         return statement.id;
       });
     },

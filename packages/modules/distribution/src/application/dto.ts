@@ -1,5 +1,11 @@
 import type { Money, PlainDate } from "@pas/kernel";
-import type { Agency, AgencyAddress, AgencyStatus, RemittanceBasis } from "../domain/agency";
+import type {
+  Agency,
+  AgencyAddress,
+  AgencyStatus,
+  CommissionBasis,
+  RemittanceBasis,
+} from "../domain/agency";
 import type { Business, CommissionSchedule } from "../domain/commission";
 import { type License, type LicenseHealth, licenseHealth } from "../domain/license";
 import type { Appointment, MembershipRole, Producer, ProducerStatus } from "../domain/producer";
@@ -27,6 +33,7 @@ export interface AgencyDto {
     remittanceDays: number | null;
     creditLimit: MoneyDto | null;
     remittanceBasis: RemittanceBasis;
+    commissionBasis: CommissionBasis | null;
     statementDay: number | null;
     reminderDays: number | null;
     suspendAfterDays: number | null;
@@ -158,6 +165,7 @@ export function toAgencyDto(
       remittanceDays: agency.billing.remittanceDays,
       creditLimit: agency.billing.creditLimit && money(agency.billing.creditLimit),
       remittanceBasis: agency.billing.remittanceBasis,
+      commissionBasis: agency.billing.commissionBasis,
       statementDay: agency.billing.statementDay,
       reminderDays: agency.billing.reminderDays,
       suspendAfterDays: agency.billing.suspendAfterDays,

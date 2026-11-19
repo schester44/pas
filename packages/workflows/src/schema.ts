@@ -37,6 +37,11 @@ export function schemaDdl(schema: string): string {
       ON ${s}.runs (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
     CREATE INDEX IF NOT EXISTS runs_tenant_workflow_status ON ${s}.runs (tenant_id, workflow_id, status);
 
+    ALTER TABLE ${s}.runs ADD COLUMN IF NOT EXISTS subjects text[] NOT NULL DEFAULT '{}';
+    ALTER TABLE ${s}.runs ADD COLUMN IF NOT EXISTS cancel_reason text;
+    CREATE INDEX IF NOT EXISTS runs_subjects ON ${s}.runs USING gin (subjects);
+    CREATE INDEX IF NOT EXISTS runs_tenant_created ON ${s}.runs (tenant_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS ${s}.steps (
       run_id uuid NOT NULL REFERENCES ${s}.runs (id) ON DELETE CASCADE,
       tenant_id text NOT NULL,

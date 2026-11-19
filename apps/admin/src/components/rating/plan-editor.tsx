@@ -31,7 +31,7 @@ import { AlgorithmEditor } from "./algorithm-editor";
 import { newAlgorithm } from "./model";
 import { TableEditor } from "./table-editor";
 import type { RatingIssue } from "./use-rating";
-import { readable } from "@/lib/readable";
+import { formatMessage } from "@/lib/messages";
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -378,7 +378,7 @@ function PlanSettings({
       {issues.length > 0 && (
         <ul className="m-0 mt-5 grid list-none gap-1 p-0 text-sm text-red-700">
           {issues.map((issue, i) => (
-            <li key={i}>{readable(issue.message)}</li>
+            <li key={i}>{formatMessage(issue)}</li>
           ))}
         </ul>
       )}

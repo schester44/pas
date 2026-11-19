@@ -10,7 +10,8 @@ export type UnderwritingTimelineType =
   | "inspection_ordered"
   | "inspection_scheduled"
   | "inspection_completed"
-  | "inspection_reviewed";
+  | "inspection_reviewed"
+  | "inspection_cancelled";
 
 /**
  * The quote's history before bind, the policy's timeline after; both live in other contexts and

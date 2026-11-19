@@ -36,7 +36,7 @@ import {
 } from "./model";
 import { OperandPicker } from "./operand-picker";
 import type { RatingIssue } from "./use-rating";
-import { readable } from "@/lib/readable";
+import { formatMessage } from "@/lib/messages";
 
 const ROUNDING = { half_up: "Half up", half_even: "Half even", up: "Up", down: "Down" } as const;
 
@@ -209,7 +209,7 @@ export function AlgorithmEditor({
         )
       }
     >
-      {general.length > 0 && <IssueList issues={general} />}
+      {general.length > 0 && <IssueList issues={general} coverages={coverages} />}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:divide-x">
         <div className="grid content-start">
           <ol className="m-0 grid list-none gap-0.5 p-2">
@@ -389,13 +389,19 @@ function renameRefs(step: Step, from: string, to: string): Step {
   }
 }
 
-function IssueList({ issues }: { issues: RatingIssue[] }) {
+function IssueList({
+  issues,
+  coverages,
+}: {
+  issues: RatingIssue[];
+  coverages: readonly Coverage[];
+}) {
   return (
     <ul className="m-0 grid list-none divide-y border-b p-0">
       {issues.map((issue, i) => (
         <li key={i} className="flex items-center gap-2 px-(--card-p) py-2.5 text-sm">
           <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-red-500" />
-          {readable(issue.message)}
+          {formatMessage(issue, coverages)}
         </li>
       ))}
     </ul>
@@ -693,7 +699,7 @@ function StepInspector({
       {issues.length > 0 && (
         <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-red-700">
           {issues.map((issue, i) => (
-            <li key={i}>{readable(issue.message)}</li>
+            <li key={i}>{formatMessage(issue, coverages)}</li>
           ))}
         </ul>
       )}

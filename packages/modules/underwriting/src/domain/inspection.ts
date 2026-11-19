@@ -267,6 +267,19 @@ export class Inspection extends AggregateRoot {
     });
   }
 
+  /** Called off by us (the policy ended); returns false once it's no longer pending. */
+  cancel(reason: string, clock: Clock): boolean {
+    if (!this.pending) return false;
+
+    const now = clock.now();
+
+    this.props = { ...this.props, status: "cancelled", updatedAt: now };
+    this.log("cancelled", `Cancelled: ${reason}`, now);
+    this.event("underwriting.inspection_cancelled", now, { reason });
+
+    return true;
+  }
+
   linkPolicy(policy: { id: string; number: string }, clock: Clock): void {
     this.props = {
       ...this.props,

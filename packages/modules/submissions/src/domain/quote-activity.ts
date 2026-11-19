@@ -17,7 +17,14 @@ export type QuoteActivityType =
   | "inspection_ordered"
   | "inspection_scheduled"
   | "inspection_completed"
-  | "inspection_reviewed";
+  | "inspection_reviewed"
+  | "inspection_cancelled"
+  | "carrier_quoted"
+  | "carrier_referred"
+  | "carrier_declined"
+  | "carrier_failed"
+  | "carrier_submitted"
+  | "carrier_confirmed";
 
 export interface ActivityActor {
   type: "user" | "system" | "api";
@@ -29,7 +36,7 @@ export interface ActivityActor {
 export interface QuoteActivity {
   id: string;
   type: QuoteActivityType;
-  category: "lifecycle" | "underwriting" | "document" | "billing";
+  category: "lifecycle" | "underwriting" | "document" | "billing" | "carrier";
   occurredAt: Instant;
   actor: ActivityActor;
   summary: string;
@@ -56,4 +63,11 @@ export const CATEGORY: Record<QuoteActivityType, QuoteActivity["category"]> = {
   inspection_scheduled: "underwriting",
   inspection_completed: "underwriting",
   inspection_reviewed: "underwriting",
+  inspection_cancelled: "underwriting",
+  carrier_quoted: "carrier",
+  carrier_referred: "carrier",
+  carrier_declined: "carrier",
+  carrier_failed: "carrier",
+  carrier_submitted: "carrier",
+  carrier_confirmed: "carrier",
 };

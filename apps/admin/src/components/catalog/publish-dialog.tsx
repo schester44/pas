@@ -16,7 +16,7 @@ import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { useTRPC } from "@/lib/trpc";
 import { IssueDot } from "./issue-dot";
 import { type ProductVersion, useVersionEditor } from "./version-editor";
-import { readable } from "@/lib/readable";
+import { formatMessage } from "@/lib/messages";
 
 function listFormat(items: string[]): string {
   return new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(items);
@@ -101,9 +101,7 @@ export function PublishDialog({
               </DialogDescription>
             </DialogHeader>
             <IssueList
-              messages={errors
-                .slice(0, 4)
-                .map((issue) => readable(issue.message, contents.coverages))}
+              messages={errors.slice(0, 4).map((issue) => formatMessage(issue, contents.coverages))}
               tone="error"
             />
             <DialogFooter>
@@ -132,7 +130,7 @@ export function PublishDialog({
             </DialogHeader>
             {warnings.length > 0 && (
               <IssueList
-                messages={warnings.map((issue) => readable(issue.message, contents.coverages))}
+                messages={warnings.map((issue) => formatMessage(issue, contents.coverages))}
                 tone="warning"
               />
             )}

@@ -36,10 +36,14 @@ import { complianceRouter } from "./compliance";
 import { underwritingRouter } from "./underwriting";
 import { eventsRouter, notificationsRouter } from "./events";
 import { integrationsRouter } from "./integrations";
-import { adminSearch } from "./search";
+import { carriersRouter } from "./carriers";
+import { adminRecent, adminSearch } from "./search";
 import { bookScopeOf } from "./book-scope";
 import { billingRouter } from "./billing";
+import { ledgerRouter } from "./ledger";
 import { distributionRouter } from "./distribution";
+import { agencyDownloadsRouter } from "./agency-downloads";
+import { workflowsRouter } from "./workflows";
 
 const submissionRead = requirePermission({ submission: ["read"] }).use(async ({ ctx, next }) => {
   const scope: SubmissionScope = await bookScopeOf(ctx, ctx.tenant);
@@ -250,6 +254,11 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input),
       ),
+    risk: policyRead
+      .input(policyById)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.risk(ctx.tenant, ctx.scope, { policyId: input.id }),
+      ),
     billing: policyRead
       .input(policyById)
       .query(({ ctx, input }) =>
@@ -307,20 +316,27 @@ export const adminRouter = router({
     changes: policyChangesRouter(staffScope),
   }),
 
-  search: router({ query: adminSearch }),
+  search: router({ query: adminSearch, ...adminRecent }),
   addresses: addressRouter(async (ctx) => (await staffScope(ctx)).tenant),
 
   integrations: integrationsRouter,
+  carriers: carriersRouter(staffScope),
   events: eventsRouter,
+  workflows: workflowsRouter,
   notifications: notificationsRouter(tenantProcedure),
 
   compliance: complianceRouter,
   underwriting: underwritingRouter,
 
   distribution: distributionRouter,
+  agencyDownloads: agencyDownloadsRouter,
   billing: billingRouter,
+  ledger: ledgerRouter,
 
   clients: router({
+    get: clientsAdmin
+      .input(z.object({ id: z.uuid() }))
+      .query(({ ctx, input }) => ctx.container.useCases.clientDetail(ctx.tenant, ctx.scope, input)),
     list: clientsAdmin
       .input(z.object({ query: z.string().trim().max(200).optional() }).optional())
       .query(({ ctx, input }) =>

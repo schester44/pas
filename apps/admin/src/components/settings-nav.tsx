@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Users,
   Webhook,
+  Workflow,
 } from "lucide-react";
 import type * as React from "react";
 import { type Access, useAccess } from "@/lib/permissions";
@@ -76,6 +77,12 @@ const settingsNav: { label: string; items: SettingsNavItem[] }[] = [
         to: "/settings/developers/events",
         label: "Event catalog",
         icon: <BookOpen />,
+        visible: (access) => access.branding.update,
+      },
+      {
+        to: "/settings/developers/workflows",
+        label: "Workflows",
+        icon: <Workflow />,
         visible: (access) => access.branding.update,
       },
     ],

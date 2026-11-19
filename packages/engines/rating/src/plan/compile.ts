@@ -360,6 +360,7 @@ export function compileRatingPlan(source: RatingPlan): CompiledRatingPlan {
           coverage: algorithm.coverage,
           exposure: selection.exposure,
           step: step.name,
+          reason: (error as Error).message,
         });
       }
 

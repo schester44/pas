@@ -27,6 +27,9 @@ export interface TransactionFactsDto {
   /** The bound snapshot: risk, parties captured at bind and the bind-time decisions. */
   bound: Record<string, unknown>;
   risk: Record<string, unknown>;
+  /** The term version this transaction produced (or the latest one before it). */
+  snapshot: Record<string, unknown>;
+  billingMethod: string;
 }
 
 /** What other contexts (compliance) need to know about one issued transaction. */
@@ -86,6 +89,8 @@ export function makeGetTransactionFacts(deps: { uow: UnitOfWork; policies: Polic
         })),
       bound: versions[0]?.snapshot ?? {},
       risk,
+      snapshot: (latest?.snapshot ?? {}) as Record<string, unknown>,
+      billingMethod: term.billingMethod,
     };
   };
 }

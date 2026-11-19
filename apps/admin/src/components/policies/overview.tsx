@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import type * as React from "react";
 import { useState } from "react";
+import { PolicyObligations } from "@/components/compliance/policy-obligations";
 import { humanize } from "@/components/decisions/jdm-edit";
 import { InspectionsPanel, SubjectivitiesPanel } from "@/components/underwriting/conditions";
 import { formatDate, formatPlainDate } from "@/lib/format";
@@ -34,6 +35,7 @@ export function PolicyOverview({ policy, billing }: { policy: Policy; billing?: 
         <StatusPanel policy={policy} billing={billing} />
         <KeyCoverages policy={policy} />
         <PolicyConditions policyId={policy.id} />
+        <PolicyObligations policyId={policy.id} />
       </div>
       <div className="grid gap-6">
         <KeyDates policy={policy} billing={billing} />
@@ -102,11 +104,13 @@ function StatusPanel({ policy, billing }: { policy: Policy; billing?: Billing })
   const open =
     policy.openTransaction &&
     (policy.openTransaction.type !== "CANCELLATION" ||
-      policy.openTransaction.status === "pending_approval")
+      policy.openTransaction.status === "pending_approval" ||
+      policy.openTransaction.status === "pending_carrier")
       ? policy.openTransaction
       : null;
 
   const pastDue = billing?.pastDue && !isZero(billing.pastDue) ? billing.pastDue : null;
+  const owed = billing?.balance && !isZero(billing.balance) ? billing.balance : null;
 
   const mailed = nonpayment
     ? policy.events.find(
@@ -141,7 +145,11 @@ function StatusPanel({ policy, billing }: { policy: Policy; billing?: Billing })
             {(pastDue || nonpayment) && (
               <Callout tone="danger">
                 <span className="font-medium">
-                  {pastDue ? `${money(pastDue)} past due` : "Past due"}
+                  {pastDue
+                    ? `${money(pastDue)} past due`
+                    : owed
+                      ? `${money(owed)} due`
+                      : "Nonpayment cancellation pending"}
                 </span>
                 <span className="text-muted-foreground">
                   {nonpayment

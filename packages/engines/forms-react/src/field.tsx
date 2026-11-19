@@ -44,7 +44,7 @@ export function Field({
   const grouped = field.kind === "address" || field.kind === "multi_enum";
 
   return (
-    <div className={cn("grid content-start gap-2", wide && "sm:col-span-2")}>
+    <div className={cn("@container grid content-start gap-2", wide && "@xl:col-span-2")}>
       <div className="flex items-baseline justify-between gap-3">
         {grouped ? (
           <span className="text-sm leading-none font-medium">{item.label ?? field.label}</span>

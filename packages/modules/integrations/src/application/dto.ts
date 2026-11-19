@@ -27,6 +27,7 @@ export interface ConfigFieldDto {
   description: string | null;
   type: "text" | "url" | "email" | "number" | "boolean" | "select";
   options: string[];
+  optionLabels: Record<string, string>;
   optional: boolean;
   defaultValue: unknown;
 }
@@ -104,6 +105,7 @@ interface JsonProperty {
   type?: string;
   format?: string;
   enum?: unknown[];
+  optionLabels?: Record<string, string>;
   title?: string;
   description?: string;
   default?: unknown;
@@ -122,6 +124,7 @@ export function configFields(schema: z.ZodObject): ConfigFieldDto[] {
     description: property.description ?? null,
     type: fieldType(property),
     options: (property.enum ?? []).map(String),
+    optionLabels: property.optionLabels ?? {},
     optional: !(json.required ?? []).includes(key) || property.default !== undefined,
     defaultValue: property.default ?? null,
   }));

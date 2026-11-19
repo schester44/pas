@@ -78,3 +78,17 @@ export { makeRateTerm, type RateTerm } from "./application/rate-term";
 export { makeBillingOptions, type BillingOptions } from "./application/billing-options";
 export type { BillingMethodOption } from "./domain/billing-methods";
 export type { AgencyBilling, AgencyBillCheck } from "./ports/agency-bill-check";
+export type { CarrierGateway } from "./ports/carrier-gateway";
+export type { CarrierQuoteState } from "./domain/carrier-quote";
+export {
+  makeApplyCarrierQuote,
+  makeRequestCarrierQuote,
+  type CarrierQuotingDeps,
+} from "./application/carrier-quoting";
+export {
+  makeContinueCarrierBind,
+  type ContinueCarrierBind,
+  type ContinueCarrierBindDeps,
+} from "./application/carrier-bind";
+export { carrierInputFor } from "./application/carrier-input";
+export type { BindDeps } from "./application/bind-quote";

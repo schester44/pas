@@ -60,7 +60,9 @@ export function CommandPalette({
   const trpc = useTRPC();
   const [search, setSearch] = useState("");
   const query = useDebouncedValue(search.trim(), 120);
-  const { recent, remember } = useRecentSearches(`pas.admin.search.${session.user.id}`);
+  const { queries, remember } = useRecentSearches(`pas.admin.search.${session.user.id}`);
+
+  const viewed = useQuery({ ...trpc.search.recent.queryOptions(), enabled: open });
 
   const results = useQuery({
     ...trpc.search.query.queryOptions({ q: query }),
@@ -82,7 +84,7 @@ export function CommandPalette({
   }
 
   function openResult(result: SearchResult) {
-    remember(result, search);
+    remember(search);
 
     run(() => {
       switch (result.type) {
@@ -103,9 +105,7 @@ export function CommandPalette({
             params: { submissionId: result.id },
           });
         case "client":
-          return result.policyId
-            ? navigate({ to: "/policies/$policyId", params: { policyId: result.policyId } })
-            : navigate({ to: "/clients" });
+          return navigate({ to: "/clients/$clientId", params: { clientId: result.id } });
         case "product":
           return navigate({ to: "/products/$productId", params: { productId: result.id } });
         case "member":
@@ -128,7 +128,12 @@ export function CommandPalette({
         {search.trim() ? (
           <SearchResultGroups results={results.data ?? []} keyword={search} onSelect={openResult} />
         ) : (
-          <RecentGroups recent={recent} onSelectResult={openResult} onSelectQuery={setSearch} />
+          <RecentGroups
+            viewed={viewed.data ?? []}
+            queries={queries}
+            onSelectResult={openResult}
+            onSelectQuery={setSearch}
+          />
         )}
         <CommandGroup heading="Go to">
           <CommandItem onSelect={() => run(() => navigate({ to: "/" }))}>

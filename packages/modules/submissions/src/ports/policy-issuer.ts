@@ -9,6 +9,8 @@ export interface MoneyJson {
 
 export interface NewBusinessRequest {
   quoteId: string;
+  /** The carrier's number when it owns policy numbering (PLAN §12); otherwise ours. */
+  policyNumber?: string;
   submissionId: string;
   productId: string;
   productName: string;

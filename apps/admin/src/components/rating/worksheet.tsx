@@ -8,7 +8,7 @@ import type { Coverage } from "@/components/catalog/version-editor";
 import { formatMoney } from "@/lib/format";
 import { coverageLabel, exposureLabel } from "./model";
 import type { RatingPreview } from "./use-rating";
-import { readable } from "@/lib/readable";
+import { formatMessage } from "@/lib/messages";
 
 const NUMBER = /^-?\d+(\.\d+)?$/;
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
@@ -58,7 +58,7 @@ export function Worksheet({
       ) : preview.status === "error" ? (
         <div className="p-(--card-p)">
           <Notice tone="error" title="Couldn't rate the sample">
-            {readable(preview.message, coverages)}
+            {formatMessage(preview, coverages)}
           </Notice>
         </div>
       ) : (

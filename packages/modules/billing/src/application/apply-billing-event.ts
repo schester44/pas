@@ -33,6 +33,18 @@ export const formatMoney = (money: Money) =>
     Number(money.toString()),
   );
 
+/** Events that move money on an invoice; each is published as `billing.event_applied` for the billing system. */
+export const MONEY_EVENT_TYPES: ReadonlySet<string> = new Set<BillingEvent["type"]>([
+  "payment.received",
+  "payment.reversed",
+  "refund.issued",
+  "credit.applied",
+  "credit.removed",
+  "writeoff.applied",
+  "writeoff.removed",
+  "invoice.adjusted",
+]);
+
 const methodLabel = (event: BillingEvent) =>
   event.method?.last4
     ? `${event.method.brand ?? "Card"} ending ${event.method.last4}`
@@ -292,6 +304,25 @@ export async function applyBillingEventIn(
   }
 
   if (invoice) await deps.invoices.save(tx, invoice);
+
+  if (invoice && MONEY_EVENT_TYPES.has(event.type)) {
+    await emit("billing.event_applied", {
+      appliedAt: clock.now().toString(),
+      eventId: event.eventId,
+      source: event.source,
+      type: event.type,
+      creditNoteId: event.creditNoteId ?? null,
+      amount: event.amount?.toJSON() ?? null,
+      lines: (event.lines ?? []).map((l) => ({
+        kind: l.kind,
+        code: l.code,
+        amount: l.amount.toJSON(),
+      })),
+      provider: event.provider ?? null,
+      reference: event.reference ?? null,
+      method: event.method ? { ...event.method } : null,
+    });
+  }
 
   if (invoice && !invoice.isUnpaid && deps.mortgageeBills) {
     const bill = await deps.mortgageeBills.findByInvoice(tx, ctx, invoice.id);

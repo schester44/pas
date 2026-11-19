@@ -12,10 +12,13 @@ export function Breadcrumb({
     <span className="flex min-w-0 items-center gap-1.5">
       {parents.map((parent, i) => (
         <Fragment key={i}>
-          <span className="shrink-0 font-medium text-muted-foreground transition-colors [&_a]:outline-none [&_a:hover]:text-foreground [&_a:focus-visible]:text-foreground">
+          <span className="hidden shrink-0 font-medium sm:inline text-muted-foreground transition-colors [&_a]:outline-none [&_a:hover]:text-foreground [&_a:focus-visible]:text-foreground">
             {parent}
           </span>
-          <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
+          <ChevronRight
+            aria-hidden
+            className="hidden size-4 shrink-0 text-muted-foreground/70 sm:block"
+          />
         </Fragment>
       ))}
       {current === undefined ? (

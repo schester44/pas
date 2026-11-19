@@ -155,9 +155,9 @@ function Queue() {
             ),
           }))}
         />
-        <div className="ml-auto flex flex-wrap gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto">
           <Select value={product} onValueChange={setProduct}>
-            <SelectTrigger size="sm" className="w-44">
+            <SelectTrigger size="sm" className="col-span-2 w-full sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -170,7 +170,7 @@ function Queue() {
             </SelectContent>
           </Select>
           <Select value={state} onValueChange={setState}>
-            <SelectTrigger size="sm" className="w-36">
+            <SelectTrigger size="sm" className="w-full sm:w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -183,7 +183,7 @@ function Queue() {
             </SelectContent>
           </Select>
           <Select value={older} onValueChange={setOlder}>
-            <SelectTrigger size="sm" className="w-40">
+            <SelectTrigger size="sm" className="w-full sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

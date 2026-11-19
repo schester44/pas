@@ -32,6 +32,7 @@ interface FakeRun {
   currentStep: string;
   output: unknown;
   error: string | null;
+  cancelReason: string | null;
   completedAt: Instant | null;
 }
 
@@ -79,6 +80,7 @@ export class InMemoryWorkflows implements Workflows {
       currentStep: "__start__",
       output: null,
       error: null,
+      cancelReason: null,
       completedAt: null,
     };
 
@@ -106,12 +108,13 @@ export class InMemoryWorkflows implements Workflows {
     if (run.status === "waiting") await this.execute(run);
   }
 
-  async cancel(ctx: TenantContext, runId: string): Promise<void> {
+  async cancel(ctx: TenantContext, runId: string, reason?: string): Promise<void> {
     const run = this.find(ctx, runId);
 
     if (run.status === "completed" || run.status === "failed") return;
 
     run.status = "cancelled";
+    run.cancelReason = reason ?? null;
     run.completedAt = this.clock.now();
   }
 
@@ -125,6 +128,7 @@ export class InMemoryWorkflows implements Workflows {
       currentStep: run.currentStep,
       output: run.output,
       error: run.error,
+      cancelReason: run.cancelReason,
       createdAt: run.createdAt,
       completedAt: run.completedAt,
     };

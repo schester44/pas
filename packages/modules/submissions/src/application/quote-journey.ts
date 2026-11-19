@@ -1,4 +1,10 @@
-import { invalid, type TenantContext, workflowRef, type Workflows } from "@pas/kernel";
+import {
+  invalid,
+  type TenantContext,
+  workflowRef,
+  workflowSubject,
+  type Workflows,
+} from "@pas/kernel";
 import type { Quote } from "../domain/quote";
 
 export interface QuoteJourneyInput {
@@ -31,17 +37,28 @@ export type JourneyEvent = (typeof JOURNEY_EVENTS)[keyof typeof JOURNEY_EVENTS];
 
 /** Starts are idempotent per quote, so signalling never needs a stored run id. */
 export class QuoteJourney {
-  constructor(private readonly workflows: Workflows) {}
+  /** `onPriced` follows every start and signal, e.g. to ask the carrier for its quote. */
+  constructor(
+    private readonly workflows: Workflows,
+    private readonly onPriced?: (ctx: TenantContext, quote: Quote) => Promise<void>,
+  ) {}
 
-  start(ctx: TenantContext, quote: Quote) {
+  async start(ctx: TenantContext, quote: Quote) {
     const q = quote.toSnapshot();
 
-    return this.workflows.start(
+    const run = await this.workflows.start(
       ctx,
       quoteJourneyWorkflow,
       { quoteId: q.id, submissionId: q.submissionId },
-      { idempotencyKey: `quote.journey:${q.id}` },
+      {
+        idempotencyKey: `quote.journey:${q.id}`,
+        subjects: [workflowSubject("quote", q.id), workflowSubject("submission", q.submissionId)],
+      },
     );
+
+    await this.onPriced?.(ctx, quote);
+
+    return run;
   }
 
   async signal(

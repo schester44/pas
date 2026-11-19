@@ -28,6 +28,7 @@ export {
   type LicensingResult,
 } from "./application/check-producer-license";
 export { makeRecordCommissions, type RecordCommissions } from "./application/record-commissions";
+export { makeCommissionFacts, type CommissionFacts } from "./application/commission-facts";
 export {
   makeAgencyStatement,
   type AgencyStatement,
@@ -62,4 +63,9 @@ export {
   type AgencyBilling,
   type AgencyBillingTerms,
 } from "./application/agency-billing";
-export { REMITTANCE_BASES, type RemittanceBasis } from "./domain/agency";
+export {
+  COMMISSION_BASES,
+  type CommissionBasis,
+  REMITTANCE_BASES,
+  type RemittanceBasis,
+} from "./domain/agency";

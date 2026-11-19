@@ -1,6 +1,6 @@
 import type { Permission } from "@pas/auth";
 import type { TenantContext } from "@pas/kernel";
-import { SEARCH_TYPES, type SearchType } from "@pas/search";
+import { RECENT_TYPES, type RecentType, SEARCH_TYPES, type SearchType } from "@pas/search";
 import { z } from "zod";
 import { appTenantProcedure } from "./app-tenant";
 import { bookScopeOf } from "./book-scope";
@@ -68,3 +68,29 @@ export const appSearch = appTenantProcedure.input(searchInput).query(async ({ ct
     types,
   });
 });
+
+const viewedInput = z.object({ type: z.enum(RECENT_TYPES), id: z.uuid() });
+
+const recentProcedures = (procedure: typeof tenantProcedure, staff: boolean) => ({
+  recent: procedure.query(async ({ ctx }) => {
+    const scope = await bookScopeOf(ctx, ctx.tenant);
+
+    const allowed = await allowedTypes(ctx, ctx.tenant, staff && scope.kind === "tenant", [
+      ...RECENT_TYPES,
+    ]);
+
+    return ctx.container.useCases.recentViews.list(ctx.tenant, scope, {
+      userId: ctx.session.user.id,
+      types: allowed as RecentType[],
+    });
+  }),
+  viewed: procedure.input(viewedInput).mutation(({ ctx, input }) =>
+    ctx.container.useCases.recentViews.record(ctx.tenant, {
+      userId: ctx.session.user.id,
+      ...input,
+    }),
+  ),
+});
+
+export const adminRecent = recentProcedures(tenantProcedure, true);
+export const appRecent = recentProcedures(appTenantProcedure, false);

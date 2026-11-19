@@ -57,7 +57,11 @@ export {
   type BillingEventType,
 } from "./domain/billing-event";
 export type { BillingMethod } from "./domain/billing-schedule";
-export { billingEventFrom, type InboundBillingEvent } from "./application/inbound-event";
+export {
+  billingEventFrom,
+  nativeBillingEventFrom,
+  type InboundBillingEvent,
+} from "./application/inbound-event";
 export {
   makeAgencyStatements,
   type AgencyStatementDto,
@@ -83,3 +87,4 @@ export type { BillingMail } from "./ports/billing-mail";
 export type { Lender } from "./domain/mortgagee-bill";
 export type { PayerAddress, PayerDetails } from "./domain/invoice";
 export type { StatementStatus } from "./domain/agency-statement";
+export { makeBillingSystemSeam, type BillingSystemSeam } from "./application/billing-system-seam";

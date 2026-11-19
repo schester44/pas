@@ -9,7 +9,8 @@ export type BindRequirementKind =
   | "diligent_search"
   | "attestation"
   | "signature"
-  | "payment";
+  | "payment"
+  | "carrier";
 
 export interface BindRequirement {
   id: string;
@@ -29,6 +30,8 @@ export interface BindRequirementInput {
   details: BindDetails | null;
   signed: boolean;
   paid: boolean;
+  /** The carrier's quote when it rates or confirms; binding waits for it. */
+  carrier?: { name: string; quoted: boolean } | null;
 }
 
 /**
@@ -48,6 +51,16 @@ export function deriveBindRequirements(input: BindRequirementInput): BindRequire
       satisfied: hasCompleteParties(details),
     },
   ];
+
+  if (input.carrier) {
+    requirements.push({
+      id: "carrier",
+      kind: "carrier",
+      title: `Quote from ${input.carrier.name}`,
+      blocking: true,
+      satisfied: input.carrier.quoted,
+    });
+  }
 
   const search = input.diligentSearch;
 

@@ -1,0 +1,267 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ACORD XML > writes a cancellation as a HomePolicyCancelRq with the return premium 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<ACORD>
+  <SignonRq>
+    <ClientDt>2027-07-02T07:00:00Z</ClientDt>
+    <CustLangPref>en-US</CustLangPref>
+    <ClientApp>
+      <Org>MGA01</Org>
+      <Name>Acme MGA</Name>
+      <Version>1.0</Version>
+    </ClientApp>
+  </SignonRq>
+  <InsuranceSvcRq>
+    <RqUID>01a1f1c9-0000-7000-8000-000000000abc</RqUID>
+    <SPName>YAB1D</SPName>
+    <TestInd>1</TestInd>
+    <HomePolicyCancelRq>
+      <RqUID>00000000-0000-7000-8000-000000000103</RqUID>
+      <TransactionRequestDt>2027-07-01T15:00:00Z</TransactionRequestDt>
+      <TransactionEffectiveDt>2027-07-01</TransactionEffectiveDt>
+      <CurCd>USD</CurCd>
+      <Producer>
+        <GeneralPartyInfo>
+          <NameInfo>
+            <CommlName>
+              <CommercialName>Lakeshore Insurance Group</CommercialName>
+            </CommlName>
+          </NameInfo>
+        </GeneralPartyInfo>
+        <ProducerInfo>
+          <ContractNumber>A100</ContractNumber>
+          <ProducerSubCode>P001</ProducerSubCode>
+          <ProducerRoleCd>Agency</ProducerRoleCd>
+        </ProducerInfo>
+      </Producer>
+      <InsuredOrPrincipal>
+        <GeneralPartyInfo>
+          <NameInfo>
+            <PersonName>
+              <Surname>Sample</Surname>
+              <GivenName>Pat</GivenName>
+            </PersonName>
+          </NameInfo>
+          <Addr>
+            <AddrTypeCd>MailingAddress</AddrTypeCd>
+            <Addr1>100 Sample St</Addr1>
+            <City>Springfield</City>
+            <StateProvCd>IL</StateProvCd>
+            <PostalCode>62701</PostalCode>
+            <CountryCd>US</CountryCd>
+          </Addr>
+          <Communications>
+            <EmailInfo>
+              <EmailAddr>pat.sample@example.com</EmailAddr>
+            </EmailInfo>
+          </Communications>
+        </GeneralPartyInfo>
+        <InsuredOrPrincipalInfo>
+          <InsuredOrPrincipalRoleCd>Insured</InsuredOrPrincipalRoleCd>
+        </InsuredOrPrincipalInfo>
+      </InsuredOrPrincipal>
+      <PersPolicy>
+        <PolicyNumber>SAMPLE-0001</PolicyNumber>
+        <LOBCd>HOME</LOBCd>
+        <ContractTerm>
+          <EffectiveDt>2027-01-01</EffectiveDt>
+          <ExpirationDt>2028-01-01</ExpirationDt>
+        </ContractTerm>
+        <BillingMethodCd>CPB</BillingMethodCd>
+        <CurrentTermAmt>
+          <Amt>698.10</Amt>
+        </CurrentTermAmt>
+        <ControllingStateProvCd>IL</ControllingStateProvCd>
+        <CancelInfo>
+          <CancelEffectiveDt>2027-07-01</CancelEffectiveDt>
+          <CancelReasonDesc>Insured's request</CancelReasonDesc>
+          <ReturnPremiumAmt>
+            <Amt>-694.40</Amt>
+          </ReturnPremiumAmt>
+        </CancelInfo>
+        <WrittenAmt>
+          <Amt>-694.40</Amt>
+        </WrittenAmt>
+        <TotalAmt>
+          <Amt>-694.40</Amt>
+        </TotalAmt>
+      </PersPolicy>
+      <Location id="L1">
+        <Addr>
+          <Addr1>100 Sample St</Addr1>
+          <City>Springfield</City>
+          <StateProvCd>IL</StateProvCd>
+          <PostalCode>62701</PostalCode>
+          <CountryCd>US</CountryCd>
+        </Addr>
+      </Location>
+    </HomePolicyCancelRq>
+  </InsuranceSvcRq>
+</ACORD>
+"
+`;
+
+exports[`ACORD XML > writes an endorsement as a HomePolicyModRq with the change and the full policy image 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<ACORD>
+  <SignonRq>
+    <ClientDt>2027-07-02T07:00:00Z</ClientDt>
+    <CustLangPref>en-US</CustLangPref>
+    <ClientApp>
+      <Org>MGA01</Org>
+      <Name>Acme MGA</Name>
+      <Version>1.0</Version>
+    </ClientApp>
+  </SignonRq>
+  <InsuranceSvcRq>
+    <RqUID>01a1f1c9-0000-7000-8000-000000000abc</RqUID>
+    <SPName>YAB1D</SPName>
+    <TestInd>1</TestInd>
+    <HomePolicyModRq>
+      <RqUID>00000000-0000-7000-8000-000000000102</RqUID>
+      <TransactionRequestDt>2027-04-01T15:00:00Z</TransactionRequestDt>
+      <TransactionEffectiveDt>2027-04-01</TransactionEffectiveDt>
+      <CurCd>USD</CurCd>
+      <Producer>
+        <GeneralPartyInfo>
+          <NameInfo>
+            <CommlName>
+              <CommercialName>Lakeshore Insurance Group</CommercialName>
+            </CommlName>
+          </NameInfo>
+        </GeneralPartyInfo>
+        <ProducerInfo>
+          <ContractNumber>A100</ContractNumber>
+          <ProducerSubCode>P001</ProducerSubCode>
+          <ProducerRoleCd>Agency</ProducerRoleCd>
+        </ProducerInfo>
+      </Producer>
+      <InsuredOrPrincipal>
+        <GeneralPartyInfo>
+          <NameInfo>
+            <PersonName>
+              <Surname>Sample</Surname>
+              <GivenName>Pat</GivenName>
+            </PersonName>
+          </NameInfo>
+          <Addr>
+            <AddrTypeCd>MailingAddress</AddrTypeCd>
+            <Addr1>100 Sample St</Addr1>
+            <City>Springfield</City>
+            <StateProvCd>IL</StateProvCd>
+            <PostalCode>62701</PostalCode>
+            <CountryCd>US</CountryCd>
+          </Addr>
+          <Communications>
+            <EmailInfo>
+              <EmailAddr>pat.sample@example.com</EmailAddr>
+            </EmailInfo>
+          </Communications>
+        </GeneralPartyInfo>
+        <InsuredOrPrincipalInfo>
+          <InsuredOrPrincipalRoleCd>Insured</InsuredOrPrincipalRoleCd>
+        </InsuredOrPrincipalInfo>
+      </InsuredOrPrincipal>
+      <PersPolicy>
+        <PolicyNumber>SAMPLE-0001</PolicyNumber>
+        <LOBCd>HOME</LOBCd>
+        <ContractTerm>
+          <EffectiveDt>2027-01-01</EffectiveDt>
+          <ExpirationDt>2028-01-01</ExpirationDt>
+        </ContractTerm>
+        <BillingMethodCd>CPB</BillingMethodCd>
+        <CurrentTermAmt>
+          <Amt>1392.50</Amt>
+        </CurrentTermAmt>
+        <ControllingStateProvCd>IL</ControllingStateProvCd>
+        <ChangeStatus>
+          <ActionCd>M</ActionCd>
+          <Description>Dwelling limit: 400000 to 450000</Description>
+        </ChangeStatus>
+        <WrittenAmt>
+          <Amt>112.50</Amt>
+        </WrittenAmt>
+        <TotalAmt>
+          <Amt>112.50</Amt>
+        </TotalAmt>
+      </PersPolicy>
+      <Location id="L1">
+        <Addr>
+          <Addr1>100 Sample St</Addr1>
+          <City>Springfield</City>
+          <StateProvCd>IL</StateProvCd>
+          <PostalCode>62701</PostalCode>
+          <CountryCd>US</CountryCd>
+        </Addr>
+      </Location>
+      <HomeLineBusiness>
+        <LOBCd>HOME</LOBCd>
+        <Dwell LocationRef="L1">
+          <Construction>
+            <YearBuilt>1998</YearBuilt>
+            <ConstructionCd>frame</ConstructionCd>
+          </Construction>
+          <Coverage>
+            <CoverageCd>DWELL</CoverageCd>
+            <CoverageDesc>Dwelling</CoverageDesc>
+            <Limit>
+              <FormatCurrencyAmt>
+                <Amt>450000.00</Amt>
+              </FormatCurrencyAmt>
+            </Limit>
+            <Deductible>
+              <FormatCurrencyAmt>
+                <Amt>1000.00</Amt>
+              </FormatCurrencyAmt>
+            </Deductible>
+            <CurrentTermAmt>
+              <Amt>1350.00</Amt>
+            </CurrentTermAmt>
+            <WrittenAmt>
+              <Amt>112.50</Amt>
+            </WrittenAmt>
+          </Coverage>
+          <AdditionalInterest id="AI1">
+            <GeneralPartyInfo>
+              <NameInfo>
+                <CommlName>
+                  <CommercialName>Sample Savings Bank, ISAOA/ATIMA</CommercialName>
+                </CommlName>
+              </NameInfo>
+              <Addr>
+                <AddrTypeCd>MailingAddress</AddrTypeCd>
+                <Addr1>100 Sample St</Addr1>
+                <City>Springfield</City>
+                <StateProvCd>IL</StateProvCd>
+                <PostalCode>62701</PostalCode>
+                <CountryCd>US</CountryCd>
+              </Addr>
+            </GeneralPartyInfo>
+            <AdditionalInterestInfo>
+              <NatureInterestCd>MORTG</NatureInterestCd>
+              <AccountNumberId>LN-000123</AccountNumberId>
+            </AdditionalInterestInfo>
+          </AdditionalInterest>
+        </Dwell>
+        <Coverage>
+          <CoverageCd>PL</CoverageCd>
+          <CoverageDesc>Personal liability</CoverageDesc>
+          <Limit>
+            <FormatCurrencyAmt>
+              <Amt>300000.00</Amt>
+            </FormatCurrencyAmt>
+          </Limit>
+          <CurrentTermAmt>
+            <Amt>80.00</Amt>
+          </CurrentTermAmt>
+          <WrittenAmt>
+            <Amt>0.00</Amt>
+          </WrittenAmt>
+        </Coverage>
+      </HomeLineBusiness>
+    </HomePolicyModRq>
+  </InsuranceSvcRq>
+</ACORD>
+"
+`;

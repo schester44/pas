@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@pas/carriers": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/decisions-engine": "workspace:*",
     "@pas/documents": "workspace:*",

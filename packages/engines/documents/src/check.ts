@@ -19,6 +19,7 @@ export type DocumentTarget =
 export interface DocumentIssue {
   severity: "error" | "warning";
   message: string;
+  params?: Record<string, { kind: "jurisdiction"; code: string }>;
   target: DocumentTarget;
 }
 
@@ -41,8 +42,8 @@ class Checker {
     this.risk = indexSchema(schema);
   }
 
-  error(target: DocumentTarget, message: string) {
-    this.issues.push({ severity: "error", target, message });
+  error(target: DocumentTarget, message: string, params?: DocumentIssue["params"]) {
+    this.issues.push({ severity: "error", target, message, ...(params && { params }) });
   }
 
   warn(target: DocumentTarget, message: string) {
@@ -229,7 +230,11 @@ export function checkDocuments(
 
       for (const code of variant.jurisdictions) {
         if (!JURISDICTION.test(code)) checker.error(target, `${code} isn't a jurisdiction code`);
-        else if (claimed.has(code)) checker.error(target, `${code} already has a variant`);
+        else if (claimed.has(code)) {
+          checker.error(target, "{jurisdiction} already has a variant", {
+            jurisdiction: { kind: "jurisdiction", code },
+          });
+        }
 
         claimed.add(code);
       }

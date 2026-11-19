@@ -77,15 +77,7 @@ function CoverageGroup({ exposure, coverages }: { exposure: string; coverages: C
 
 function RiskDetails({ policy }: { policy: Policy }) {
   const trpc = useTRPC();
-
-  const submission = useQuery(trpc.submissions.get.queryOptions({ id: policy.sourceSubmissionId }));
-
-  const setup = useQuery({
-    ...trpc.policies.changes.endorsementSetup.queryOptions({ policyId: policy.id }),
-    retry: false,
-  });
-
-  const settled = submission.data && !setup.isPending;
+  const risk = useQuery(trpc.policies.risk.queryOptions({ id: policy.id }));
 
   return (
     <section className="grid gap-4">
@@ -93,18 +85,12 @@ function RiskDetails({ policy }: { policy: Policy }) {
         <h2 className="m-0 text-base leading-6 font-semibold">Risk details</h2>
         <p className="m-0 text-sm text-muted-foreground">As of the latest issued change.</p>
       </div>
-      {submission.error ? (
+      {risk.error || risk.data?.form === null ? (
         <p className="m-0 text-sm text-muted-foreground">Risk details aren't available.</p>
-      ) : !settled ? (
+      ) : !risk.data?.form ? (
         <div className="h-64 animate-pulse rounded-xl bg-muted/60" />
       ) : (
-        <div className="grid gap-6">
-          <CapturedData
-            schema={setup.data?.schema ?? submission.data.riskSchema}
-            form={submission.data.form}
-            data={setup.data?.risk ?? submission.data.riskData}
-          />
-        </div>
+        <CapturedData schema={risk.data.schema} form={risk.data.form} data={risk.data.risk} />
       )}
     </section>
   );

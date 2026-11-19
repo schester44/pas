@@ -4,6 +4,7 @@ import {
   type Clock,
   DomainError,
   invalid,
+  jurisdictionCode,
   Money,
   notFound,
   type Outbox,
@@ -43,6 +44,7 @@ import type { FieldChange, TransactionDetails } from "../domain/transaction";
 import type { InvoiceIssuer, IssuedInvoice } from "../ports/invoice-issuer";
 import type { PolicyProductConfig, PolicyRelease } from "../ports/product-config";
 import type { PolicyRepository } from "../ports/policy-repository";
+import type { CarrierTransactions } from "../ports/carrier-transactions";
 import type { CoverageAmount, CoverageChoice, TermRater } from "../ports/term-rater";
 
 export interface ChangeDeps {
@@ -53,6 +55,8 @@ export interface ChangeDeps {
   config: PolicyProductConfig;
   rater: TermRater;
   clocks: ClockProvider;
+  /** Carrier-owned changes go to the carrier first (PLAN §12); absent where no carrier is wired. */
+  carriers?: CarrierTransactions;
 }
 
 export interface Authority {
@@ -426,7 +430,7 @@ export async function priceCancellation(
   deps: Pick<ChangeDeps, "config" | "rater" | "clocks">,
   ctx: TenantContext,
   policy: Policy,
-  input: { reason: string; effectiveDate?: PlainDate; note?: string },
+  input: { reason: string; effectiveDate?: PlainDate; note?: string; transactionId?: string },
 ): Promise<CancellationPricing> {
   const term = policy.currentTerm;
   const snapshot = policy.latestVersion(term.id).snapshot;
@@ -476,7 +480,7 @@ export async function priceCancellation(
     input.effectiveDate ?? (lastChange ? maxDate(earliest.date, lastChange) : earliest.date);
 
   assertCancellationDate(effectiveDate, earliest);
-  policy.assertChangeable(term.id, "CANCELLATION", effectiveDate);
+  policy.assertChangeable(term.id, "CANCELLATION", effectiveDate, input.transactionId);
 
   const terms = decide(release, "cancellation_terms", data);
   const currency = term.writtenPremium.currency;
@@ -656,16 +660,17 @@ export async function billIssued(
   charges: ReturnType<Policy["issueTransaction"]>,
   actor: Parameters<Policy["billTransaction"]>[2],
 ): Promise<void> {
+  const clock = deps.clocks.forTenant(ctx.tenantId);
   const term = policy.currentTerm;
   const billable = charges.filter((line) => !line.amount.isZero());
 
   if (billable.length === 0) {
-    policy.billTransaction(transactionId, null, actor, deps.clocks.forTenant(ctx.tenantId));
+    policy.billTransaction(transactionId, null, actor, clock);
 
     return;
   }
 
-  const issuedOn = today(deps.clocks.forTenant(ctx.tenantId)).toString();
+  const issuedOn = today(clock).toString();
 
   const transaction = policy.transaction(transactionId);
 
@@ -676,18 +681,14 @@ export async function billIssued(
     transactionId,
     transactionType: transaction.type,
     effectiveDate: transaction.effectiveDate.toString(),
+    jurisdiction: jurisdictionCode(term.jurisdiction),
     currency: term.writtenPremium.currency,
     charges: billable.map((line) => ({ ...line, amount: line.amount.toJSON() })),
     issuedOn,
     dueOn: issuedOn,
   });
 
-  policy.billTransaction(
-    transactionId,
-    transactionInvoice(invoice),
-    actor,
-    deps.clocks.forTenant(ctx.tenantId),
-  );
+  policy.billTransaction(transactionId, transactionInvoice(invoice), actor, clock);
 }
 
 const moneyOf = (value: { amount: string; currency: string }) =>

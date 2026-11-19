@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { asId } from "@pas/kernel";
 import { z } from "zod";
 import { addressRouter } from "./addresses";
 import { statementQueries } from "./billing";
@@ -8,7 +9,7 @@ import { bookScopeOf } from "./book-scope";
 import { clientRouter } from "./client";
 import { policyChangesRouter, type ScopeResolver } from "./policy-changes";
 import { authedProcedure, publicProcedure, router } from "./init";
-import { appSearch } from "./search";
+import { appRecent, appSearch } from "./search";
 import { producerUnderwritingRouter } from "./underwriting";
 import {
   availableProductsInput,
@@ -70,6 +71,20 @@ export const appRouter = router({
         return resolved.status === "tenant"
           ? { status: resolved.status, tenant: resolved.tenant }
           : resolved;
+      }),
+    sandboxTime: publicProcedure
+      .input(z.object({ host: z.string().min(1).max(260), slug: z.string().max(63).nullish() }))
+      .query(async ({ ctx, input }) => {
+        const resolved = await ctx.container.useCases.tenants.resolveTenantByHost(input);
+
+        if (resolved.status !== "tenant" || !resolved.tenant.sandbox) return null;
+
+        const environment = await ctx.container.useCases.tenants.environment({
+          tenantId: asId(resolved.tenantId),
+          actor: { type: "system", process: "app-sandbox-banner" },
+        });
+
+        return { now: environment.now };
       }),
   }),
 
@@ -199,7 +214,7 @@ export const appRouter = router({
       ),
   }),
 
-  search: router({ query: appSearch }),
+  search: router({ query: appSearch, ...appRecent }),
 
   underwriting: producerUnderwritingRouter,
 
@@ -253,6 +268,13 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input),
       ),
+    carrier: inBook({ policy: ["read"] })
+      .input(policyById)
+      .query(async ({ ctx, input }) => {
+        await ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input);
+
+        return ctx.container.carriers.services.policyLink(ctx.tenant, { policyId: input.id });
+      }),
     billing: inBook({ policy: ["read"] })
       .input(policyById)
       .query(({ ctx, input }) =>

@@ -1,4 +1,5 @@
 import { indexSchema, type RiskSchema } from "@pas/forms-core";
+import type { MessageParams } from "@pas/kernel";
 import {
   checkBindingManifest,
   checkRatingPlan,
@@ -14,6 +15,7 @@ export type RatingSection = "engine" | "tables" | "algorithms" | "workbook" | "m
 export interface RatingIssue {
   severity: "error" | "warning";
   message: string;
+  params?: MessageParams;
   target: {
     section: RatingSection;
     coverage?: string;
@@ -31,11 +33,18 @@ export function ratingPaths(schema: RiskSchema): string[] {
   );
 }
 
-const error = (target: RatingIssue["target"], message: string): RatingIssue => ({
+const error = (
+  target: RatingIssue["target"],
+  message: string,
+  params?: MessageParams,
+): RatingIssue => ({
   severity: "error",
   target,
   message,
+  ...(params && { params }),
 });
+
+const coverageParam = (code: string): MessageParams => ({ coverage: { kind: "coverage", code } });
 
 function planIssue(issue: PlanIssue): RatingIssue {
   const section = issue.table ? "tables" : issue.coverage ? "algorithms" : "engine";
@@ -49,6 +58,7 @@ function planIssue(issue: PlanIssue): RatingIssue {
       ...(issue.property && { property: issue.property }),
     },
     issue.message,
+    issue.params,
   );
 }
 
@@ -90,6 +100,7 @@ export function staticIssues(
         error(
           { section: "manifest", ...(issue.property && { property: issue.property }) },
           issue.message,
+          issue.params,
         ),
       );
     }
@@ -104,8 +115,9 @@ export function staticIssues(
       error(
         { section: rating.engine === "plan" ? "algorithms" : "manifest", coverage: code },
         rating.engine === "plan"
-          ? `Add an algorithm for ${code}`
-          : `Bind a premium output for ${code}`,
+          ? "Add an algorithm for {coverage}"
+          : "Bind a premium output for {coverage}",
+        coverageParam(code),
       ),
     );
   }
@@ -121,27 +133,32 @@ export function staticIssues(
   return issues;
 }
 
-function describeFailure(result: GoldenCaseResult): string {
-  if (result.error) return `Golden case “${result.name}” can't be rated: ${result.error}`;
+function describeFailure(result: GoldenCaseResult): { message: string; params?: MessageParams } {
+  if (result.error)
+    return { message: `Golden case “${result.name}” can't be rated: ${result.error}` };
 
   const [first] = result.diffs;
   const more = result.diffs.length > 1 ? ` (+${result.diffs.length - 1} more)` : "";
 
-  if (!first) return `Golden case “${result.name}” fails`;
+  if (!first) return { message: `Golden case “${result.name}” fails` };
 
+  const outcome = `expected ${first.expected}, got ${first.actual ?? "nothing"}${more}`;
   const premium = /^premium ([^@]+)(?:@(.+))?$/.exec(first.field);
 
-  const field = premium
-    ? `${premium[1]} premium${premium[2] ? ` for ${premium[2]}` : ""}`
-    : first.field;
+  if (!premium) return { message: `Golden case “${result.name}”: ${first.field} ${outcome}` };
 
-  return `Golden case “${result.name}”: ${field} expected ${first.expected}, got ${first.actual ?? "nothing"}${more}`;
+  return {
+    message: `Golden case “${result.name}”: {coverage} premium${premium[2] ? ` for ${premium[2]}` : ""} ${outcome}`,
+    params: coverageParam(premium[1]!),
+  };
 }
 
 export function goldenIssues(rating: RatingConfig, report: GoldenReport): RatingIssue[] {
-  return report.cases.flatMap((result, i) =>
-    result.passed
-      ? []
-      : [error({ section: "golden", golden: rating.goldenCases[i]?.id }, describeFailure(result))],
-  );
+  return report.cases.flatMap((result, i) => {
+    if (result.passed) return [];
+
+    const { message, params } = describeFailure(result);
+
+    return [error({ section: "golden", golden: rating.goldenCases[i]?.id }, message, params)];
+  });
 }

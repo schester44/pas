@@ -37,6 +37,11 @@ export {
   type EndorsementSetupDto,
   type GetEndorsementSetup,
 } from "./application/get-endorsement-setup";
+export {
+  makeGetPolicyRisk,
+  type GetPolicyRisk,
+  type PolicyRiskDto,
+} from "./application/get-policy-risk";
 export { makeQuoteEndorsement, type QuoteEndorsement } from "./application/quote-endorsement";
 export {
   makeDiscardTransaction,
@@ -115,3 +120,9 @@ export {
   type GetTransactionFacts,
   type TransactionFactsDto,
 } from "./application/get-transaction-facts";
+export {
+  makeCompleteCarrierTransaction,
+  type CompleteCarrierTransaction,
+} from "./application/complete-carrier-transaction";
+export type { CarrierTransactions } from "./ports/carrier-transactions";
+export { withCarrierCharges, type CarrierCharges } from "./domain/carrier-charges";

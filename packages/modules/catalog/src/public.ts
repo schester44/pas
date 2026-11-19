@@ -102,3 +102,4 @@ export type {
   RatingTarget,
   RatingVerifier,
 } from "./ports/rating-verifier";
+export type { CarrierVerifier } from "./ports/carrier-verifier";

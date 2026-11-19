@@ -5,13 +5,15 @@ import {
   conflict,
   type Id,
   type Instant,
-  type Money,
+  formatMoney,
+  Money,
   newId,
   type PlainDate,
   type TenantId,
   type UserId,
 } from "@pas/kernel";
 import type { BindDetails } from "./bind-details";
+import type { CarrierBindState, CarrierQuoteResult, CarrierQuoteState } from "./carrier-quote";
 import {
   type ActivityActor,
   CATEGORY,
@@ -248,12 +250,15 @@ export class Quote extends AggregateRoot {
   requirements(): BindRequirement[] {
     const { evaluation, details, signature, payment, revision } = this.props;
 
+    const carrier = evaluation.carrier;
+
     return deriveBindRequirements({
       diligentSearch: evaluation.diligentSearch,
       attestations: evaluation.attestations,
       details,
       signed: signature?.revision === revision,
       paid: payment !== null,
+      carrier: carrier && { name: carrier.name, quoted: carrier.status === "quoted" },
     });
   }
 
@@ -265,6 +270,7 @@ export class Quote extends AggregateRoot {
     clock: Clock,
   ): void {
     this.guard("requote", clock);
+    this.assertNotWithCarrier();
     const now = clock.now();
 
     this.props = {
@@ -284,7 +290,12 @@ export class Quote extends AggregateRoot {
   recheck(evaluation: QuoteEvaluation, reviewWithin: Temporal.Duration, clock: Clock): boolean {
     this.guard("bind", clock);
     const outcome = outcomeOf(evaluation.reasons, this.props.approvedReasonCodes);
-    const repriced = !evaluation.total.equals(this.props.evaluation.total);
+    const carrier = this.props.evaluation.carrier;
+    const pasTotal = carrier?.pas?.total ?? this.props.evaluation.total.toJSON();
+
+    const repriced =
+      evaluation.total.toString() !== pasTotal.amount ||
+      evaluation.total.currency !== pasTotal.currency;
 
     if (outcome === "quoted" && !repriced) return true;
 
@@ -442,6 +453,162 @@ export class Quote extends AggregateRoot {
     return activity;
   }
 
+  get carrier(): CarrierQuoteState | null {
+    return this.props.evaluation.carrier ?? null;
+  }
+
+  /** The carrier's quote flow started for this revision. */
+  carrierRequested(input: { name: string; flowRunId: string | null }, clock: Clock): void {
+    const carrier = this.requireCarrier();
+
+    const now = clock.now();
+
+    this.setCarrier(
+      { ...carrier, name: input.name, flowRunId: input.flowRunId, updatedAt: now.toString() },
+      now,
+    );
+  }
+
+  /**
+   * The carrier answered. With figures replaced (carrier figures win) the premium lines, taxes
+   * and fees become the carrier's; the PAS figures and the diff stay for the explanation.
+   */
+  applyCarrierQuote(
+    result: CarrierQuoteResult,
+    figures: Pick<
+      QuoteEvaluation,
+      "premium" | "writtenPremium" | "taxesFees" | "total" | "payPlans"
+    > | null,
+    clock: Clock,
+  ): void {
+    const carrier = this.requireCarrier();
+    const now = clock.now();
+    const before = this.props.evaluation;
+
+    this.props = {
+      ...this.props,
+      evaluation: {
+        ...before,
+        ...figures,
+        carrier: {
+          ...carrier,
+          status: result.status,
+          reference: result.reference ?? carrier.reference,
+          messages: result.messages,
+          pas: carrier.pas ?? {
+            premium: before.writtenPremium.toJSON(),
+            total: before.total.toJSON(),
+          },
+          diff: result.diff,
+          updatedAt: now.toString(),
+        },
+      },
+      updatedAt: now,
+    };
+
+    const actor = { type: "system" as const, name: carrier.name };
+    const messages = result.messages.map((m) => m.text).join("; ");
+
+    if (result.status === "quoted") {
+      const total = this.props.evaluation.total;
+      const moved = result.diff && result.diff.difference !== "0" ? result.diff : null;
+
+      const summary = `${carrier.name} quoted ${formatMoney(total)}${moved ? ` (${moved.difference.startsWith("-") ? "" : "+"}${formatMoney(Money.of(moved.difference, total.currency))} vs our rating)` : ""}`;
+
+      this.log("carrier_quoted", now, actor, summary, {
+        reference: result.reference,
+        figuresWin: figures !== null,
+        ...(result.diff && { diff: result.diff }),
+      });
+
+      return;
+    }
+
+    const verb = {
+      referred: "referred the quote",
+      declined: "declined the quote",
+      failed: "couldn't quote",
+    }[result.status];
+
+    const type = {
+      referred: "carrier_referred",
+      declined: "carrier_declined",
+      failed: "carrier_failed",
+    }[result.status] as QuoteActivityType;
+
+    this.log(type, now, actor, `${carrier.name} ${verb}${messages ? `: ${messages}` : ""}`, {
+      reference: result.reference,
+    });
+  }
+
+  /** A carrier-owned bind is with the carrier; nothing changes here until it answers. */
+  submitToCarrier(
+    state: Omit<CarrierBindState, "status" | "message" | "startedAt">,
+    clock: Clock,
+  ): void {
+    this.guard("bind", clock);
+    const carrier = this.requireCarrier();
+    const now = clock.now();
+
+    this.setCarrier(
+      {
+        ...carrier,
+        bind: { ...state, status: "pending_carrier", message: null, startedAt: now.toString() },
+        updatedAt: now.toString(),
+      },
+      now,
+    );
+
+    this.log(
+      "carrier_submitted",
+      now,
+      { type: "system", name: carrier.name },
+      `Sent to ${carrier.name} to ${state.phase}`,
+      {
+        flowRunId: state.flowRunId,
+        phase: state.phase,
+      },
+    );
+  }
+
+  carrierIssued(clock: Clock): void {
+    const carrier = this.requireCarrier();
+    const now = clock.now();
+
+    if (!carrier.bind) return;
+
+    this.setCarrier(
+      { ...carrier, bind: { ...carrier.bind, status: "issued" }, updatedAt: now.toString() },
+      now,
+    );
+  }
+
+  carrierFailed(message: string, clock: Clock): void {
+    const carrier = this.requireCarrier();
+    const now = clock.now();
+
+    if (!carrier.bind) return;
+
+    this.setCarrier(
+      {
+        ...carrier,
+        bind: { ...carrier.bind, status: "failed", message },
+        updatedAt: now.toString(),
+      },
+      now,
+    );
+
+    this.log(
+      "carrier_failed",
+      now,
+      { type: "system", name: carrier.name },
+      `${carrier.name} didn't bind: ${message}`,
+      {
+        flowRunId: carrier.bind.flowRunId,
+      },
+    );
+  }
+
   markBound(
     input: { policy: { id: string; number: string }; payment: PaymentRecord | null },
     clock: Clock,
@@ -542,6 +709,33 @@ export class Quote extends AggregateRoot {
       summary,
       data,
     });
+  }
+
+  private requireCarrier(): CarrierQuoteState {
+    const carrier = this.props.evaluation.carrier;
+
+    if (!carrier) throw conflict(`Quote ${this.props.submissionNumber} has no carrier quote`);
+
+    return carrier;
+  }
+
+  private setCarrier(carrier: CarrierQuoteState, now: Instant): void {
+    this.props = {
+      ...this.props,
+      evaluation: { ...this.props.evaluation, carrier },
+      updatedAt: now,
+    };
+  }
+
+  private assertNotWithCarrier(): void {
+    if (this.props.evaluation.carrier?.bind?.status === "pending_carrier") {
+      throw conflict(
+        `Quote ${this.props.submissionNumber} is with the carrier to bind; wait for its answer`,
+        {
+          reason: "pending_carrier",
+        },
+      );
+    }
   }
 
   private guard(action: Action, clock: Clock): void {

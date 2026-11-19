@@ -57,7 +57,9 @@ function SearchPalette({
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const query = useDebouncedValue(search.trim(), 120);
-  const { recent, remember } = useRecentSearches(`pas.app.search.${userId}`);
+  const { queries, remember } = useRecentSearches(`pas.app.search.${userId}`);
+
+  const viewed = useQuery({ ...trpc.search.recent.queryOptions(), enabled: open });
 
   const results = useQuery({
     ...trpc.search.query.queryOptions({ q: query }),
@@ -79,7 +81,7 @@ function SearchPalette({
   }
 
   function openResult(result: SearchResult) {
-    remember(result, search);
+    remember(search);
 
     run(() =>
       result.type === "submission"
@@ -110,7 +112,12 @@ function SearchPalette({
         {search.trim() ? (
           <SearchResultGroups results={results.data ?? []} keyword={search} onSelect={openResult} />
         ) : (
-          <RecentGroups recent={recent} onSelectResult={openResult} onSelectQuery={setSearch} />
+          <RecentGroups
+            viewed={viewed.data ?? []}
+            queries={queries}
+            onSelectResult={openResult}
+            onSelectQuery={setSearch}
+          />
         )}
         <CommandGroup heading="Go to">
           <CommandItem

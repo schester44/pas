@@ -176,7 +176,8 @@ export function checkBindingManifest(
     if (binding.kind === "premium" && earlier) {
       issues.push({
         property,
-        message: `Another output already holds the premium for ${binding.coverage}`,
+        message: "Another output already holds the premium for {coverage}",
+        params: { coverage: { kind: "coverage", code: binding.coverage } },
       });
     }
   });

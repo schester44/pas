@@ -42,6 +42,7 @@ const TYPE_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   quoted: "Quoted",
   pending_approval: "Pending approval",
+  pending_carrier: "Pending carrier",
   scheduled: "Scheduled",
   issued: "Issued",
 };

@@ -17,6 +17,8 @@ model Agency {
   creditLimit               Decimal?  @map("credit_limit") @db.Decimal(18, 2)
   /// gross | net (net deducts the commission from what the agency remits)
   remittanceBasis           String    @default("gross") @map("remittance_basis")
+  /// written | collected; null follows the billing method (agency bill written, direct bill collected)
+  commissionBasis           String?   @map("commission_basis")
   /// Account current cut-off day of month; null cuts off at month end.
   statementDay              Int?      @map("statement_day")
   reminderDays              Int?      @map("reminder_days")

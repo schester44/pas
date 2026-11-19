@@ -1,6 +1,6 @@
 import { checkDocuments, type DocumentSet, type DocumentTarget } from "@pas/documents";
 import { checkReferences, schemaIndex } from "@pas/forms-core";
-import { jurisdictionCode, sameJurisdiction } from "@pas/kernel";
+import { jurisdictionCode, type MessageParams, sameJurisdiction } from "@pas/kernel";
 import { checkPayPlans } from "@pas/pay-plans";
 import {
   type AvailabilityKind,
@@ -36,11 +36,13 @@ export type CheckTarget =
     }
   | { area: "rules"; decision?: string; node?: string; rule?: string; test?: string }
   | { area: "billing"; plan?: string; field?: string }
-  | ({ area: "rating" } & RatingTarget);
+  | ({ area: "rating" } & RatingTarget)
+  | { area: "carrier" };
 
 export interface CheckIssue {
   severity: "error" | "warning";
   message: string;
+  params?: MessageParams;
   target: CheckTarget;
 }
 
@@ -63,6 +65,7 @@ export const formKey = (form: Pick<VersionForm, "channel" | "stage">) =>
 export interface ResolvedReferences {
   formEditions?: ReadonlySet<string>;
   rating?: readonly RatingIssue[];
+  carrier?: readonly { severity: "error" | "warning"; message: string }[];
 }
 
 export function checkVersion(
@@ -81,6 +84,10 @@ export function checkVersion(
     ...(resolved.rating ?? []).map((issue) => ({
       ...issue,
       target: { area: "rating" as const, ...issue.target },
+    })),
+    ...(resolved.carrier ?? []).map((issue) => ({
+      ...issue,
+      target: { area: "carrier" as const },
     })),
   ];
 }
@@ -325,13 +332,14 @@ function checkAvailability(
   availability.forEach((window, i) => {
     const code = jurisdictionCode(window.jurisdiction);
     const target = { area: "overview" as const, jurisdiction: code };
+    const params = { jurisdiction: { kind: "jurisdiction", code } } as const;
 
     if (
       availability.findIndex((other) =>
         sameJurisdiction(other.jurisdiction, window.jurisdiction),
       ) !== i
     ) {
-      issues.push(error(target, `${code} is listed more than once`));
+      issues.push(error(target, "{jurisdiction} is listed more than once", params));
 
       return;
     }
@@ -340,7 +348,10 @@ function checkAvailability(
       const own = windowFor(window, kind);
 
       if (own.to && Temporal.PlainDate.compare(own.to, own.from) <= 0) {
-        issues.push(error(target, `${KIND_LABEL[kind]} in ${code} ends before it starts`));
+        issues.push(
+          error(target, `${KIND_LABEL[kind]} in {jurisdiction} ends before it starts`, params),
+        );
+
         continue;
       }
 
@@ -355,7 +366,7 @@ function checkAvailability(
 
         if (!windowsOverlap(own, theirs)) continue;
 
-        issues.push(overlapIssue(target, kind, code, own, theirs, other.version));
+        issues.push(overlapIssue(target, kind, params, own, theirs, other.version));
       }
     }
   });
@@ -366,17 +377,18 @@ function checkAvailability(
 function overlapIssue(
   target: CheckTarget,
   kind: AvailabilityKind,
-  code: string,
+  params: MessageParams,
   own: DateWindow,
   theirs: DateWindow,
   version: string,
 ): CheckIssue {
-  const label = `${KIND_LABEL[kind]} in ${code}`;
+  const label = `${KIND_LABEL[kind]} in {jurisdiction}`;
 
   if (own.from.equals(theirs.from)) {
     return error(
       target,
-      `${label} starts on ${own.from.toString()}, the same day as published version ${version}. Pick a different start date.`,
+      `${label} starts on {start}, the same day as published version ${version}. Pick a different start date.`,
+      { ...params, start: { kind: "date", value: own.from.toString() } },
     );
   }
 
@@ -386,9 +398,10 @@ function overlapIssue(
     severity: "warning",
     target,
     message: `${label} overlaps published version ${version}. Where both apply, ${later} wins because it starts later.`,
+    params,
   };
 }
 
-function error(target: CheckTarget, message: string): CheckIssue {
-  return { severity: "error", target, message };
+function error(target: CheckTarget, message: string, params?: MessageParams): CheckIssue {
+  return { severity: "error", target, message, ...(params && { params }) };
 }

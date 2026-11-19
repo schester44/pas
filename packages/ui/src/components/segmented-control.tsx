@@ -23,7 +23,10 @@ function SegmentedControl<T extends string>({
       value={value}
       onValueChange={(next) => next && onValueChange(next as T)}
       aria-label={label}
-      className={cn("inline-flex h-8 items-center gap-0.5 rounded-md bg-muted p-0.5", className)}
+      className={cn(
+        "inline-flex h-8 max-w-full items-center gap-0.5 overflow-x-auto rounded-md bg-muted p-0.5 [scrollbar-width:none]",
+        className,
+      )}
     >
       {options.map((option) => (
         <ToggleGroup.Item
@@ -31,7 +34,7 @@ function SegmentedControl<T extends string>({
           value={option.value}
           disabled={option.disabled}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors",
+            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[5px] px-2.5 text-sm font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors",
             "hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
             "data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs",
             "disabled:pointer-events-none disabled:opacity-50",

@@ -15,19 +15,26 @@ import {
 import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
 import {
   BadgeCheck,
+  Banknote,
+  BookOpen,
   Building,
+  ChartColumn,
   ClipboardCheck,
   Building2,
   Check,
   ChevronsUpDown,
   FileStack,
+  FolderDown,
   House,
+  HandCoins,
   Inbox,
+  Landmark,
   Layers,
   LogOut,
   Percent,
   Plus,
   ReceiptText,
+  Scale,
   ScrollText,
   ShieldCheck,
   Search,
@@ -167,11 +174,28 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 <ShieldCheck /> Compliance
               </Link>
             )}
-            {access.billing.read && (
-              <Link to="/billing/statements" className={navItemClassName}>
-                <ReceiptText /> Agency statements
-              </Link>
-            )}
+          </NavSection>
+        )}
+        {access.billing.read && (
+          <NavSection label="Billing">
+            <Link to="/billing/payments" className={navItemClassName}>
+              <Banknote /> Payments
+            </Link>
+            <Link to="/billing/apply" className={navItemClassName}>
+              <HandCoins /> Cash application
+            </Link>
+            <Link to="/billing/ledger" className={navItemClassName}>
+              <BookOpen /> Ledger
+            </Link>
+            <Link to="/billing/reports" className={navItemClassName}>
+              <ChartColumn /> Reports
+            </Link>
+            <Link to="/billing/reconciliation" className={navItemClassName}>
+              <Scale /> Reconciliation
+            </Link>
+            <Link to="/billing/statements" className={navItemClassName}>
+              <ReceiptText /> Agency statements
+            </Link>
           </NavSection>
         )}
         {access.agencies.read && (
@@ -187,6 +211,9 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 <Link to="/distribution/commissions" className={navItemClassName}>
                   <Percent /> Commissions
                 </Link>
+                <Link to="/distribution/downloads" className={navItemClassName}>
+                  <FolderDown /> Downloads
+                </Link>
               </>
             )}
           </NavSection>
@@ -196,6 +223,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             {access.products.read && (
               <Link to="/products" className={navItemClassName}>
                 <Layers /> Products
+              </Link>
+            )}
+            {access.products.read && (
+              <Link to="/carriers" className={navItemClassName}>
+                <Landmark /> Carriers
               </Link>
             )}
             {access.documents.read && (

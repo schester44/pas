@@ -1,5 +1,5 @@
 import type { RiskSchema } from "@pas/forms-core";
-import type { TenantContext } from "@pas/kernel";
+import type { MessageParams, TenantContext } from "@pas/kernel";
 import type { RatingConfig } from "@pas/rating-engine";
 
 export type RatingSection = "engine" | "tables" | "algorithms" | "workbook" | "manifest" | "golden";
@@ -16,6 +16,7 @@ export interface RatingTarget {
 export interface RatingIssue {
   severity: "error" | "warning";
   message: string;
+  params?: MessageParams;
   target: RatingTarget;
 }
 

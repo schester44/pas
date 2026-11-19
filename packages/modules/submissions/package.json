@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pas/addresses": "workspace:*",
+    "@pas/carriers": "workspace:*",
     "@pas/catalog": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/decisions-engine": "workspace:*",

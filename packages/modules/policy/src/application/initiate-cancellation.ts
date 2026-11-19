@@ -4,6 +4,7 @@ import type { PolicyScope } from "../domain/scope";
 import { type CancellationDeps, commitCancellation } from "./commit-cancellation";
 import { type TransactionDto, toTransactionDto } from "./dto";
 import { type Authority, loadPolicy, priceCancellation } from "./pricing";
+import { carrierOwning, delegateToCarrier } from "./carrier-delegation";
 
 /**
  * Initiates a cancellation. With authority it schedules at once (notice, pending_cancellation);
@@ -29,6 +30,39 @@ export function makeInitiateCancellation(deps: CancellationDeps) {
       effectiveDate: parsePlainDate(input.effectiveDate),
       ...(input.note && { note: input.note }),
     });
+
+    const owner = input.authority.issue
+      ? await carrierOwning(deps, ctx, policy, "CANCELLATION")
+      : null;
+
+    if (owner) {
+      const quoted = await deps.uow.run(ctx, async (tx) => {
+        const current = await loadPolicy(deps, ctx, scope, input.policyId, tx);
+
+        const transaction = current.quoteTransaction(
+          {
+            termId: current.currentTerm.id,
+            type: "CANCELLATION",
+            effectiveDate: pricing.effectiveDate,
+            details: pricing.details,
+            actor: input.actor,
+          },
+          deps.clocks.forTenant(ctx.tenantId),
+        );
+
+        await deps.policies.save(tx, current);
+
+        return transaction;
+      });
+
+      return delegateToCarrier(deps, ctx, scope, {
+        policyId: input.policyId,
+        transactionId: quoted.id,
+        actor: input.actor,
+        carrier: owner.carrier,
+        capability: owner.capability,
+      });
+    }
 
     if (input.authority.issue) {
       return commitCancellation(deps, ctx, scope, {

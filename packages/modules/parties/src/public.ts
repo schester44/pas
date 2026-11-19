@@ -12,6 +12,11 @@ export {
   type SearchClientAccounts,
 } from "./application/search-client-accounts";
 export {
+  makeGetClientAccount,
+  type ClientAccountDetailDto,
+  type GetClientAccount,
+} from "./application/get-client-account";
+export {
   makeGetPolicyClients,
   type GetPolicyClients,
   type PolicyClientDto,

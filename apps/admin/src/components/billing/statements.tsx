@@ -117,13 +117,15 @@ export function StatementsTable({ agencyId }: { agencyId?: string }) {
                 <button
                   type="button"
                   onClick={() => open(s.id)}
-                  className="grid w-full gap-1 px-(--card-p) py-3.5 text-left hover:bg-muted/40"
+                  className="grid w-full grid-cols-1 gap-1 px-(--card-p) py-3.5 text-left hover:bg-muted/40"
                 >
-                  <span className="flex items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium tabular-nums">
+                  <span className="flex min-w-0 items-center justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm font-medium tabular-nums">
                       {s.number} · {s.agencyName}
                     </span>
-                    <StatementStatus status={s.status} />
+                    <span className="shrink-0">
+                      <StatementStatus status={s.status} />
+                    </span>
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     Due {formatPlainDate(s.dueOn)} · {money(s.totals.balance)} open of{" "}

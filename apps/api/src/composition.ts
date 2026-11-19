@@ -23,6 +23,7 @@ import {
   PrismaProductRepository,
   PrismaProductVersionRepository,
 } from "@pas/catalog/infrastructure";
+import { composeAgencyDownloads } from "@pas/agency-downloads/infrastructure";
 import { composeCompliance } from "@pas/compliance/infrastructure";
 import { getPrismaClient, PrismaUnitOfWork } from "@pas/db";
 import {
@@ -62,8 +63,10 @@ import {
   makeChangeProducer,
   makeDiscardTransaction,
   makeGetEndorsementSetup,
+  makeGetPolicyRisk,
   makeGetPolicy,
   makeGetTransactionFacts,
+  makeGetTransactionFinancials,
   makeInitiateCancellation,
   makeIssueNewBusiness,
   makeIssueTransaction,
@@ -95,6 +98,7 @@ import {
   makeClientInvoices,
   makeGetClientPolicy,
   makeGetClientProfile,
+  makeGetClientAccount,
   makeGetPolicyClients,
   makeLinkPolicyInsureds,
   makeListClientPolicies,
@@ -130,12 +134,14 @@ import {
   AesSecretBox,
   builtinProviders,
   composeIntegrations,
+  agencyDownloadChannelsFrom,
   filingChannelsFrom,
   inspectionProviders,
   licensingProviders,
 } from "@pas/integrations/infrastructure";
 import {
   makeAgencyBilling,
+  makeCommissionFacts,
   makeAgencyStatement,
   makeCheckProducerLicense,
   makeManageAgencies,
@@ -152,8 +158,8 @@ import {
   PrismaMemberDirectory,
   PrismaProducerRepository,
 } from "@pas/distribution/infrastructure";
-import { makeSearch } from "@pas/search";
-import { PostgresSearchIndex } from "@pas/search/infrastructure";
+import { makeRecentViews, makeSearch } from "@pas/search";
+import { PostgresSearchIndex, PrismaRecentViews } from "@pas/search/infrastructure";
 import {
   AppHosts,
   makeGetProfile,
@@ -189,6 +195,7 @@ import {
   makeSaveDraft,
   makeSignQuote,
   makeQuoteTimers,
+  makeRequestCarrierQuote,
   makeStartSubmission,
   makeSubmitSubmission,
   QuoteJourney,
@@ -214,9 +221,14 @@ import {
   SubmissionsQuoteDesk,
 } from "@pas/underwriting/infrastructure";
 import { composeApiBillingMethods } from "./billing-methods";
+import { composeApiCarriers, mockCarrier } from "./carriers";
+import { PrismaCarrierCloner } from "@pas/carriers/infrastructure";
+import { composeApiLedger } from "./ledger";
 import { env } from "./env";
 import { sandboxAccess } from "./sandbox-access";
-import { makeSandboxTimers } from "./sandbox-timers";
+import { makeRunDescriber, makeSandboxTimers, type RunDescriberDeps } from "./sandbox-timers";
+import { makeWorkflowRuns } from "./workflow-runs";
+import { makeClientDetail } from "./client-detail";
 
 const party = (policyIds: readonly string[]) => ({ kind: "party" as const, policyIds });
 
@@ -294,7 +306,7 @@ export function compose() {
     tenantTime: clocks,
   });
 
-  const journey = new QuoteJourney(workflows);
+  const journey = new QuoteJourney(workflows, (ctx, quote) => requestCarrierQuote(ctx, quote));
   const quotes = new PrismaQuoteRepository();
   const policies = new PrismaPolicyRepository();
 
@@ -462,6 +474,40 @@ export function compose() {
     get: makeGetPolicy({ uow, policies, storage }),
   };
 
+  const secretBox = new AesSecretBox(process.env.INTEGRATIONS_SECRET_KEY);
+
+  const carriers = composeApiCarriers({
+    prisma,
+    uow,
+    clocks,
+    storage,
+    secrets: secretBox,
+    isSandbox: (ctx) => integrations.resolver.isSandbox(ctx.tenantId),
+    workflows: () => workflows,
+    publicUrl: process.env.PUBLIC_API_URL ?? env.BETTER_AUTH_URL,
+    sendEmail: async (ctx, message) => {
+      await (await emailFor.for(ctx)).send(message);
+    },
+    senderName: async (ctx) => (await getProfile(ctx)).displayName,
+    sources: {
+      products: (ctx) => catalog.listProducts(ctx),
+      releases: (ctx, productId) => makeListProductReleases({ uow, releases })(ctx, { productId }),
+      release: (ctx, id) => productCatalog.getRelease(ctx, id),
+      policies: (ctx, scope) => policy.list(ctx, scope, { limit: 1000 }),
+      policy: (ctx, scope, id) => policy.get.detail(ctx, scope, { id }),
+    },
+  });
+
+  const requestCarrierQuote = makeRequestCarrierQuote({
+    uow,
+    outbox,
+    quotes,
+    submissions,
+    catalog: productCatalog,
+    carrier: carriers.gateway,
+    clocks,
+  });
+
   const compliance = composeCompliance({
     uow,
     outbox,
@@ -483,7 +529,41 @@ export function compose() {
     tenantName: async (ctx) => (await getProfile(ctx)).displayName,
   });
 
-  const applyPayment = makeApplyPayment({ applyEvent: applyBillingEvent, clocks });
+  const agencyDownloads = composeAgencyDownloads({
+    uow,
+    outbox,
+    clocks,
+    storage,
+    channels: agencyDownloadChannelsFrom(integrations),
+    policy: {
+      facts: makeGetTransactionFacts({ uow, policies }),
+      financials: makeGetTransactionFinancials({ uow, policies }),
+      policies: policy.get,
+      products: { get: catalog.getProduct, list: catalog.listProducts },
+    },
+    agencies: distribution.agencies,
+    statements: distribution.statements,
+    obligations: compliance.tracked,
+    tenantName: async (ctx) => (await getProfile(ctx)).displayName,
+    workflows: () => workflows,
+  });
+
+  const nativeLedger = composeApiLedger({
+    uow,
+    outbox,
+    clocks,
+    listInvoices: makeListInvoices({ uow, invoices }),
+    commissionFacts: makeCommissionFacts(distributionDeps),
+    invoices,
+    billingEvents: billingEvents.events,
+    applyEvent: applyBillingEvent,
+    payments: cardGateway,
+    resolver: integrations.resolver,
+  });
+
+  const applyPayment = nativeLedger.cardPaymentsThroughLedger(
+    makeApplyPayment({ applyEvent: applyBillingEvent, clocks }),
+  );
 
   const setAutopay = makeSetAutopay({
     uow,
@@ -553,6 +633,7 @@ export function compose() {
     search: makeSearchClientAccounts({ uow, ...partyRepos }),
     merge: makeMergeClientAccounts({ uow, outbox, ...partyRepos, clocks }),
     policyClients: makeGetPolicyClients({ uow, ...partyRepos }),
+    account: makeGetClientAccount({ uow, ...partyRepos }),
     resendInvite: makeResendPortalInvite({ uow, outbox, ...partyRepos, clocks }),
   };
 
@@ -692,7 +773,6 @@ export function compose() {
         ),
       appUrl: async (ctx) => (await getProfile(ctx)).appUrls[0]!,
     },
-    resolver: integrations.resolver,
   });
 
   const billingStatus = {
@@ -714,6 +794,7 @@ export function compose() {
     notices: new ReactPdfNoticeDocuments({ branding: documentBranding, jurisdictionName }),
     delivery: noticeDelivery,
     billing: billingStatus,
+    carriers: carriers.transactions,
   };
 
   const quoteEndorsement = makeQuoteEndorsement(policyChanges);
@@ -730,8 +811,7 @@ export function compose() {
 
   const environments = new PrismaTenantEnvironmentRepository();
 
-  const sandboxTimers = makeSandboxTimers({
-    workflows,
+  const runDescriberDeps: RunDescriberDeps = {
     obligations: compliance.timers,
     installments: makeInstallmentTimers({
       ...billingEvents,
@@ -753,6 +833,25 @@ export function compose() {
     subjectivities: underwriting.subjectivityTimers,
     agencyStatements: billingMethods.statements,
     mortgagee: billingMethods.mortgagee,
+  };
+
+  const sandboxTimers = makeSandboxTimers({ workflows, ...runDescriberDeps });
+  const searchIndex = new PostgresSearchIndex();
+  const search = makeSearch({ uow, index: searchIndex });
+
+  const recentViews = makeRecentViews({
+    uow,
+    index: searchIndex,
+    views: new PrismaRecentViews(),
+    clocks,
+  });
+
+  const workflowRuns = makeWorkflowRuns({
+    workflows,
+    describe: makeRunDescriber(runDescriberDeps),
+    search,
+    clocks,
+    queues,
   });
 
   const auth = createAuth({
@@ -800,6 +899,8 @@ export function compose() {
     clocks,
     integrations,
     events,
+    carriers,
+    mockCarrier: env.NODE_ENV === "production" ? null : mockCarrier(),
     useCases: {
       catalog: {
         createProduct: makeCreateProduct({ uow, outbox, products, clocks }),
@@ -817,6 +918,7 @@ export function compose() {
           versions,
           formEditions: formEditionDirectory,
           rating: ratingVerifier,
+          carriers: { verify: carriers.services.verify },
         }),
         publishVersion: makePublishProductVersion({
           uow,
@@ -826,6 +928,7 @@ export function compose() {
           releases,
           formEditions: formEditionDirectory,
           rating: ratingVerifier,
+          carriers: { verify: carriers.services.verify },
           clocks,
         }),
         listReleases: makeListProductReleases({ uow, releases }),
@@ -897,6 +1000,7 @@ export function compose() {
           storage,
           conditions: { outstanding: underwriting.outstanding },
           agencyBilling: billingMethods.agencyBillCheck,
+          carrier: carriers.gateway,
         }),
         decideReferral,
         choosePayPlan: makeChoosePayPlan({ uow, submissions, quotes, clocks }),
@@ -911,16 +1015,25 @@ export function compose() {
       },
       parties,
       compliance,
+      agencyDownloads,
       underwriting,
       addresses,
       distribution,
       billing: {
         statements: billingMethods.statements,
         mortgagee: billingMethods.mortgagee,
-        simulationAvailable: billingMethods.simulationAvailable,
+        simulationAvailable: nativeLedger.simulationAvailable,
         applyEvent: applyBillingEvent,
       },
-      search: makeSearch({ uow, index: new PostgresSearchIndex() }),
+      ledger: { ...nativeLedger.ledger, isNative: nativeLedger.isNative },
+      search,
+      recentViews,
+      workflowRuns,
+      clientDetail: makeClientDetail({
+        account: parties.account,
+        policies: policy.get,
+        submission: getSubmission,
+      }),
       policies: {
         list: policy.list,
         get: policy.get,
@@ -962,6 +1075,7 @@ export function compose() {
         },
         applyBillingEvent,
         endorsementSetup: makeGetEndorsementSetup(policyChanges),
+        risk: makeGetPolicyRisk(policyChanges),
         quoteEndorsement: async (
           ...[ctx, scope, input]: Parameters<ReturnType<typeof makeQuoteEndorsement>>
         ) =>
@@ -1004,6 +1118,7 @@ export function compose() {
             new PrismaCatalogCloner(uow),
             new PrismaDistributionCloner(uow),
             new PrismaUnderwritingSettingsCloner(uow),
+            new PrismaCarrierCloner(uow, secretBox),
           ],
           clocks,
         }),

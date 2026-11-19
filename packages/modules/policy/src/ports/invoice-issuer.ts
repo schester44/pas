@@ -40,6 +40,7 @@ export interface InvoiceIssuer {
       transactionId: string;
       transactionType: string;
       effectiveDate: string;
+      jurisdiction?: string;
       currency: string;
       charges: {
         kind: "written_premium" | "tax_fee";

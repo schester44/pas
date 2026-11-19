@@ -105,42 +105,32 @@ export function useDebouncedValue<T>(value: T, ms = 120): T {
   return debounced;
 }
 
-interface Recent {
-  results: SearchResult[];
-  queries: string[];
-}
-
-const EMPTY: Recent = { results: [], queries: [] };
-
-function readRecent(key: string): Recent {
+function readQueries(key: string): string[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? "null") as Recent | null;
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "null") as { queries?: unknown } | null;
 
-    return parsed && Array.isArray(parsed.results) && Array.isArray(parsed.queries)
-      ? parsed
-      : EMPTY;
+    return Array.isArray(parsed?.queries)
+      ? parsed.queries.filter((q) => typeof q === "string")
+      : [];
   } catch {
-    return EMPTY;
+    return [];
   }
 }
 
-/** Recently opened results and the queries that found them, per user, in this browser. */
+/** Recent queries, per user, in this browser. Viewed records come from the server. */
 export function useRecentSearches(key: string) {
-  const [recent, setRecent] = useState<Recent>(() => readRecent(key));
+  const [queries, setQueries] = useState<string[]>(() => readQueries(key));
 
   const remember = useCallback(
-    (result: SearchResult, query: string) => {
-      setRecent((current) => {
-        const q = query.trim();
+    (query: string) => {
+      const q = query.trim();
 
-        const next: Recent = {
-          results: [result, ...current.results.filter((r) => r.id !== result.id)].slice(0, 5),
-          queries: q
-            ? [q, ...current.queries.filter((existing) => existing !== q)].slice(0, 3)
-            : current.queries,
-        };
+      if (!q) return;
 
-        localStorage.setItem(key, JSON.stringify(next));
+      setQueries((current) => {
+        const next = [q, ...current.filter((existing) => existing !== q)].slice(0, 3);
+
+        localStorage.setItem(key, JSON.stringify({ queries: next }));
 
         return next;
       });
@@ -148,7 +138,7 @@ export function useRecentSearches(key: string) {
     [key],
   );
 
-  return { recent, remember };
+  return { queries, remember };
 }
 
 function ResultItem({
@@ -212,19 +202,21 @@ export function SearchResultGroups({
 }
 
 export function RecentGroups({
-  recent,
+  viewed,
+  queries,
   onSelectResult,
   onSelectQuery,
 }: {
-  recent: Recent;
+  viewed: SearchResult[];
+  queries: string[];
   onSelectResult: (result: SearchResult) => void;
   onSelectQuery: (query: string) => void;
 }) {
   return (
     <>
-      {recent.results.length > 0 && (
+      {viewed.length > 0 && (
         <CommandGroup heading="Recently viewed">
-          {recent.results.map((result) => (
+          {viewed.map((result) => (
             <ResultItem
               key={result.id}
               result={result}
@@ -234,9 +226,9 @@ export function RecentGroups({
           ))}
         </CommandGroup>
       )}
-      {recent.queries.length > 0 && (
+      {queries.length > 0 && (
         <CommandGroup heading="Recent searches">
-          {recent.queries.map((query) => (
+          {queries.map((query) => (
             <CommandItem
               key={query}
               value={`recent-query:${query}`}

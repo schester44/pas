@@ -104,10 +104,7 @@ function ProducerPage() {
           <div className="h-60 animate-pulse rounded-xl bg-muted/60" />
         ) : (
           <>
-            <Panel
-              title={producer.data.name}
-              action={<ProducerStatus status={producer.data.status} />}
-            >
+            <Panel title="Producer" action={<ProducerStatus status={producer.data.status} />}>
               <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
                 <Fact label="Email">{producer.data.email}</Fact>
                 <Fact label="NPN">

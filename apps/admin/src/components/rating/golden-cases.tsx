@@ -34,6 +34,7 @@ import { useId, useState } from "react";
 import type { Contents } from "@/components/catalog/version-editor";
 import { newId } from "@/components/decisions/jdm-edit";
 import { formatMoney } from "@/lib/format";
+import { formatMessage } from "@/lib/messages";
 import { coverageLabel, coverageSelections, exposureLabel } from "./model";
 import { type RatingPreview, useRatingPreview } from "./use-rating";
 
@@ -608,7 +609,7 @@ function CaseInspector({
           </table>
           {preview.data?.status === "error" && (
             <p className="m-0 border-t px-(--card-p) py-3 text-sm text-red-700">
-              {preview.data.message}
+              {formatMessage(preview.data, contents.coverages)}
             </p>
           )}
         </div>

@@ -1,6 +1,7 @@
 import {
   invalid,
   jurisdiction,
+  jurisdictionCode,
   Money,
   type Outbox,
   parseInstant,
@@ -23,6 +24,7 @@ type MoneyJson = { amount: string; currency: string };
 
 export interface IssueNewBusinessInput {
   quoteId: string;
+  policyNumber?: string;
   submissionId: string;
   productId: string;
   productName: string;
@@ -125,7 +127,8 @@ export function makeIssueNewBusiness(deps: {
         Policy.issueNewBusiness(
           {
             tenantId: ctx.tenantId,
-            number: formatPolicyNumber(await deps.policies.nextSequence(tx, ctx)),
+            number:
+              input.policyNumber ?? formatPolicyNumber(await deps.policies.nextSequence(tx, ctx)),
             productId: input.productId,
             productName: input.productName,
             productReleaseId: input.productReleaseId,
@@ -170,6 +173,9 @@ export function makeIssueNewBusiness(deps: {
         transactionId: policy.firstTransaction.id,
         transactionType: "NEW_BUSINESS",
         effectiveDate: input.effectiveDate,
+        jurisdiction: jurisdictionCode(
+          jurisdiction(input.jurisdiction.country, input.jurisdiction.subdivision),
+        ),
         currency: input.currency,
         charges: lines.map((line) => ({
           kind: line.kind,

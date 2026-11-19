@@ -18,6 +18,7 @@ import {
 } from "@pas/underwriting";
 import { composeUnderwriting, SubmissionsQuoteDesk } from "@pas/underwriting/infrastructure";
 import type { DomainEventHandler } from "./handlers/domain-events";
+import { subjectsFrom } from "./workflow-subjects";
 import { makeInspectionWorkflow, makeSubjectivityWorkflow } from "./workflows/underwriting";
 
 const contextOf = (tenantId: string): TenantContext => ({
@@ -28,20 +29,28 @@ const contextOf = (tenantId: string): TenantContext => ({
 const submissionOf = (event: { payload: unknown }) =>
   (event.payload as { submissionId: string }).submissionId;
 
+type Tags = Record<string, unknown>;
+
 const timers = (workflows: Workflows) => ({
-  inspection: (tenantId: string, inspectionId: string) =>
+  inspection: (tenantId: string, inspectionId: string, tags: Tags = {}) =>
     workflows.start(
       contextOf(tenantId),
       inspectionWorkflow,
       { inspectionId },
-      { idempotencyKey: `underwriting.inspection:${inspectionId}` },
+      {
+        idempotencyKey: `underwriting.inspection:${inspectionId}`,
+        subjects: subjectsFrom({ ...tags, inspectionId }),
+      },
     ),
-  subjectivity: (tenantId: string, subjectivityId: string) =>
+  subjectivity: (tenantId: string, subjectivityId: string, tags: Tags = {}) =>
     workflows.start(
       contextOf(tenantId),
       subjectivityWorkflow,
       { subjectivityId },
-      { idempotencyKey: `underwriting.subjectivity:${subjectivityId}` },
+      {
+        idempotencyKey: `underwriting.subjectivity:${subjectivityId}`,
+        subjects: subjectsFrom({ ...tags, subjectivityId }),
+      },
     ),
 });
 
@@ -88,9 +97,11 @@ export function composeWorkerUnderwriting(deps: {
 
       const start = timers(workflows);
 
-      for (const id of result.awaitingOrder) await start.inspection(event.tenantId, id);
+      const tags = { quoteId: event.aggregateId, submissionId };
 
-      for (const id of result.awaitingDue) await start.subjectivity(event.tenantId, id);
+      for (const id of result.awaitingOrder) await start.inspection(event.tenantId, id, tags);
+
+      for (const id of result.awaitingDue) await start.subjectivity(event.tenantId, id, tags);
     };
 
   const close =
@@ -134,14 +145,18 @@ export function composeWorkerUnderwriting(deps: {
         async (event) => {
           const { inspectionId } = event.payload as { inspectionId: string };
 
-          await timers(workflows).inspection(event.tenantId, inspectionId);
+          await timers(workflows).inspection(event.tenantId, inspectionId, event.payload as Tags);
         },
       ],
       "underwriting.subjectivity_activated": [
         async (event) => {
           const { subjectivityId } = event.payload as { subjectivityId: string };
 
-          await timers(workflows).subjectivity(event.tenantId, subjectivityId);
+          await timers(workflows).subjectivity(
+            event.tenantId,
+            subjectivityId,
+            event.payload as Tags,
+          );
         },
       ],
       "underwriting.subjectivity_overdue": [

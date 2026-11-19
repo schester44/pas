@@ -26,6 +26,7 @@ import {
   slaiFilingProvider,
   testFilingProvider,
 } from "./providers/filing";
+import { ivansDownloadProvider } from "./providers/ivans";
 import { lobProvider } from "./providers/lob";
 import { postmarkProvider } from "./providers/postmark";
 import { resendProvider } from "./providers/resend";
@@ -66,6 +67,7 @@ export function composeIntegrations(deps: {
     testFilingProvider,
     fileExportFilingProvider,
     slaiFilingProvider,
+    ivansDownloadProvider,
   ]);
 
   const installs = new PrismaInstallRepository(deps.prisma);

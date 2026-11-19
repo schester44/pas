@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pas/addressing": "workspace:*",
+    "@pas/agency-downloads": "workspace:*",
     "@pas/compliance": "workspace:*",
     "@pas/db": "workspace:*",
     "@pas/enrichment": "workspace:*",

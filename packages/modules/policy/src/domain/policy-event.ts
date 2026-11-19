@@ -39,6 +39,7 @@ export const POLICY_EVENT_TYPES = {
     "subjectivity_overdue",
     "inspection_scheduled",
     "inspection_reviewed",
+    "inspection_cancelled",
   ],
   billing: [
     "invoice_issued",
@@ -69,6 +70,14 @@ export const POLICY_EVENT_TYPES = {
     "filing_accepted",
     "filing_rejected",
     "obligation_overdue",
+  ],
+  carrier: [
+    "carrier_quoted",
+    "carrier_referred",
+    "carrier_declined",
+    "carrier_failed",
+    "carrier_submitted",
+    "carrier_confirmed",
   ],
   note: ["note", "producer_changed", "data_corrected"],
 } as const;

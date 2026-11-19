@@ -17,12 +17,17 @@ export interface AgencyAddress {
 export const REMITTANCE_BASES = ["gross", "net"] as const;
 export type RemittanceBasis = (typeof REMITTANCE_BASES)[number];
 
+export const COMMISSION_BASES = ["written", "collected"] as const;
+export type CommissionBasis = (typeof COMMISSION_BASES)[number];
+
 /** Agency-bill eligibility and terms; billing reads them when it bills through the agency. */
 export interface AgencyBilling {
   eligible: boolean;
   remittanceDays: number | null;
   creditLimit: Money | null;
   remittanceBasis: RemittanceBasis;
+  /** When commission is payable; null follows the billing method (agency bill written, direct bill collected). */
+  commissionBasis: CommissionBasis | null;
   /** Account current cut-off day of month; null is the month end. */
   statementDay: number | null;
   reminderDays: number | null;

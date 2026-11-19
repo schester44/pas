@@ -159,6 +159,14 @@ function Detail({ integration }: { integration: Integration }) {
             <div className="grid gap-1">
               <p className="m-0 font-medium">{category?.label}</p>
               <p className="m-0 text-muted-foreground">{category?.port}</p>
+              {integration.category === "agency_downloads" && (
+                <Link
+                  to="/distribution/downloads"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Open downloads
+                </Link>
+              )}
             </div>
             <div className="grid gap-1">
               <p className="m-0 text-xs text-muted-foreground">
@@ -484,7 +492,7 @@ function ConfigField({
           <SelectContent>
             {field.options.map((option) => (
               <SelectItem key={option} value={option}>
-                {option}
+                {field.optionLabels[option] ?? option}
               </SelectItem>
             ))}
           </SelectContent>

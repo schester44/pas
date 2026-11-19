@@ -36,13 +36,21 @@ class Matcher {
   }
 
   private get serial() {
-    if (this.query.kind === "text") return null;
+    if (this.query.kind === "text" || this.query.kind === "ids") return null;
 
     return this.query.digits.replace(/^0+/, "");
   }
 
+  ids(column: Sql): Sql {
+    return this.query.kind === "ids"
+      ? Prisma.sql`${column} = any(${[...this.query.ids]}::uuid[])`
+      : NONE;
+  }
+
   number(column: Sql, prefix: string): Sql {
     const q = this.query;
+
+    if (q.kind === "ids") return NONE;
 
     if (q.kind === "text") return Prisma.sql`${column} ilike ${this.contains}`;
 
@@ -134,7 +142,7 @@ const policies: Builder = (m, ctx, scope, limit) => Prisma.sql`
     order by t.term_number desc limit 1
   ) t on true
   where p.tenant_id = ${ctx.tenantId} ${bookFilter(scope, Prisma.sql`p.producer_id`, Prisma.sql`p.agency_id`)}
-    and (${m.number(Prisma.sql`p.number`, "POL")} or ${m.text(Prisma.sql`p.insured_name`)}
+    and (${m.ids(Prisma.sql`p.id`)} or ${m.number(Prisma.sql`p.number`, "POL")} or ${m.text(Prisma.sql`p.insured_name`)}
       or ${m.address(Prisma.sql`s.risk_data`)})
   order by ${m.numberRank(Prisma.sql`p.number`)}, ${m.textRank(Prisma.sql`p.insured_name`)}, p.created_at desc
   limit ${limit}`;
@@ -147,7 +155,7 @@ const submissions: Builder = (m, ctx, scope, limit) => Prisma.sql`
   left join products pr on pr.tenant_id = s.tenant_id and pr.id = s.product_id
   left join quotes q on q.tenant_id = s.tenant_id and q.submission_id = s.id
   where s.tenant_id = ${ctx.tenantId} ${bookFilter(scope, Prisma.sql`s.producer_id`, Prisma.sql`s.agency_id`)}
-    and (${m.number(Prisma.sql`s.number`, "SUB")} or ${m.text(Prisma.sql`s.insured_name`)}
+    and (${m.ids(Prisma.sql`s.id`)} or ${m.number(Prisma.sql`s.number`, "SUB")} or ${m.text(Prisma.sql`s.insured_name`)}
       or ${m.address(Prisma.sql`s.risk_data`)})
   order by ${m.numberRank(Prisma.sql`s.number`)}, ${m.textRank(Prisma.sql`coalesce(s.insured_name, '')`)}, s.updated_at desc
   limit ${limit}`;
@@ -176,7 +184,7 @@ const clients: Builder = (m, ctx, scope, limit) => Prisma.sql`
   ) latest on true
   where c.tenant_id = ${ctx.tenantId} and c.status = 'active'
     ${scope.kind !== "tenant" ? Prisma.sql`and latest.policy_id is not null` : Prisma.empty}
-    and (${m.text(Prisma.sql`c.display_name`)} or ${m.anyText(Prisma.sql`c.email_keys`)}
+    and (${m.ids(Prisma.sql`c.id`)} or ${m.text(Prisma.sql`c.display_name`)} or ${m.anyText(Prisma.sql`c.email_keys`)}
       or ${m.anyDigits(Prisma.sql`c.phone_keys`)} or ${m.mailingAddress(Prisma.sql`c.mailing_address`)})
   order by ${m.textRank(Prisma.sql`c.display_name`)}, c.display_name, c.created_at desc
   limit ${limit}`;

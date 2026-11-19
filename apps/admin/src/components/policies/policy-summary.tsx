@@ -1,4 +1,6 @@
 import { Card } from "@pas/ui/components/card";
+import { useQuery } from "@tanstack/react-query";
+import { useTRPC } from "@/lib/trpc";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { daysUntil } from "@pas/ui/lib/policy-change";
 import type * as React from "react";
@@ -24,6 +26,7 @@ export function PolicySummary({ policy, billing }: { policy: Policy; billing?: B
             {" · "}
             {jurisdictionName(policy.jurisdiction)}
           </p>
+          <CarrierLine policyId={policy.id} />
         </div>
         <PolicyActions policy={policy} />
       </div>
@@ -104,5 +107,27 @@ function Fact({
         {hint && <span className="text-xs text-muted-foreground tabular-nums">{hint}</span>}
       </dd>
     </div>
+  );
+}
+
+/** The carrier that wrote the policy and its number for it (PLAN §12, policy number "both"). */
+function CarrierLine({ policyId }: { policyId: string }) {
+  const trpc = useTRPC();
+  const link = useQuery(trpc.carriers.policyLink.queryOptions({ policyId }));
+
+  if (!link.data) return null;
+
+  return (
+    <p className="m-0 text-sm text-muted-foreground">
+      Written through {link.data.carrierName}
+      {link.data.carrierPolicyNumber && (
+        <>
+          {" · carrier policy "}
+          <span className="font-medium text-foreground tabular-nums">
+            {link.data.carrierPolicyNumber}
+          </span>
+        </>
+      )}
+    </p>
   );
 }

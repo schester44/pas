@@ -16,6 +16,7 @@ import { PolicyDocumentList } from "@/components/policy-documents";
 import { BackLink } from "@/components/submission-heading";
 import { formatDate, formatPlainDate, formatPlainDateRange } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
+import { useRecordView } from "@/lib/recent-views";
 
 export const Route = createFileRoute("/_authed/policies/$policyId")({
   component: PolicyPage,
@@ -33,8 +34,10 @@ const TERM_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 
 function PolicyPage() {
   const { policyId } = Route.useParams();
+  useRecordView("policy", policyId);
   const trpc = useTRPC();
   const policy = useQuery(trpc.policies.get.queryOptions({ id: policyId }));
+  const carrier = useQuery(trpc.policies.carrier.queryOptions({ id: policyId }));
   const billing = useQuery(trpc.policies.billing.queryOptions({ id: policyId }));
   const queryClient = useQueryClient();
   const setAutopay = useMutation(trpc.policies.setAutopay.mutationOptions());
@@ -76,6 +79,12 @@ function PolicyPage() {
               {p.insuredName} · {p.productName} · {jurisdictionName(p.jurisdiction)} ·{" "}
               {formatPlainDateRange(p.effectiveDate, p.expirationDate)}
             </p>
+            {carrier.data && (
+              <p className="m-0 text-sm text-muted-foreground tabular-nums">
+                {carrier.data.carrierName}
+                {carrier.data.carrierPolicyNumber && ` policy ${carrier.data.carrierPolicyNumber}`}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <StatusChip tone={status.tone}>{status.label}</StatusChip>

@@ -2,6 +2,7 @@ import { Notice } from "@pas/ui/components/notice";
 import { PageBody, PageHeader } from "@pas/ui/components/page";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PolicyLedger } from "@/components/ledger/policy-ledger";
 import { useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { ActivityTimeline } from "@/components/policies/activity";
@@ -17,6 +18,7 @@ import { PolicySummary } from "@/components/policies/policy-summary";
 import { isPolicyTab, type PolicyTab, PolicyTabs } from "@/components/policies/policy-tabs";
 import { PolicyTransactions } from "@/components/policies/transactions";
 import { useTRPC } from "@/lib/trpc";
+import { useRecordView } from "@/lib/recent-views";
 
 interface PolicySearch {
   tab?: Exclude<PolicyTab, "overview">;
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/_authed/policies/$policyId")({
 
 function PolicyPage() {
   const { policyId } = Route.useParams();
+  useRecordView("policy", policyId);
   const { tab = "overview", invoice: invoiceId } = Route.useSearch();
   const navigate = Route.useNavigate();
   const trpc = useTRPC();
@@ -139,6 +142,7 @@ function TabContent({
         <div className="grid gap-6">
           <BilledTo policyId={policy.id} billing={billing} />
           <BillingPanel billing={billing} onOpenInvoice={onOpenInvoice} onPay={onPay} />
+          <PolicyLedger policyId={policy.id} />
         </div>
       ) : (
         <div className="h-96 animate-pulse rounded-xl bg-muted/60" />

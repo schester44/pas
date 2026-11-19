@@ -1,0 +1,196 @@
+/// A carrier the tenant writes business with (PLAN §12). Connected by a configured connector,
+/// a tenant extension or file feeds.
+model Carrier {
+  id                String   @id @db.Uuid
+  tenantId          String   @map("tenant_id")
+  key               String
+  name              String
+  naic              String?
+  amBest            String?  @map("am_best")
+  admitted          Json
+  lines             Json
+  mode              String
+  extensionKey      String?  @map("extension_key")
+  activeEnvironment String   @map("active_environment")
+  status            String
+  createdAt         DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("carriers")
+}
+
+/// Credentials and endpoints per carrier × environment. Secrets are AES-256-GCM sealed.
+model CarrierConnection {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  carrierId   String   @map("carrier_id") @db.Uuid
+  environment String
+  baseUrl     String   @map("base_url")
+  auth        Json
+  secrets     Json
+  secretHints Json     @map("secret_hints")
+  callback    Json
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, carrierId, environment])
+  @@map("carrier_connections")
+}
+
+/// Versioned connector definitions. Published versions are immutable (trigger in the migration).
+model CarrierConnectorVersion {
+  id          String    @id @db.Uuid
+  tenantId    String    @map("tenant_id")
+  carrierId   String    @map("carrier_id") @db.Uuid
+  version     Int
+  status      String
+  definition  Json
+  contentHash String?   @map("content_hash") @db.Char(64)
+  testReport  Json?     @map("test_report")
+  note        String?
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @map("updated_at") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, carrierId, version])
+  @@index([tenantId, carrierId, status])
+  @@map("carrier_connector_versions")
+}
+
+/// A recorded run of one capability, replayed by the connector test suite.
+model CarrierFixture {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id")
+  carrierId  String   @map("carrier_id") @db.Uuid
+  capability String
+  name       String
+  input      Json
+  exchanges  Json
+  callbacks  Json
+  expected   Json
+  createdAt  DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, carrierId, capability])
+  @@map("carrier_fixtures")
+}
+
+/// One capability invocation on the durable workflow engine.
+model CarrierFlowRun {
+  id                 String    @id @db.Uuid
+  tenantId           String    @map("tenant_id")
+  carrierId          String    @map("carrier_id") @db.Uuid
+  connectionId       String?   @map("connection_id") @db.Uuid
+  connectorVersionId String?   @map("connector_version_id") @db.Uuid
+  connectorVersion   Int?      @map("connector_version")
+  capability         String
+  subject            Json
+  mode               String
+  environment        String
+  status             String
+  input              Json
+  output             Json?
+  error              String?
+  workflowRunId      String?   @map("workflow_run_id")
+  startedAt          DateTime  @map("started_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @map("updated_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([tenantId, carrierId, startedAt])
+  @@map("carrier_flow_runs")
+}
+
+/// Every request and response of a flow run, secrets redacted.
+model CarrierExchange {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id")
+  flowRunId  String   @map("flow_run_id") @db.Uuid
+  execId     String   @map("exec_id")
+  stepId     String   @map("step_id")
+  kind       String
+  attempt    Int
+  request    Json
+  response   Json?
+  ok         Boolean
+  error      String?
+  durationMs Int      @map("duration_ms")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  @@unique([flowRunId, execId])
+  @@index([tenantId, flowRunId, occurredAt])
+  @@map("carrier_exchanges")
+}
+
+/// Inbound carrier callbacks paired with the flow run waiting on their correlation key.
+model CarrierCallback {
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id")
+  connectionId  String    @map("connection_id") @db.Uuid
+  correlation   String
+  flowRunId     String?   @map("flow_run_id") @db.Uuid
+  workflowRunId String?   @map("workflow_run_id")
+  event         String?
+  payload       Json?
+  receivedAt    DateTime? @map("received_at") @db.Timestamptz(6)
+  signalledAt   DateTime? @map("signalled_at") @db.Timestamptz(6)
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, connectionId, correlation])
+  @@map("carrier_callbacks")
+}
+
+/// The carrier's identifiers for a policy written through it.
+model CarrierPolicyLink {
+  id                  String   @id @db.Uuid
+  tenantId            String   @map("tenant_id")
+  carrierId           String   @map("carrier_id") @db.Uuid
+  policyId            String   @map("policy_id") @db.Uuid
+  quoteId             String?  @map("quote_id") @db.Uuid
+  carrierPolicyNumber String?  @map("carrier_policy_number")
+  carrierReference    String?  @map("carrier_reference")
+  status              String?
+  createdAt           DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, policyId])
+  @@map("carrier_policy_links")
+}
+
+/// A scheduled export to a carrier without an API (bordereaux, ACORD-style XML).
+model CarrierFeed {
+  id          String    @id @db.Uuid
+  tenantId    String    @map("tenant_id")
+  carrierId   String    @map("carrier_id") @db.Uuid
+  name        String
+  format      String
+  channel     String
+  destination Json
+  schedule    String
+  status      String
+  lastRunAt   DateTime? @map("last_run_at") @db.Timestamptz(6)
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, carrierId])
+  @@map("carrier_feeds")
+}
+
+model CarrierFeedDelivery {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  feedId      String   @map("feed_id") @db.Uuid
+  periodFrom  DateTime @map("period_from") @db.Date
+  periodTo    DateTime @map("period_to") @db.Date
+  status      String
+  fileName    String   @map("file_name")
+  storageKey  String?  @map("storage_key")
+  records     Int
+  bytes       Int
+  channel     String
+  detail      String?
+  deliveredAt DateTime @map("delivered_at") @db.Timestamptz(6)
+
+  @@index([tenantId, feedId, deliveredAt])
+  @@map("carrier_feed_deliveries")
+}

@@ -15,8 +15,41 @@ export interface RunRow {
   output: unknown;
   error: string | null;
   attempts: number;
+  idempotency_key: string | null;
+  subjects: string[];
+  cancel_reason: string | null;
   created_at: Date;
+  updated_at: Date;
   completed_at: Date | null;
+}
+
+export interface StepRow {
+  step_id: string;
+  result: StepResult;
+  completed_at: Date;
+}
+
+export interface WaitRow {
+  step_id: string;
+  event: string | null;
+  wake_at: Date | null;
+  created_at: Date;
+}
+
+export interface EventRow {
+  id: string;
+  name: string;
+  data: Record<string, unknown>;
+  consumed_by: string | null;
+  created_at: Date;
+}
+
+export interface RunFilter {
+  workflowIds?: readonly string[];
+  statuses?: readonly WorkflowRunStatus[];
+  subjects?: readonly string[];
+  before?: Date;
+  limit: number;
 }
 
 export interface NewRun {
@@ -26,6 +59,7 @@ export interface NewRun {
   input: unknown;
   trace: Record<string, string>;
   idempotencyKey: string | undefined;
+  subjects: readonly string[];
 }
 
 export interface RunKey {
@@ -78,8 +112,8 @@ export class WorkflowStore {
   /** Returns the id of the run, which is an existing one when the idempotency key was taken. */
   async insertRun(db: Queryable, run: NewRun): Promise<{ id: string; created: boolean }> {
     const inserted = await db.query<{ id: string }>(
-      `INSERT INTO ${this.s}.runs (id, tenant_id, workflow_id, input, trace, status, idempotency_key)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+      `INSERT INTO ${this.s}.runs (id, tenant_id, workflow_id, input, trace, status, idempotency_key, subjects)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)
        ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
        RETURNING id`,
       [
@@ -89,6 +123,7 @@ export class WorkflowStore {
         JSON.stringify(run.input),
         JSON.stringify(run.trace),
         run.idempotencyKey ?? null,
+        [...new Set(run.subjects)],
       ],
     );
 
@@ -286,16 +321,90 @@ export class WorkflowStore {
     return rows[0]?.attempts ?? 0;
   }
 
-  async cancel(key: RunKey): Promise<boolean> {
+  async cancel(key: RunKey, reason: string | null): Promise<boolean> {
     const { rowCount } = await this.pool.query(
-      `UPDATE ${this.s}.runs SET status = 'cancelled', completed_at = now(), updated_at = now()
+      `UPDATE ${this.s}.runs
+       SET status = 'cancelled', cancel_reason = $3, completed_at = now(), updated_at = now()
        WHERE id = $1 AND tenant_id = $2 AND status IN ${LIVE}`,
-      [key.runId, key.tenantId],
+      [key.runId, key.tenantId, reason],
     );
 
     await this.clearWaits(key);
 
     return rowCount === 1;
+  }
+
+  /** Newest first; `subjects` matches runs tagged with any of them. */
+  async list(tenantId: TenantId, filter: RunFilter): Promise<RunRow[]> {
+    const { rows } = await this.pool.query<RunRow>(
+      `SELECT * FROM ${this.s}.runs
+       WHERE tenant_id = $1
+         AND ($2::text[] IS NULL OR workflow_id = ANY($2))
+         AND ($3::text[] IS NULL OR status = ANY($3))
+         AND ($4::text[] IS NULL OR subjects && $4)
+         AND ($5::timestamptz IS NULL OR created_at < $5)
+       ORDER BY created_at DESC, id DESC
+       LIMIT $6`,
+      [
+        tenantId,
+        filter.workflowIds ?? null,
+        filter.statuses ?? null,
+        filter.subjects ?? null,
+        filter.before ?? null,
+        filter.limit,
+      ],
+    );
+
+    return rows;
+  }
+
+  async history({ runId, tenantId }: RunKey) {
+    const values = [runId, tenantId];
+
+    const [steps, waits, events] = await Promise.all([
+      this.pool.query<StepRow>(
+        `SELECT step_id, result, completed_at FROM ${this.s}.steps
+         WHERE run_id = $1 AND tenant_id = $2 ORDER BY completed_at, step_id`,
+        values,
+      ),
+      this.pool.query<WaitRow>(
+        `SELECT step_id, event, wake_at, created_at FROM ${this.s}.waits
+         WHERE run_id = $1 AND tenant_id = $2 ORDER BY created_at`,
+        values,
+      ),
+      this.pool.query<EventRow>(
+        `SELECT id::text, name, data, consumed_by, created_at FROM ${this.s}.events
+         WHERE run_id = $1 AND tenant_id = $2 ORDER BY id`,
+        values,
+      ),
+    ]);
+
+    return { steps: steps.rows, waits: waits.rows, events: events.rows };
+  }
+
+  /** A failed run goes back to pending with its memoized steps intact, so it resumes where it failed. */
+  async retry({ runId, tenantId }: RunKey): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE ${this.s}.runs
+       SET status = 'pending', attempts = 0, error = NULL, completed_at = NULL, updated_at = now()
+       WHERE id = $1 AND tenant_id = $2 AND status = 'failed'`,
+      [runId, tenantId],
+    );
+
+    return rowCount === 1;
+  }
+
+  /** Pulls the run's timed waits to the tenant's now; returns how many moved. */
+  async wakeNow({ runId, tenantId }: RunKey, offsetMs: number): Promise<number> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE ${this.s}.waits w SET wake_at = now() + $3::bigint * interval '1 millisecond'
+       FROM ${this.s}.runs r
+       WHERE w.run_id = $1 AND w.tenant_id = $2 AND w.wake_at IS NOT NULL
+         AND r.id = w.run_id AND r.status = 'waiting'`,
+      [runId, tenantId, offsetMs],
+    );
+
+    return rowCount ?? 0;
   }
 
   private async clearWaits({ runId, tenantId }: RunKey): Promise<void> {

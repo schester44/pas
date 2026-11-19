@@ -316,32 +316,34 @@ function Section({
   const Container = compact ? CompactSection : Panel;
 
   const fields = (base: string | null, entry: SectionState["entries"][number]) => (
-    <div className={compact ? "grid gap-4" : "grid gap-4 sm:grid-cols-2"}>
-      {section.items.map((item, i) => {
-        const itemState = entry.items[i]!;
-        const canonical = base ? `${section.repeat}[].${item.path}` : item.path;
-        const field = index.get(canonical);
+    <div className="@container">
+      <div className={compact ? "grid gap-4" : "grid gap-4 @xl:grid-cols-2"}>
+        {section.items.map((item, i) => {
+          const itemState = entry.items[i]!;
+          const canonical = base ? `${section.repeat}[].${item.path}` : item.path;
+          const field = index.get(canonical);
 
-        if (!itemState.visible || !isField(field)) return null;
+          if (!itemState.visible || !isField(field)) return null;
 
-        return (
-          <Field
-            key={item.path}
-            field={field}
-            item={item}
-            state={itemState}
-            value={getAt(value, itemState.path)}
-            onChange={(next) => {
-              onEdit(itemState.path);
-              onChange(setAt(value, itemState.path, next));
-            }}
-            showErrors={showErrors}
-            copy={copy}
-            uploadFile={uploadFile}
-            compact={compact}
-          />
-        );
-      })}
+          return (
+            <Field
+              key={item.path}
+              field={field}
+              item={item}
+              state={itemState}
+              value={getAt(value, itemState.path)}
+              onChange={(next) => {
+                onEdit(itemState.path);
+                onChange(setAt(value, itemState.path, next));
+              }}
+              showErrors={showErrors}
+              copy={copy}
+              uploadFile={uploadFile}
+              compact={compact}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 

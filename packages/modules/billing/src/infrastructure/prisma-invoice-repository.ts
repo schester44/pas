@@ -131,6 +131,10 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
     return this.load(tx, ctx, { policyId: { in: [...policyIds] } });
   }
 
+  listAll(tx: Transaction, ctx: TenantContext): Promise<Invoice[]> {
+    return this.load(tx, ctx, {});
+  }
+
   listBySchedule(tx: Transaction, ctx: TenantContext, scheduleId: string): Promise<Invoice[]> {
     return this.load(tx, ctx, { scheduleId });
   }

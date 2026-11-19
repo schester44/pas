@@ -73,7 +73,7 @@ function CompliancePage() {
             {overview.error.message}
           </Notice>
         )}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <Stat
             label="Overdue"
             value={counts?.overdue}
@@ -313,9 +313,9 @@ function ObligationsTable(props: {
           onValueChange={props.onView}
           options={VIEWS}
         />
-        <div className="ml-auto flex gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto">
           <Select value={props.state} onValueChange={props.onState}>
-            <SelectTrigger size="sm" className="w-44">
+            <SelectTrigger size="sm" className="w-full sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -328,7 +328,7 @@ function ObligationsTable(props: {
             </SelectContent>
           </Select>
           <Select value={props.kind} onValueChange={props.onKind}>
-            <SelectTrigger size="sm" className="w-56">
+            <SelectTrigger size="sm" className="w-full sm:w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -373,10 +373,10 @@ function ObligationsTable(props: {
                 />
               </TableHead>
               <TableHead>Obligation</TableHead>
-              <TableHead>State</TableHead>
+              <TableHead className="hidden sm:table-cell">State</TableHead>
               <TableHead className="hidden lg:table-cell">Responsible</TableHead>
-              <TableHead>Due</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="hidden sm:table-cell">Due</TableHead>
+              <TableHead className="hidden md:table-cell">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -408,7 +408,7 @@ function ObligationsTable(props: {
                     />
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-normal">
                   <Link
                     to="/compliance/$obligationId"
                     params={{ obligationId: o.id }}
@@ -420,9 +420,17 @@ function ObligationsTable(props: {
                       {subjectLabel(o)}
                       {o.insuredName && ` · ${o.insuredName}`}
                     </span>
+                    <span
+                      className={cn(
+                        "text-xs tabular-nums sm:hidden",
+                        o.overdue ? "text-red-700" : "text-muted-foreground",
+                      )}
+                    >
+                      Due {formatPlainDate(o.dueDate)}
+                    </span>
                   </Link>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="hidden text-muted-foreground sm:table-cell">
                   {o.jurisdiction.replace(/^[A-Z]{2}-/, "")}
                 </TableCell>
                 <TableCell className="hidden max-w-48 truncate text-muted-foreground lg:table-cell">
@@ -430,13 +438,13 @@ function ObligationsTable(props: {
                 </TableCell>
                 <TableCell
                   className={cn(
-                    "tabular-nums",
+                    "hidden tabular-nums sm:table-cell",
                     o.overdue ? "text-red-700" : "text-muted-foreground",
                   )}
                 >
                   {formatPlainDate(o.dueDate)}
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <ObligationState obligation={o} />
                 </TableCell>
               </TableRow>

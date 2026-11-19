@@ -14,7 +14,13 @@ export interface TransactionFinancialsDto {
   effectiveDate: PlainDate;
   producerId: string;
   agencyId: string | null;
-  lines: { financialTransactionId: string; kind: string; amount: Money }[];
+  lines: {
+    financialTransactionId: string;
+    kind: string;
+    code: string;
+    label: string;
+    amount: Money;
+  }[];
 }
 
 /** An issued transaction's financial transactions with the policy context commissions need. */
@@ -52,7 +58,13 @@ export function makeGetTransactionFinancials(deps: {
       agencyId: state.policy.producer.agencyId,
       lines: state.financials
         .filter((f) => f.transactionId === transaction.id)
-        .map((f) => ({ financialTransactionId: f.id, kind: f.kind, amount: f.amount })),
+        .map((f) => ({
+          financialTransactionId: f.id,
+          kind: f.kind,
+          code: f.code,
+          label: f.label,
+          amount: f.amount,
+        })),
     };
   };
 }

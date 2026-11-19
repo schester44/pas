@@ -3,7 +3,11 @@ export { PrismaInstallRepository } from "./infrastructure/prisma-install-reposit
 export { PrismaIntegrationEvents } from "./infrastructure/prisma-integration-events";
 export { PrismaMailPieces } from "./infrastructure/prisma-mail-pieces";
 export { StaticProviderCatalog } from "./infrastructure/provider-catalog";
-export { builtinProviders, censusGeocoderProvider } from "./infrastructure/providers/builtin";
+export {
+  builtinProviders,
+  censusGeocoderProvider,
+  NATIVE_BILLING,
+} from "./infrastructure/providers/builtin";
 export { lobProvider } from "./infrastructure/providers/lob";
 export { licensingProviders, niprProvider } from "./infrastructure/providers/licensing";
 export { inspectionProviders, mockReport } from "./infrastructure/providers/inspections";
@@ -22,3 +26,5 @@ export { webhookEmailProvider, webhookPrintMailProvider } from "./infrastructure
 export { signPayload, verifySignature } from "./infrastructure/providers/signing";
 export { composeIntegrations, type Integrations } from "./infrastructure/compose";
 export { filingChannelsFrom } from "./infrastructure/filing-channels";
+export { agencyDownloadChannelsFrom } from "./infrastructure/agency-download-channels";
+export { ivansDownloadProvider } from "./infrastructure/providers/ivans";

@@ -15,7 +15,8 @@ export type IssueLink =
     }
   | { to: "/products/$productId/versions/$versionId/rules"; search: { decision?: string } }
   | { to: "/products/$productId/versions/$versionId/rating"; search: RatingSearch }
-  | { to: "/products/$productId/versions/$versionId/billing"; search: { plan?: string } };
+  | { to: "/products/$productId/versions/$versionId/billing"; search: { plan?: string } }
+  | { to: "/products/$productId/versions/$versionId/carrier"; search: Record<string, never> };
 
 export interface RatingSearch {
   section?: "rater" | "golden";
@@ -173,6 +174,12 @@ export function describeIssue(
         },
       };
     }
+    case "carrier":
+      return {
+        area: "Carrier",
+        where: [],
+        link: { to: "/products/$productId/versions/$versionId/carrier", search: {} },
+      };
     case "coverages": {
       const coverage = contents.coverages[target.coverage];
 

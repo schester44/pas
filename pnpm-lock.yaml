@@ -287,12 +287,18 @@ importers:
       '@pas/addresses':
         specifier: workspace:*
         version: link:../../packages/modules/addresses
+      '@pas/agency-downloads':
+        specifier: workspace:*
+        version: link:../../packages/modules/agency-downloads
       '@pas/auth':
         specifier: workspace:*
         version: link:../../packages/auth
       '@pas/billing':
         specifier: workspace:*
         version: link:../../packages/modules/billing
+      '@pas/carriers':
+        specifier: workspace:*
+        version: link:../../packages/modules/carriers
       '@pas/catalog':
         specifier: workspace:*
         version: link:../../packages/modules/catalog
@@ -326,6 +332,9 @@ importers:
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@pas/ledger':
+        specifier: workspace:*
+        version: link:../../packages/modules/ledger
       '@pas/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -454,12 +463,21 @@ importers:
 
   apps/worker:
     dependencies:
+      '@pas/addresses':
+        specifier: workspace:*
+        version: link:../../packages/modules/addresses
+      '@pas/agency-downloads':
+        specifier: workspace:*
+        version: link:../../packages/modules/agency-downloads
       '@pas/auth':
         specifier: workspace:*
         version: link:../../packages/auth
       '@pas/billing':
         specifier: workspace:*
         version: link:../../packages/modules/billing
+      '@pas/carriers':
+        specifier: workspace:*
+        version: link:../../packages/modules/carriers
       '@pas/catalog':
         specifier: workspace:*
         version: link:../../packages/modules/catalog
@@ -475,12 +493,18 @@ importers:
       '@pas/events':
         specifier: workspace:*
         version: link:../../packages/modules/events
+      '@pas/form-library':
+        specifier: workspace:*
+        version: link:../../packages/modules/form-library
       '@pas/integrations':
         specifier: workspace:*
         version: link:../../packages/modules/integrations
       '@pas/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@pas/ledger':
+        specifier: workspace:*
+        version: link:../../packages/modules/ledger
       '@pas/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -749,6 +773,27 @@ importers:
         specifier: workspace:*
         version: link:../../kernel
 
+  packages/modules/agency-downloads:
+    dependencies:
+      '@pas/compliance':
+        specifier: workspace:*
+        version: link:../compliance
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/distribution':
+        specifier: workspace:*
+        version: link:../distribution
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
+
   packages/modules/billing:
     dependencies:
       '@pas/db':
@@ -766,6 +811,24 @@ importers:
       '@pas/storage':
         specifier: workspace:*
         version: link:../../storage
+
+  packages/modules/carriers:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/expressions':
+        specifier: workspace:*
+        version: link:../../engines/expressions
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/storage':
+        specifier: workspace:*
+        version: link:../../storage
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
 
   packages/modules/catalog:
     dependencies:
@@ -853,6 +916,9 @@ importers:
       '@pas/addressing':
         specifier: workspace:*
         version: link:../../engines/addressing
+      '@pas/agency-downloads':
+        specifier: workspace:*
+        version: link:../agency-downloads
       '@pas/compliance':
         specifier: workspace:*
         version: link:../compliance
@@ -881,6 +947,18 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/modules/ledger:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   packages/modules/parties:
     dependencies:
       '@pas/billing':
@@ -898,6 +976,9 @@ importers:
 
   packages/modules/policy:
     dependencies:
+      '@pas/carriers':
+        specifier: workspace:*
+        version: link:../carriers
       '@pas/db':
         specifier: workspace:*
         version: link:../../db
@@ -952,6 +1033,9 @@ importers:
       '@pas/addresses':
         specifier: workspace:*
         version: link:../addresses
+      '@pas/carriers':
+        specifier: workspace:*
+        version: link:../carriers
       '@pas/catalog':
         specifier: workspace:*
         version: link:../catalog

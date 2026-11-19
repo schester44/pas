@@ -44,6 +44,7 @@ type Draft = {
   remittanceDays: string;
   creditLimit: string;
   remittanceBasis: "gross" | "net";
+  commissionBasis: "default" | "written" | "collected";
   statementDay: string;
   reminderDays: string;
   suspendAfterDays: string;
@@ -67,6 +68,7 @@ const draftOf = (agency: Agency | undefined, parentId?: string): Draft => ({
   remittanceDays: agency?.billing.remittanceDays?.toString() ?? "",
   creditLimit: agency?.billing.creditLimit?.amount ?? "",
   remittanceBasis: agency?.billing.remittanceBasis ?? "gross",
+  commissionBasis: agency?.billing.commissionBasis ?? "default",
   statementDay: agency?.billing.statementDay?.toString() ?? "",
   reminderDays: agency?.billing.reminderDays?.toString() ?? "",
   suspendAfterDays: agency?.billing.suspendAfterDays?.toString() ?? "",
@@ -141,6 +143,7 @@ export function AgencyDialog({
         remittanceDays: draft.remittanceDays ? Number(draft.remittanceDays) : null,
         creditLimit: draft.creditLimit || null,
         remittanceBasis: draft.remittanceBasis,
+        commissionBasis: draft.commissionBasis === "default" ? null : draft.commissionBasis,
         statementDay: days(draft.statementDay),
         reminderDays: days(draft.reminderDays),
         suspendAfterDays: days(draft.suspendAfterDays),
@@ -284,6 +287,23 @@ export function AgencyDialog({
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
                     <SelectItem value="terminated">Terminated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Commission payable" id="agency-commission">
+                <Select
+                  value={draft.commissionBasis}
+                  onValueChange={(value) =>
+                    set({ commissionBasis: value as Draft["commissionBasis"] })
+                  }
+                >
+                  <SelectTrigger id="agency-commission">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">By billing method</SelectItem>
+                    <SelectItem value="written">When written</SelectItem>
+                    <SelectItem value="collected">As premium is collected</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>

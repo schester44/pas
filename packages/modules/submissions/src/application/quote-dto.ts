@@ -2,6 +2,7 @@ import type { CoverageAmount } from "@pas/documents";
 import type { Money } from "@pas/kernel";
 import type { BindDetails } from "../domain/bind-details";
 import type { BindRequirement } from "../domain/bind-requirements";
+import type { CarrierQuoteState } from "../domain/carrier-quote";
 import { exposuresOf } from "../domain/coverages";
 import { exposureLabel, insuredNameOf, mailingAddressOf } from "../domain/insured";
 import type { PayPlanOffer } from "../domain/pay-plan-offers";
@@ -71,6 +72,8 @@ export interface QuoteDto {
     adjustment: { percent: string; reason: string; amount: MoneyDto } | null;
   };
   insuredValue: MoneyDto;
+  /** The carrier's quote and any carrier-owned bind in flight (PLAN §12). */
+  carrier: CarrierQuoteState | null;
   declineReasons: ReasonDto[];
   referral: {
     reasons: ReasonDto[];
@@ -226,6 +229,7 @@ export function toQuoteDto(
         : null,
     },
     insuredValue: money(insuredValueOf(e.offers, q.selection, e.total.currency)),
+    carrier: e.carrier ?? null,
     declineReasons:
       q.status === "declined"
         ? q.referral?.decision?.declineReasons?.length

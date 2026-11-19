@@ -23,6 +23,7 @@ export interface InspectionProvider {
     order: InspectionOrder,
   ): Promise<{ providerRef: string } & InspectionStatusReport>;
   check(ctx: TenantContext, providerRef: string): Promise<InspectionStatusReport>;
+  cancel(ctx: TenantContext, providerRef: string): Promise<void>;
 }
 
 export type InspectionProviders = ProviderFor<InspectionProvider>;

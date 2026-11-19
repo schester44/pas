@@ -23,9 +23,21 @@ const money = (json: MoneyJson) => Money.of(json.amount, json.currency);
 
 /** Maps an inbound event from a billing system install onto the one application path. */
 export function billingEventFrom(installId: string, event: InboundBillingEvent): BillingEvent {
+  return fromSource(`install:${installId}`, event);
+}
+
+/** The native billing system's events take the same path, under their own source and actor. */
+export function nativeBillingEventFrom(
+  event: InboundBillingEvent,
+  actor: BillingEvent["actor"],
+): BillingEvent {
+  return { ...fromSource("native", event), provider: "Native billing", actor };
+}
+
+function fromSource(source: string, event: InboundBillingEvent): BillingEvent {
   return {
     eventId: event.id,
-    source: `install:${installId}`,
+    source,
     type: event.type,
     occurredAt: Temporal.Instant.from(event.occurredAt),
     ...(event.invoiceId && { invoiceId: event.invoiceId }),

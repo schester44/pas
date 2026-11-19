@@ -80,6 +80,7 @@ export interface WorkflowRunState {
   readonly currentStep: string;
   readonly output: unknown;
   readonly error: string | null;
+  readonly cancelReason: string | null;
   readonly createdAt: Instant;
   readonly completedAt: Instant | null;
 }
@@ -87,7 +88,11 @@ export interface WorkflowRunState {
 export interface StartWorkflowOptions {
   /** Starting twice with the same key returns the existing run. */
   idempotencyKey?: string;
+  /** What the run is about, as `workflowSubject` tags, so lifecycle changes can find it. */
+  subjects?: readonly string[];
 }
+
+export const workflowSubject = (type: string, id: string): string => `${type}:${id}`;
 
 /** Long-running coordination (journeys, renewals, notices). Every run belongs to one tenant. */
 export interface Workflows {
@@ -103,6 +108,6 @@ export interface Workflows {
     event: string,
     data?: Record<string, unknown>,
   ): Promise<void>;
-  cancel(ctx: TenantContext, runId: string): Promise<void>;
+  cancel(ctx: TenantContext, runId: string, reason?: string): Promise<void>;
   status(ctx: TenantContext, runId: string): Promise<WorkflowRunState>;
 }

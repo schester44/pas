@@ -21,11 +21,11 @@ function SandboxBanner({
         className,
       )}
     >
-      <span aria-hidden className="size-1.5 rounded-full bg-amber-500" />
-      <span className="font-medium">Sandbox</span>
-      <span className="truncate text-amber-800">{name}</span>
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" />
+      <span className="shrink-0 font-medium">Sandbox</span>
+      <span className="min-w-0 truncate text-amber-800">{name}</span>
       {time && <span className="hidden tabular-nums text-amber-800 sm:inline">· {time}</span>}
-      {action}
+      {action && <span className="shrink-0 whitespace-nowrap">{action}</span>}
     </div>
   );
 }

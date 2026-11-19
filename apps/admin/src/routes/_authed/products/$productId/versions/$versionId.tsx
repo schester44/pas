@@ -230,6 +230,7 @@ const TABS = [
   { to: "/products/$productId/versions/$versionId/rating", label: "Rating" },
   { to: "/products/$productId/versions/$versionId/documents", label: "Documents" },
   { to: "/products/$productId/versions/$versionId/billing", label: "Billing" },
+  { to: "/products/$productId/versions/$versionId/carrier", label: "Carrier" },
   { to: "/products/$productId/versions/$versionId/checks", label: "Checks" },
 ] as const;
 

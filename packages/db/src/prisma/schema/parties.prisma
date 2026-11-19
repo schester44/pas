@@ -23,6 +23,7 @@ model ClientAccount {
   @@index([tenantId, status, nameKey])
   @@index([tenantId, createdAt])
   @@index([emailKeys], type: Gin)
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "client_accounts_display_name_trgm")
   @@map("client_accounts")
 }
 

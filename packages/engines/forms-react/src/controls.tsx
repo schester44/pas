@@ -209,7 +209,7 @@ function MultiEnumControl(props: ControlProps) {
   };
 
   return (
-    <div role="group" aria-describedby={props.describedBy} className="grid gap-2.5 sm:grid-cols-2">
+    <div role="group" aria-describedby={props.describedBy} className="grid gap-2.5 @md:grid-cols-2">
       {field.options?.map((option) => (
         <div key={option.value} className="flex items-center gap-2">
           <Checkbox

@@ -1,26 +1,15 @@
 import type { AdminOutputs } from "@pas/api-client";
 import { Button } from "@pas/ui/components/button";
 import { Checkbox } from "@pas/ui/components/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@pas/ui/components/dialog";
 import { EmptyState } from "@pas/ui/components/empty-state";
 import { Input } from "@pas/ui/components/input";
-import { Label } from "@pas/ui/components/label";
-import { Notice } from "@pas/ui/components/notice";
 import { PageBody, PageHeader } from "@pas/ui/components/page";
 import { Panel } from "@pas/ui/components/panel";
-import { RadioGroup, RadioGroupItem } from "@pas/ui/components/radio-group";
-import { Spinner } from "@pas/ui/components/spinner";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Search, Users } from "lucide-react";
 import { useDeferredValue, useState } from "react";
+import { MergeDialog } from "@/components/clients/merge-dialog";
 import { portalState } from "@/components/policies/clients";
 import { useTRPC } from "@/lib/trpc";
 
@@ -165,7 +154,13 @@ function ClientRow({
         className="mt-0.5 lg:mt-0"
       />
       <span className="grid min-w-0 flex-1 gap-0.5 lg:flex lg:items-center lg:gap-4">
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{client.displayName}</span>
+        <Link
+          to="/clients/$clientId"
+          params={{ clientId: client.id }}
+          className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
+        >
+          {client.displayName}
+        </Link>
         <span className="truncate text-xs text-muted-foreground lg:w-64 lg:text-sm">
           {client.emails.map((e) => e.address).join(", ") || "No email"}
         </span>
@@ -186,75 +181,5 @@ function ClientRow({
         </span>
       </span>
     </li>
-  );
-}
-
-function MergeDialog({ pair, onDone }: { pair: [Client, Client]; onDone: () => void }) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const [survivorId, setSurvivorId] = useState(pair[0].id);
-  const merge = useMutation(trpc.clients.merge.mutationOptions());
-  const merged = pair.find((c) => c.id !== survivorId)!;
-
-  const submit = () =>
-    merge.mutate(
-      { survivorId, mergedId: merged.id },
-      {
-        onSuccess: async () => {
-          await queryClient.invalidateQueries({ queryKey: trpc.clients.pathKey() });
-          onDone();
-        },
-      },
-    );
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onDone()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Merge clients</DialogTitle>
-          <DialogDescription>
-            Policies, emails and portal access move to the record you keep.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-2">
-          <Label>Keep</Label>
-          <RadioGroup value={survivorId} onValueChange={setSurvivorId}>
-            {pair.map((client) => (
-              <label
-                key={client.id}
-                className="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors has-data-[state=checked]:border-primary/40 has-data-[state=checked]:bg-primary/5"
-              >
-                <RadioGroupItem value={client.id} className="mt-0.5" />
-                <span className="grid min-w-0 gap-0.5">
-                  <span className="font-medium">{client.displayName}</span>
-                  <span className="truncate text-xs text-muted-foreground tabular-nums">
-                    {[
-                      client.emails[0]?.address,
-                      `${client.policies.length} ${client.policies.length === 1 ? "policy" : "policies"}`,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </RadioGroup>
-        </div>
-        {merge.error && (
-          <Notice tone="error" title="Couldn't merge">
-            {merge.error.message}
-          </Notice>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onDone}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={merge.isPending}>
-            {merge.isPending && <Spinner />}
-            Merge into {pair.find((c) => c.id === survivorId)!.displayName}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -12,6 +12,7 @@ import { makeObligationTimers } from "../application/obligation-timers";
 import { makeRecordFilingResponse } from "../application/record-filing-response";
 import { makeRemittanceReport } from "../application/remittance-report";
 import { makeSubmitObligation } from "../application/submit-obligation";
+import { makeTrackObligations } from "../application/track-obligations";
 import { makeWaiveObligation } from "../application/waive-obligation";
 import type { FilingChannels } from "../ports/filing-channel";
 import type { PolicySource, PolicyTimeline } from "../ports/policy-source";
@@ -53,6 +54,7 @@ export function composeCompliance(input: {
     remittanceReport: makeRemittanceReport(deps),
     licensees: makeManageLicensees(deps),
     timers: makeObligationTimers(deps),
+    tracked: makeTrackObligations(deps),
   };
 }
 

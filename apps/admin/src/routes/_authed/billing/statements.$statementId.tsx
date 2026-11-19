@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@pas/ui/components/table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import {
@@ -21,7 +21,10 @@ import {
   useSimulation,
 } from "@/components/billing/simulate-billing-event";
 import { money, type Statement, StatementStatus } from "@/components/billing/statements";
+import { RecordPaymentDialog } from "@/components/ledger/record-payment-dialog";
+import { useLedgerOverview } from "@/components/ledger/shared";
 import { formatPlainDate } from "@/lib/format";
+import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/billing/statements/$statementId")({
@@ -43,7 +46,11 @@ function StatementPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const simulation = useSimulation();
+  const access = useAccess();
+  const navigate = useNavigate();
+  const native = useLedgerOverview().data?.native === true && access.billing.write;
   const [target, setTarget] = useState<SimulationTarget | null>(null);
+  const [recording, setRecording] = useState(false);
   const statement = useQuery(trpc.billing.statements.get.queryOptions({ id: statementId }));
 
   const document = useQuery({
@@ -72,22 +79,28 @@ function StatementPage() {
           />
         }
         actions={
-          s &&
-          simulation &&
-          Number(s.totals.paid.amount) + Number(s.totals.balance.amount) > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setTarget({
-                  statementId: s.id,
-                  label: `account current ${s.number}`,
-                  balance: s.totals.balance,
-                })
-              }
-            >
-              Simulate billing event
+          s && native && Number(s.totals.balance.amount) > 0 ? (
+            <Button size="sm" onClick={() => setRecording(true)}>
+              Record remittance
             </Button>
+          ) : (
+            s &&
+            simulation &&
+            Number(s.totals.paid.amount) + Number(s.totals.balance.amount) > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setTarget({
+                    statementId: s.id,
+                    label: `account current ${s.number}`,
+                    balance: s.totals.balance,
+                  })
+                }
+              >
+                Simulate billing event
+              </Button>
+            )
           )
         }
       />
@@ -113,6 +126,17 @@ function StatementPage() {
               </Panel>
             )}
           </>
+        )}
+        {s && (
+          <RecordPaymentDialog
+            open={recording}
+            onOpenChange={setRecording}
+            initialPayer={{ type: "agency", ref: s.agencyId, name: s.agencyName }}
+            onRecorded={(paymentId) => {
+              setRecording(false);
+              void navigate({ to: "/billing/apply", search: { paymentId } });
+            }}
+          />
         )}
         <SimulateBillingEvent
           target={target}

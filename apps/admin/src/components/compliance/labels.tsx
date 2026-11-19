@@ -1,6 +1,7 @@
 import type { AdminOutputs } from "@pas/api-client";
 import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
+import { addDays, formatDateWindow } from "@/lib/format";
 
 export type ObligationSummary = AdminOutputs["compliance"]["list"][number];
 export type ObligationDetail = AdminOutputs["compliance"]["get"];
@@ -51,8 +52,8 @@ export function ObligationState({
 }
 
 export const subjectLabel = (o: Pick<ObligationSummary, "subject">) =>
-  o.subject.type === "period"
-    ? `${o.subject.periodStart} – ${o.subject.periodEnd}`
+  o.subject.type === "period" && o.subject.periodStart && o.subject.periodEnd
+    ? formatDateWindow({ from: o.subject.periodStart, to: addDays(o.subject.periodEnd, 1) })
     : `${o.subject.policyNumber ?? ""} · ${(o.subject.transactionType ?? "").toLowerCase().replaceAll("_", " ")}`;
 
 const fromBase64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));

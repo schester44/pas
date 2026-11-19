@@ -1,8 +1,8 @@
-import { prismaTx } from "@pas/db";
+import { instantFromDb, prismaTx } from "@pas/db";
 import type { Prisma } from "@pas/db/client";
 import { newId, type TenantContext, type Transaction } from "@pas/kernel";
 import type { BillingEvent } from "../domain/billing-event";
-import type { BillingEventLog } from "../ports/billing-event-log";
+import type { AppliedBillingEvent, BillingEventLog } from "../ports/billing-event-log";
 
 export class PrismaBillingEventLog implements BillingEventLog {
   async record(
@@ -27,6 +27,22 @@ export class PrismaBillingEventLog implements BillingEventLog {
       on conflict (tenant_id, source, event_id) do nothing`;
 
     return inserted > 0;
+  }
+
+  async listApplied(tx: Transaction, ctx: TenantContext): Promise<AppliedBillingEvent[]> {
+    const rows = await prismaTx(tx).billingEvent.findMany({
+      where: { tenantId: ctx.tenantId, invoiceId: { not: null } },
+      orderBy: { appliedAt: "asc" },
+    });
+
+    return rows.map((row) => ({
+      eventId: row.eventId,
+      source: row.source,
+      type: row.type,
+      invoiceId: row.invoiceId!,
+      occurredAt: instantFromDb(row.occurredAt),
+      payload: row.payload as Record<string, unknown>,
+    }));
   }
 
   async findPolicyByNumber(tx: Transaction, ctx: TenantContext, number: string) {

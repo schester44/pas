@@ -15,10 +15,13 @@ import {
   Receipt,
   ScrollText,
   ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { humanize } from "@/components/decisions/jdm-edit";
 import { formatDate, formatMoney, formatRelative } from "@/lib/format";
+import { useAccess } from "@/lib/permissions";
 
 type Policy = AdminOutputs["policies"]["get"];
 type PolicyEvent = Policy["events"][number];
@@ -77,6 +80,7 @@ export function ActivityTimeline({
   const [category, setCategory] = useState("all");
   const categories = [...new Set(policy.events.map((e) => e.category))];
   const [expanded, setExpanded] = useState(false);
+  const access = useAccess();
 
   const matching =
     category === "all" ? policy.events : policy.events.filter((e) => e.category === category);
@@ -110,11 +114,22 @@ export function ActivityTimeline({
           />
         ))}
       </ol>
-      {hidden > 0 && (
-        <div className="border-t px-(--card-p) py-3">
-          <Button variant="ghost" size="sm" onClick={() => setExpanded(true)}>
-            Show {hidden} earlier {hidden === 1 ? "event" : "events"}
-          </Button>
+      {(hidden > 0 || access.branding.update) && (
+        <div className="flex items-center justify-between gap-3 border-t px-(--card-p) py-3">
+          {hidden > 0 ? (
+            <Button variant="ghost" size="sm" onClick={() => setExpanded(true)}>
+              Show {hidden} earlier {hidden === 1 ? "event" : "events"}
+            </Button>
+          ) : (
+            <span />
+          )}
+          {access.branding.update && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/settings/developers/workflows" search={{ subject: `policy:${policy.id}` }}>
+                Workflow runs <ArrowRight />
+              </Link>
+            </Button>
+          )}
         </div>
       )}
     </Panel>

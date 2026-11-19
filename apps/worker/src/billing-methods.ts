@@ -32,6 +32,7 @@ import {
 import type { ObjectStorage } from "@pas/storage";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import type { DomainEventHandler } from "./handlers/domain-events";
+import { subjectsFrom } from "./workflow-subjects";
 import { makeAgencyAccountWorkflow, makeMortgageeBillWorkflow } from "./workflows/billing-methods";
 
 type Mail = Parameters<typeof portBillingMail>[0];
@@ -117,14 +118,15 @@ export function composeWorkerBillingMethods(deps: {
         const ctx = contextOf(event.tenantId);
         const cutoff = await billing.statements.cutoffFor(ctx, { agencyId });
 
-        await deps
-          .workflows()
-          .start(
-            ctx,
-            agencyAccountWorkflow,
-            { agencyId, cutoff },
-            { idempotencyKey: `billing.agency_account:${agencyId}:${cutoff}` },
-          );
+        await deps.workflows().start(
+          ctx,
+          agencyAccountWorkflow,
+          { agencyId, cutoff },
+          {
+            idempotencyKey: `billing.agency_account:${agencyId}:${cutoff}`,
+            subjects: subjectsFrom({ agencyId }),
+          },
+        );
       },
     ],
     "billing.agency_bill_delinquent": [
@@ -169,14 +171,15 @@ export function composeWorkerBillingMethods(deps: {
       async (event) => {
         const { mortgageeBillId } = event.payload as { mortgageeBillId: string };
 
-        await deps
-          .workflows()
-          .start(
-            contextOf(event.tenantId),
-            mortgageeBillWorkflow,
-            { mortgageeBillId, attempt: 1 },
-            { idempotencyKey: `billing.mortgagee_bill:${mortgageeBillId}:${event.id}` },
-          );
+        await deps.workflows().start(
+          contextOf(event.tenantId),
+          mortgageeBillWorkflow,
+          { mortgageeBillId, attempt: 1 },
+          {
+            idempotencyKey: `billing.mortgagee_bill:${mortgageeBillId}:${event.id}`,
+            subjects: subjectsFrom(event.payload as Record<string, unknown>),
+          },
+        );
       },
     ],
     "billing.billing_method_changed": [

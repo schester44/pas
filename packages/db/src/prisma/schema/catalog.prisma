@@ -21,6 +21,7 @@ model Product {
 
   @@unique([tenantId, key])
   @@index([tenantId, status])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm")
   @@map("products")
 }
 

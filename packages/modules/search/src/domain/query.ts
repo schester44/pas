@@ -12,7 +12,8 @@ export type SearchType = (typeof SEARCH_TYPES)[number];
 export type SearchQuery =
   | { kind: "number"; prefix: string; digits: string; types: readonly SearchType[] }
   | { kind: "digits"; digits: string; types: readonly SearchType[] }
-  | { kind: "text"; text: string; types: readonly SearchType[] };
+  | { kind: "text"; text: string; types: readonly SearchType[] }
+  | { kind: "ids"; ids: readonly string[]; types: readonly SearchType[] };
 
 const MAX_LENGTH = 100;
 

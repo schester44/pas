@@ -29,6 +29,8 @@ model Policy {
   @@index([tenantId, createdAt])
   @@index([tenantId, producerId, createdAt])
   @@index([tenantId, agencyId, createdAt])
+  @@index([insuredName(ops: raw("gin_trgm_ops"))], type: Gin, map: "policies_insured_name_trgm")
+  @@index([number(ops: raw("gin_trgm_ops"))], type: Gin, map: "policies_number_trgm")
   @@map("policies")
 }
 

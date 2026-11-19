@@ -15,6 +15,7 @@ export interface InvoiceRepository {
     ctx: TenantContext,
     policyIds: readonly string[],
   ): Promise<Invoice[]>;
+  listAll(tx: Transaction, ctx: TenantContext): Promise<Invoice[]>;
   listBySchedule(tx: Transaction, ctx: TenantContext, scheduleId: string): Promise<Invoice[]>;
   nextSequence(tx: Transaction, ctx: TenantContext): Promise<number>;
   addPayment(tx: Transaction, ctx: TenantContext, payment: PaymentProps): Promise<void>;

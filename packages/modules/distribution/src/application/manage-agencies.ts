@@ -13,6 +13,7 @@ import {
   type AgencyAddress,
   type AgencyStatus,
   assertParent,
+  type CommissionBasis,
   type RemittanceBasis,
 } from "../domain/agency";
 import { coversAgency } from "../domain/book-scope";
@@ -41,6 +42,7 @@ export interface SaveAgencyInput {
     remittanceDays: number | null;
     creditLimit: string | null;
     remittanceBasis: RemittanceBasis;
+    commissionBasis: CommissionBasis | null;
     statementDay: number | null;
     reminderDays: number | null;
     suspendAfterDays: number | null;
@@ -167,6 +169,7 @@ export function makeManageAgencies(deps: DistributionDeps) {
               ? Money.of(input.billing.creditLimit, currency)
               : null,
             remittanceBasis: input.billing.remittanceBasis,
+            commissionBasis: input.billing.commissionBasis,
             statementDay: input.billing.statementDay,
             reminderDays: input.billing.reminderDays,
             suspendAfterDays: input.billing.suspendAfterDays,

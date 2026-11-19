@@ -55,6 +55,14 @@ const emptyRate = () => ({
   effectiveDate: new Date().toISOString().slice(0, 10),
 });
 
+const stateLabel = (s: { country: string; subdivision: string | null }) =>
+  s.subdivision
+    ? jurisdictionName({ country: s.country, subdivision: s.subdivision })
+    : `Any (${s.country})`;
+
+const businessLabel = (business: string | null) =>
+  business === "new" ? "New" : business === "renewal" ? "Renewal" : "Any";
+
 function CommissionsPage() {
   const trpc = useTRPC();
   const access = useAccess();
@@ -91,63 +99,97 @@ function CommissionsPage() {
           title="Commission schedule"
           description="Each premium transaction earns the most specific rate in force on its effective date."
         >
-          {schedules.data?.length === 0 ? (
+          {!schedules.data ? (
+            <div className="grid gap-3 p-(--card-p)">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-5 animate-pulse rounded bg-muted" />
+              ))}
+            </div>
+          ) : schedules.data.length === 0 ? (
             <EmptyState
               icon={<Percent />}
               title="No rates yet"
               description="Without a rate, commission records at zero."
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Business</TableHead>
-                  <TableHead>Agency tier</TableHead>
-                  <TableHead>Effective</TableHead>
-                  <TableHead className="text-right">Rate</TableHead>
-                  {access.agencies.write && <TableHead className="w-0" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {schedules.data?.map((s) => (
-                  <TableRow key={s.id} className="h-13">
-                    <TableCell className="font-medium">{productName(s.productId)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {s.subdivision
-                        ? jurisdictionName({ country: s.country, subdivision: s.subdivision })
-                        : `Any (${s.country})`}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {s.business === "new" ? "New" : s.business === "renewal" ? "Renewal" : "Any"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {s.tier ? tierLabel(s.tier) : "Any"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground tabular-nums">
-                      {formatPlainDate(s.effectiveDate)}
-                      {s.expirationDate && ` – ${formatPlainDate(s.expirationDate)}`}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {Number(s.rate)}%
-                    </TableCell>
+            <>
+              <ul className="m-0 list-none divide-y p-0 lg:hidden">
+                {schedules.data.map((s) => (
+                  <li key={s.id} className="flex items-center gap-3 px-(--card-p) py-3">
+                    <span className="grid min-w-0 flex-1 gap-0.5">
+                      <span className="truncate text-sm font-medium">
+                        {productName(s.productId)}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground tabular-nums">
+                        {[
+                          stateLabel(s),
+                          businessLabel(s.business),
+                          s.tier ? tierLabel(s.tier) : "Any tier",
+                          `from ${formatPlainDate(s.effectiveDate)}`,
+                        ].join(" · ")}
+                      </span>
+                    </span>
+                    <span className="text-sm font-medium tabular-nums">{Number(s.rate)}%</span>
                     {access.agencies.write && (
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={remove.isPending}
-                          onClick={() => remove.mutate({ id: s.id })}
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={remove.isPending}
+                        onClick={() => remove.mutate({ id: s.id })}
+                      >
+                        Remove
+                      </Button>
                     )}
-                  </TableRow>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
+              </ul>
+              <Table className="hidden lg:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Business</TableHead>
+                    <TableHead>Agency tier</TableHead>
+                    <TableHead>Effective</TableHead>
+                    <TableHead className="text-right">Rate</TableHead>
+                    {access.agencies.write && <TableHead className="w-0" />}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {schedules.data.map((s) => (
+                    <TableRow key={s.id} className="h-13">
+                      <TableCell className="font-medium">{productName(s.productId)}</TableCell>
+                      <TableCell className="text-muted-foreground">{stateLabel(s)}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {businessLabel(s.business)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {s.tier ? tierLabel(s.tier) : "Any"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {formatPlainDate(s.effectiveDate)}
+                        {s.expirationDate && ` – ${formatPlainDate(s.expirationDate)}`}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {Number(s.rate)}%
+                      </TableCell>
+                      {access.agencies.write && (
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={remove.isPending}
+                            onClick={() => remove.mutate({ id: s.id })}
+                          >
+                            Remove
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
           )}
         </Panel>
       </PageBody>

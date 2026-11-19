@@ -11,14 +11,17 @@
     "build": "tsup",
     "start": "node --env-file-if-exists=../../.env --enable-source-maps dist/index.js",
     "typecheck": "tsc --noEmit",
-    "seed:underwriting": "tsx --env-file=../../.env src/scripts/seed-underwriting.ts"
+    "seed:underwriting": "tsx --env-file=../../.env src/scripts/seed-underwriting.ts",
+    "seed:carriers": "tsx --env-file=../../.env src/scripts/seed-carriers.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
     "@fastify/multipart": "^10.1.9",
     "@pas/addresses": "workspace:*",
+    "@pas/agency-downloads": "workspace:*",
     "@pas/auth": "workspace:*",
     "@pas/billing": "workspace:*",
+    "@pas/carriers": "workspace:*",
     "@pas/catalog": "workspace:*",
     "@pas/compliance": "workspace:*",
     "@pas/db": "workspace:*",
@@ -30,6 +33,7 @@
     "@pas/forms-core": "workspace:*",
     "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",
+    "@pas/ledger": "workspace:*",
     "@pas/observability": "workspace:*",
     "@pas/parties": "workspace:*",
     "@pas/pay-plans": "workspace:*",

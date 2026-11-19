@@ -1,4 +1,5 @@
 import { referencedPaths, validate } from "@pas/expressions";
+import type { MessageParams } from "@pas/kernel";
 import { CONTEXT_ROOTS } from "../context";
 import { topologicalOrder } from "../graph";
 import {
@@ -15,6 +16,7 @@ export interface PlanIssue {
   table?: string;
   property: string;
   message: string;
+  params?: MessageParams;
 }
 
 export type PathResolver = Iterable<string> | ((path: string) => boolean);
@@ -216,7 +218,12 @@ function checkAlgorithm(
         if (code === coverage)
           report({ ...where, property: "coverages", message: "Can't sum its own premium" });
         else if (!covered.has(code)) {
-          report({ ...where, property: "coverages", message: `No algorithm for ${code}` });
+          report({
+            ...where,
+            property: "coverages",
+            message: "No algorithm for {coverage}",
+            params: { coverage: { kind: "coverage", code } },
+          });
         }
       }
     }

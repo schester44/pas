@@ -303,6 +303,12 @@ export function WhySheet({
     (d) => d.kind === "underwriting" || d.kind === "eligibility" || d.kind === "referral_triggers",
   );
 
+  const unlabelled = decisions.some((decision) =>
+    Object.values((decision.trace ?? {}) as DecisionTrace)
+      .flatMap(matchedRules)
+      .some((rule) => !rule.inputs),
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
@@ -362,6 +368,12 @@ export function WhySheet({
               </section>
             );
           })}
+          {unlabelled && (
+            <p className="m-0 text-xs text-muted-foreground">
+              This quote was evaluated before traces recorded column names, so labels come from the
+              risk data. Requote to see the table's own labels.
+            </p>
+          )}
           <div>
             <Button
               variant="link"

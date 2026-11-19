@@ -38,11 +38,22 @@ import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
 import { JOURNEY_EVENTS, type QuoteJourney } from "./quote-journey";
 import { type QuoteDto, toQuoteDto } from "./quote-dto";
 import { loadQuote, termOf } from "./quoting";
+import type { CarrierGateway } from "../ports/carrier-gateway";
+import {
+  type CarrierPacket,
+  carrierBinds,
+  carrierPacket,
+  storeCarrierDocuments,
+  submitBindToCarrier,
+} from "./carrier-bind";
 
 export type BindQuoteResult =
   | { status: "bound"; quote: QuoteDto }
   | { status: "payment_declined"; message: string; quote: QuoteDto }
-  | { status: "rechecked"; quote: QuoteDto };
+  | { status: "rechecked"; quote: QuoteDto }
+  | { status: "pending_carrier"; quote: QuoteDto };
+
+export type BindDeps = Deps;
 
 type Deps = EvaluationDeps & {
   uow: UnitOfWork;
@@ -60,6 +71,7 @@ type Deps = EvaluationDeps & {
   addresses: AddressRegistry;
   conditions: BindConditions;
   agencyBilling: AgencyBilling;
+  carrier?: CarrierGateway;
 };
 
 /**
@@ -78,6 +90,8 @@ export function makeBindQuote(deps: Deps) {
       autopay?: boolean;
     },
   ): Promise<BindQuoteResult> {
+    const clock = deps.clocks.forTenant(ctx.tenantId);
+
     const actor: TimelineActor =
       ctx.actor.type === "user"
         ? { type: "user", id: ctx.actor.userId, name: input.actorName }
@@ -137,6 +151,17 @@ export function makeBindQuote(deps: Deps) {
 
     if (rechecked) return { status: "rechecked", quote: rechecked };
 
+    if (deps.carrier && carrierBinds(release)) {
+      return submitBindToCarrier(deps, ctx, scope, {
+        submissionId: input.submissionId,
+        ...(input.method && { method: input.method }),
+        billingMethod: input.billingMethod ?? "direct",
+        actor,
+        release,
+        productName,
+      });
+    }
+
     if (input.billingMethod && input.billingMethod !== "direct") {
       return bindBilledTo(deps, ctx, scope, {
         submissionId: input.submissionId,
@@ -176,7 +201,7 @@ export function makeBindQuote(deps: Deps) {
         current.quote.notePaymentFailed(
           { ...authorization, last4: authorization.method.last4 },
           actor,
-          deps.clocks.forTenant(ctx.tenantId),
+          clock,
         );
 
         await deps.quotes.save(tx, current.quote);
@@ -190,7 +215,7 @@ export function makeBindQuote(deps: Deps) {
           amount,
           method: authorization.method,
           failure: authorization.code,
-          recordedAt: deps.clocks.forTenant(ctx.tenantId).now(),
+          recordedAt: clock.now(),
         });
       });
 
@@ -251,7 +276,7 @@ export function makeBindQuote(deps: Deps) {
 
     const bound = await deps.uow.run(ctx, async (tx) => {
       const current = await loadQuote(deps, tx, ctx, scope, input.submissionId);
-      const now = deps.clocks.forTenant(ctx.tenantId).now();
+      const now = clock.now();
 
       current.quote.markBound(
         {
@@ -265,7 +290,7 @@ export function makeBindQuote(deps: Deps) {
             capturedAt: now,
           },
         },
-        deps.clocks.forTenant(ctx.tenantId),
+        clock,
       );
 
       await deps.quotes.save(tx, current.quote);
@@ -294,8 +319,8 @@ export function makeBindQuote(deps: Deps) {
 }
 
 /** The policy packet and the signed application on the new policy. */
-async function attachPacket(
-  deps: Deps,
+export async function attachPacket(
+  deps: Pick<Deps, "documents" | "storage" | "clocks" | "policies">,
   ctx: TenantContext,
   input: {
     quote: Quote;
@@ -303,11 +328,12 @@ async function attachPacket(
     release: CatalogRelease;
     productName: string;
     issued: IssuedPolicy;
+    carrier?: CarrierPacket;
   },
 ) {
   const { quote, submission, release, productName, issued } = input;
 
-  const packet = await deps.documents.render(ctx, {
+  const rendered = await deps.documents.render(ctx, {
     release,
     transactions: ["new_business"],
     context: quoteDocumentContext({
@@ -319,6 +345,10 @@ async function attachPacket(
       issuedDate: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
     }),
   });
+
+  const packet = input.carrier
+    ? { pdf: await carrierPacket(input.carrier, rendered.pdf) }
+    : rendered;
 
   const packetKey = `tenants/${ctx.tenantId}/policies/${issued.policyId}/${issued.transactionId}/packet.pdf`;
 
@@ -343,6 +373,7 @@ async function attachPacket(
         storageKey: signedKey,
         sizeBytes: signed?.body.byteLength ?? 0,
       },
+      ...(await storeCarrierDocuments(deps, ctx, issued, input.carrier)),
     ],
     actor: { type: "system", name: "Document generation" },
   });
@@ -486,7 +517,8 @@ async function enrollAutopay(
   });
 }
 
-const dto = (quote: Quote, submission: Submission) => toQuoteDto(quote, submission, "producer");
+export const dto = (quote: Quote, submission: Submission) =>
+  toQuoteDto(quote, submission, "producer");
 
 /** Bind-time re-check (PLAN §7.2): null when the quote still binds as signed. */
 async function recheck(
@@ -528,7 +560,7 @@ async function recheck(
   });
 }
 
-function issueRequest(
+export function issueRequest(
   quote: Quote,
   submission: Submission,
   release: CatalogRelease,
@@ -603,8 +635,8 @@ function issueRequest(
 export type BindQuote = ReturnType<typeof makeBindQuote>;
 
 /** The bound policy takes over the submission's locations in the address registry. */
-async function trackPolicyAddresses(
-  deps: Deps,
+export async function trackPolicyAddresses(
+  deps: Pick<Deps, "addresses">,
   ctx: TenantContext,
   input: {
     quote: Quote;

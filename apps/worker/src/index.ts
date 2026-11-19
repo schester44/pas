@@ -9,6 +9,7 @@ import {
   makeApplyBillingEvent,
   makeInstallmentTimers,
   makeIssueInvoice,
+  makeListInvoices,
   makeRefundCreditNote,
   pastDueOf,
 } from "@pas/billing";
@@ -31,7 +32,7 @@ import {
 } from "@pas/policy";
 import { createStorageFromEnv } from "@pas/storage";
 import { PrismaPolicyRepository } from "@pas/policy/infrastructure";
-import { makeRecordCommissions } from "@pas/distribution";
+import { makeCommissionFacts, makeRecordCommissions } from "@pas/distribution";
 import {
   PrismaAgencyRepository,
   PrismaCommissionRepository,
@@ -43,6 +44,7 @@ import {
   PgBossOutbox,
   QueueClient,
   queueConnectionFromEnv,
+  reconciliationQueue,
   shouldManageQueueSchema,
 } from "@pas/queues";
 import { filingWorkflow, obligationWorkflow } from "@pas/compliance";
@@ -64,9 +66,11 @@ import {
 import { AppHosts, makeGetProfile } from "@pas/tenants";
 import { PrismaTenantProfileRepository, TenantClocks } from "@pas/tenants/infrastructure";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
+import { composeWorkerAgencyDownloads } from "./agency-downloads";
 import { composeWorkerBillingMethods, withHandlers } from "./billing-methods";
 import { composeWorkerEvents } from "./events";
 import { createDomainEventDispatcher } from "./handlers/domain-events";
+import { KNOWN_DOMAIN_EVENTS } from "./handlers/known-events";
 import { composePolicyServices } from "./policy-services";
 import { makeApprovalDemoWorkflow } from "./workflows/approval-demo";
 import { makeFilingWorkflow, makeObligationWorkflow } from "./workflows/compliance";
@@ -75,6 +79,11 @@ import { makePolicyCancellationWorkflow } from "./workflows/policy-cancellation"
 import { makePolicyTermWorkflow } from "./workflows/policy-term";
 import { makeQuoteJourneyWorkflow } from "./workflows/quote-journey";
 import { composeWorkerUnderwriting } from "./underwriting";
+import { composeWorkerCarriers } from "./carriers";
+import { composeWorkerLedger } from "./ledger";
+import { makeLifecycleCleanup } from "./lifecycle-cleanup";
+import { makeReconcileIssued } from "./reconciliation";
+import { subjectsFrom } from "./workflow-subjects";
 
 const logger = createLogger("worker");
 const prisma = getPrismaClient();
@@ -97,6 +106,7 @@ const recordCommissions = makeRecordCommissions({
   commissions: new PrismaCommissionRepository(),
   clocks,
   financials: { transaction: transactionFinancials },
+  outbox,
 });
 
 const invoices = new PrismaInvoiceRepository();
@@ -143,6 +153,9 @@ const integrations = composeIntegrations({
       payments: new FakeCardGateway(clocks),
       esign: new ClickToSignGateway(),
       email: new ConsoleMailer(logger),
+      billing: {
+        publish: (tenantId, type, data) => nativeLedger.nativeBilling.publish(tenantId, type, data),
+      },
     }),
     ...inspectionProviders(clocks),
   ],
@@ -156,6 +169,26 @@ const integrations = composeIntegrations({
   },
   secretKey: process.env.INTEGRATIONS_SECRET_KEY,
   publicUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:4000",
+});
+
+const nativeLedger = composeWorkerLedger({
+  uow,
+  outbox,
+  clocks,
+  logger,
+  listInvoices: makeListInvoices({ uow, invoices }),
+  commissionFacts: makeCommissionFacts({
+    uow,
+    agencies: new PrismaAgencyRepository(),
+    commissions: new PrismaCommissionRepository(),
+  }),
+  invoices,
+  billingEvents: billingEvents.events,
+  applyEvent: applyBillingEvent,
+  payments: integrations.resolver.port("payments"),
+  resolver: () => integrations.resolver,
+  ledgerTenants: async () =>
+    (await prisma.ledgerSettings.findMany({ select: { tenantId: true } })).map((s) => s.tenantId),
 });
 
 const refundCreditNote = makeRefundCreditNote({
@@ -228,6 +261,19 @@ const compliance = composeCompliance({
   },
   channels: filingChannelsFrom(integrations),
   tenantName: async (ctx) => (await getProfile(ctx)).displayName,
+});
+
+const agencyDownloads = composeWorkerAgencyDownloads({
+  uow,
+  outbox,
+  clocks,
+  storage: createStorageFromEnv(),
+  policies,
+  integrations,
+  tracked: compliance.tracked,
+  tenantName: async (ctx) => (await getProfile(ctx)).displayName,
+  workflows: () => workflows,
+  logger,
 });
 
 const events = composeWorkerEvents({
@@ -332,6 +378,33 @@ const underwriting = composeWorkerUnderwriting({
   logger,
 });
 
+const carriers = composeWorkerCarriers({
+  prisma,
+  uow,
+  outbox,
+  clocks,
+  storage: createStorageFromEnv(),
+  policies,
+  invoices: { issue: issueInvoice },
+  integrations,
+  policyServices,
+  applyBillingEvent,
+  schedules,
+  branding: async (ctx) => {
+    const profile = await getProfile(ctx);
+
+    return {
+      name: profile.displayName,
+      primaryColor: profile.primaryColor,
+      ...(profile.supportEmail && { supportEmail: profile.supportEmail }),
+      ...(profile.supportPhone && { supportPhone: profile.supportPhone }),
+    };
+  },
+  senderName: async (ctx) => (await getProfile(ctx)).displayName,
+  workflows: () => workflows,
+  logger,
+});
+
 const workflows = new PostgresWorkflows({
   ...workflowConnectionFromEnv(),
   logger,
@@ -346,7 +419,24 @@ const workflows = new PostgresWorkflows({
     makeFilingWorkflow({ timers: compliance.timers }),
     ...underwriting.workflows,
     ...billingMethods.workflows,
+    ...nativeLedger.workflows,
+    ...agencyDownloads.workflows,
+    ...carriers.workflows,
   ],
+});
+
+const listInvoices = makeListInvoices({ uow, invoices });
+
+const cleanUpLifecycle = makeLifecycleCleanup({
+  liveRuns: (ctx, subjects) => workflows.liveRuns(ctx, subjects),
+  cancelRun: (ctx, runId, reason) => workflows.cancel(ctx, runId, reason),
+  settledInvoiceIds: async (ctx, policyId) =>
+    new Set(
+      (await listInvoices.forPolicies(ctx, { policyIds: [policyId] }))
+        .filter((i) => i.status === "void" || i.status === "paid")
+        .map((i) => i.id),
+    ),
+  closeConditions: underwriting.underwriting.closePolicyConditions,
 });
 
 const workerContext = (tenantId: string) => ({
@@ -398,7 +488,10 @@ const dispatch = createDomainEventDispatcher(
             workerContext(event.tenantId),
             policyCancellationWorkflow,
             { termId, transactionId },
-            { idempotencyKey: `policy.cancellation:${transactionId}` },
+            {
+              idempotencyKey: `policy.cancellation:${transactionId}`,
+              subjects: subjectsFrom({ policyId: event.aggregateId, termId, transactionId }),
+            },
           );
         },
       ],
@@ -439,6 +532,7 @@ const dispatch = createDomainEventDispatcher(
             { termId },
             {
               idempotencyKey: `policy.term:${termId}:${transactionId}`,
+              subjects: subjectsFrom(event.payload as Record<string, unknown>),
             },
           );
         },
@@ -456,6 +550,31 @@ const dispatch = createDomainEventDispatcher(
           if (result.created > 0)
             logger.info({ policyId, transactionId, ...result }, "compliance obligations created");
         },
+        async (event) => {
+          const { type, policyId, termId } = event.payload as {
+            type: string;
+            policyId: string;
+            termId: string;
+          };
+
+          const kind =
+            type === "CANCELLATION"
+              ? "cancelled"
+              : type === "CANCELLATION_RESCISSION"
+                ? "rescinded"
+                : null;
+
+          if (!kind) return;
+
+          const cancelled = await cleanUpLifecycle(workerContext(event.tenantId), {
+            kind,
+            policyId,
+            termId,
+          });
+
+          if (cancelled.length > 0)
+            logger.info({ policyId, kind, cancelled }, "workflow runs cancelled");
+        },
       ],
       "compliance.obligation_created": [
         async (event) => {
@@ -465,7 +584,10 @@ const dispatch = createDomainEventDispatcher(
             workerContext(event.tenantId),
             obligationWorkflow,
             { obligationId },
-            { idempotencyKey: `compliance.obligation:${obligationId}` },
+            {
+              idempotencyKey: `compliance.obligation:${obligationId}`,
+              subjects: subjectsFrom(event.payload as Record<string, unknown>),
+            },
           );
         },
       ],
@@ -483,7 +605,10 @@ const dispatch = createDomainEventDispatcher(
             workerContext(event.tenantId),
             filingWorkflow,
             { obligationId, filingId },
-            { idempotencyKey: `compliance.filing:${filingId}` },
+            {
+              idempotencyKey: `compliance.filing:${filingId}`,
+              subjects: subjectsFrom(event.payload as Record<string, unknown>),
+            },
           );
         },
       ],
@@ -498,7 +623,10 @@ const dispatch = createDomainEventDispatcher(
             workerContext(event.tenantId),
             installmentWorkflow,
             { invoiceId },
-            { idempotencyKey: `billing.installment:${invoiceId}` },
+            {
+              idempotencyKey: `billing.installment:${invoiceId}`,
+              subjects: subjectsFrom(event.payload as Record<string, unknown>),
+            },
           );
         },
       ],
@@ -566,13 +694,20 @@ const dispatch = createDomainEventDispatcher(
             { tenantId: asId(event.tenantId), actor: { type: "system", process: "worker" } },
             policyTermWorkflow,
             { termId },
-            { idempotencyKey: `policy.term:${termId}` },
+            {
+              idempotencyKey: `policy.term:${termId}`,
+              subjects: subjectsFrom(event.payload as Record<string, unknown>),
+            },
           );
         },
       ],
     },
-    billingMethods.handlers,
+    withHandlers(
+      withHandlers(billingMethods.handlers, agencyDownloads.handlers()),
+      nativeLedger.handlers,
+    ),
   ),
+  KNOWN_DOMAIN_EVENTS,
   logger,
 );
 
@@ -583,6 +718,23 @@ await queues.work(eventDeliveriesQueue, async (job) => {
 
   logger.info({ deliveryId: job.deliveryId, trigger: job.trigger, ...result }, "event delivery");
 });
+
+const reconcileIssued = makeReconcileIssued({
+  prisma,
+  recordCommissions,
+  createObligations: compliance.createForTransaction,
+});
+
+await queues.work(reconciliationQueue, async (job) => {
+  const result = await reconcileIssued(job);
+
+  await nativeLedger.reconcileAll(job.tenantId);
+
+  if (result.failed.length > 0) logger.warn({ ...job, ...result }, "reconciliation incomplete");
+  else logger.info({ ...job, ...result }, "reconciliation sweep");
+});
+
+await queues.schedule(reconciliationQueue, "17 3 * * *", { tenantId: null, days: 30 });
 
 await workflows.open();
 

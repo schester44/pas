@@ -104,118 +104,120 @@ export function DecisionTable({
   ];
 
   return (
-    <div className="relative w-full overflow-x-auto">
-      <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
-        <thead className="bg-muted/40">
-          <tr>
-            <th className="w-12 border-b pl-(--card-p)" rowSpan={2} aria-label="Row" />
-            <GroupHead span={inputs.length} label="Conditions" />
-            <GroupHead span={outputs.length} label="Results" divider />
-            <th
-              className="min-w-56 border-b pb-3 text-left align-bottom"
-              rowSpan={2}
-              aria-label="Description"
-            >
-              <span className="px-3 text-xs font-medium text-muted-foreground">Description</span>
-            </th>
-            {!readOnly && <th className="w-12 border-b pr-(--card-p)" rowSpan={2} />}
-          </tr>
-          <tr>
-            {columns.map(({ side, column }) => (
+    <div className="w-full">
+      <div className="relative w-full overflow-x-auto">
+        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+          <thead className="bg-muted/40">
+            <tr>
+              <th className="w-12 border-b pl-(--card-p)" rowSpan={2} aria-label="Row" />
+              <GroupHead span={inputs.length} label="Conditions" />
+              <GroupHead span={outputs.length} label="Results" divider />
               <th
-                key={column.id}
-                className={cn(
-                  "border-b px-1.5 pb-1.5 text-left align-bottom font-normal",
-                  side === "outputs" && column.id === outputs[0]?.id && "border-l",
-                  WIDE_FIELDS.has(column.field ?? "") ? "min-w-64" : "min-w-28",
-                )}
+                className="min-w-56 border-b pb-3 text-left align-bottom"
+                rowSpan={2}
+                aria-label="Description"
               >
-                <ColumnHeader
-                  kind={kind}
-                  side={side}
-                  column={column}
-                  schema={schema}
-                  siblings={content[side].filter((c) => c.id !== column.id)}
-                  issue={cellIssues.get(`:${column.id}`)}
-                  readOnly={readOnly}
-                  removable={side === "inputs" || content[side].length > 1}
-                  onChange={(next) => updateColumn(side, next)}
-                  onRemove={() => onChange(removeColumn(content, side, column.id))}
-                />
+                <span className="px-3 text-xs font-medium text-muted-foreground">Description</span>
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rules.map((rule, index) => {
-            const hit = matched?.has(rule._id);
-
-            return (
-              <tr key={rule._id} className={cn("group/row", hit && "bg-primary/5")}>
-                <td
+              {!readOnly && <th className="w-12 border-b pr-(--card-p)" rowSpan={2} />}
+            </tr>
+            <tr>
+              {columns.map(({ side, column }) => (
+                <th
+                  key={column.id}
                   className={cn(
-                    "border-b pl-(--card-p) align-top text-xs tabular-nums text-muted-foreground",
-                    hit && "font-medium text-primary shadow-[inset_2px_0_0_var(--color-primary)]",
+                    "border-b px-1.5 pb-1.5 text-left align-bottom font-normal",
+                    side === "outputs" && column.id === outputs[0]?.id && "border-l",
+                    WIDE_FIELDS.has(column.field ?? "") ? "min-w-64" : "min-w-28",
                   )}
                 >
-                  <span className="flex h-11 items-center" title={hit ? "Matched" : undefined}>
-                    {index + 1}
-                  </span>
-                </td>
-                {columns.map(({ side, column }) => (
+                  <ColumnHeader
+                    kind={kind}
+                    side={side}
+                    column={column}
+                    schema={schema}
+                    siblings={content[side].filter((c) => c.id !== column.id)}
+                    issue={cellIssues.get(`:${column.id}`)}
+                    readOnly={readOnly}
+                    removable={side === "inputs" || content[side].length > 1}
+                    onChange={(next) => updateColumn(side, next)}
+                    onRemove={() => onChange(removeColumn(content, side, column.id))}
+                  />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((rule, index) => {
+              const hit = matched?.has(rule._id);
+
+              return (
+                <tr key={rule._id} className={cn("group/row", hit && "bg-primary/5")}>
                   <td
-                    key={column.id}
                     className={cn(
-                      "border-b px-1.5 py-1.5 align-top",
-                      side === "outputs" && column.id === outputs[0]?.id && "border-l",
+                      "border-b pl-(--card-p) align-top text-xs tabular-nums text-muted-foreground",
+                      hit && "font-medium text-primary shadow-[inset_2px_0_0_var(--color-primary)]",
                     )}
                   >
+                    <span className="flex h-11 items-center" title={hit ? "Matched" : undefined}>
+                      {index + 1}
+                    </span>
+                  </td>
+                  {columns.map(({ side, column }) => (
+                    <td
+                      key={column.id}
+                      className={cn(
+                        "border-b px-1.5 py-1.5 align-top",
+                        side === "outputs" && column.id === outputs[0]?.id && "border-l",
+                      )}
+                    >
+                      <Cell
+                        value={ruleCell(rule, column.id)}
+                        placeholder={side === "inputs" ? "any" : "–"}
+                        issue={cellIssues.get(`${rule._id}:${column.id}`)}
+                        readOnly={readOnly}
+                        label={`Row ${index + 1}, ${column.name || column.field}`}
+                        onChange={(value) =>
+                          update({ rules: setCell(rules, rule._id, column.id, value) })
+                        }
+                      />
+                    </td>
+                  ))}
+                  <td className="border-b px-1.5 py-1.5 align-top">
                     <Cell
-                      value={ruleCell(rule, column.id)}
-                      placeholder={side === "inputs" ? "any" : "–"}
-                      issue={cellIssues.get(`${rule._id}:${column.id}`)}
+                      value={rule._description ?? ""}
+                      plain
                       readOnly={readOnly}
-                      label={`Row ${index + 1}, ${column.name || column.field}`}
+                      label={`Row ${index + 1} description`}
                       onChange={(value) =>
-                        update({ rules: setCell(rules, rule._id, column.id, value) })
+                        update({
+                          rules: rules.map((r) =>
+                            r._id === rule._id ? { ...r, _description: value } : r,
+                          ),
+                        })
                       }
                     />
                   </td>
-                ))}
-                <td className="border-b px-1.5 py-1.5 align-top">
-                  <Cell
-                    value={rule._description ?? ""}
-                    plain
-                    readOnly={readOnly}
-                    label={`Row ${index + 1} description`}
-                    onChange={(value) =>
-                      update({
-                        rules: rules.map((r) =>
-                          r._id === rule._id ? { ...r, _description: value } : r,
-                        ),
-                      })
-                    }
-                  />
-                </td>
-                {!readOnly && (
-                  <td className="border-b pr-(--card-p) align-top">
-                    <RowMenu
-                      index={index}
-                      count={rules.length}
-                      onMove={(by) => update({ rules: moveRule(rules, index, by) })}
-                      onDuplicate={() => {
-                        const copy = { ...rule, _id: newId() };
-                        update({ rules: rules.toSpliced(index + 1, 0, copy) });
-                      }}
-                      onDelete={() => update({ rules: rules.filter((r) => r._id !== rule._id) })}
-                    />
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  {!readOnly && (
+                    <td className="border-b pr-(--card-p) align-top">
+                      <RowMenu
+                        index={index}
+                        count={rules.length}
+                        onMove={(by) => update({ rules: moveRule(rules, index, by) })}
+                        onDuplicate={() => {
+                          const copy = { ...rule, _id: newId() };
+                          update({ rules: rules.toSpliced(index + 1, 0, copy) });
+                        }}
+                        onDelete={() => update({ rules: rules.filter((r) => r._id !== rule._id) })}
+                      />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {!readOnly && (
         <div className="px-(--card-p) py-2">
           <Button

@@ -2,6 +2,7 @@ import { createCensusGeocoder, createFakeDataProvider, type DataProvider } from 
 import { newId } from "@pas/kernel";
 import { z } from "zod";
 import type {
+  BillingSystem,
   CardPayments,
   ChatChannel,
   EmailSender,
@@ -22,6 +23,8 @@ const builtin = {
   builtin: true,
   webhook: null,
 } satisfies Partial<ProviderManifest>;
+
+export const NATIVE_BILLING = "native_billing";
 
 const ok = async () => ({ ok: true, detail: "Built in; always available" });
 
@@ -55,6 +58,10 @@ export function builtinProviders(adapters: {
   esign: ESignProvider;
   email: EmailSender;
   data?: DataProvider;
+  /** The native billing system: receives PAS's outbound billing facts for the tenant. */
+  billing?: {
+    publish(tenantId: string, type: string, data: Record<string, unknown>): Promise<void>;
+  };
 }): AnyProviderPackage[] {
   const payments: CardPayments = {
     provider: adapters.payments.provider,
@@ -166,6 +173,29 @@ export function builtinProviders(adapters: {
         logo: { icon: "database" },
       },
       create: () => data,
+      check: ok,
+    },
+    {
+      manifest: {
+        ...builtin,
+        id: NATIVE_BILLING,
+        name: "Native billing",
+        category: "billing",
+        summary: "The built-in billing system with a double-entry ledger.",
+        description:
+          "Records card, check, wire, ACH and lockbox payments, applies cash across invoices and statements, handles NSF reversals, refunds, credits and write-offs, and keeps a balanced, append-only journal with trial balance, aging and daily reconciliation against PAS invoices.",
+        capabilities: [
+          "Double-entry ledger",
+          "Cash application",
+          "Lockbox import",
+          "Reconciliation",
+        ],
+        logo: { icon: "landmark" },
+        liveMode: true,
+      },
+      create: (settings): BillingSystem => ({
+        publish: async (type, data) => adapters.billing?.publish(settings.tenantId, type, data),
+      }),
       check: ok,
     },
     builtinAddressProvider(),

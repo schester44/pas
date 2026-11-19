@@ -5,6 +5,7 @@ import { Panel } from "@pas/ui/components/panel";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { QuoteCarrierPanel } from "@/components/carriers/quote-carrier";
 import { DuplicateRiskNotice } from "@/components/submissions/duplicate-risk";
 import type * as React from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
@@ -21,6 +22,7 @@ import { InspectionsPanel, SubjectivitiesPanel } from "@/components/underwriting
 import { useAccess } from "@/lib/permissions";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
+import { useRecordView } from "@/lib/recent-views";
 
 export const Route = createFileRoute("/_authed/submissions/$submissionId")({
   component: SubmissionPage,
@@ -38,6 +40,7 @@ const STAGE: Record<string, string> = { quote: "Quote", bind: "Bind", endorsemen
 
 function SubmissionPage() {
   const { submissionId } = Route.useParams();
+  useRecordView("submission", submissionId);
   const trpc = useTRPC();
   const submission = useQuery(trpc.submissions.get.queryOptions({ id: submissionId }));
   const quote = useQuery(trpc.submissions.quote.queryOptions({ submissionId }));
@@ -91,6 +94,7 @@ function SubmissionPage() {
                     {...(referrals.data?.[0] && { referralId: referrals.data[0].id })}
                   />
                   {quote.data.status !== "declined" && <QuotePremium quote={quote.data} />}
+                  <QuoteCarrierPanel quote={quote.data} />
                   {quote.data.status !== "declined" && <RequirementsPanel quote={quote.data} />}
                   {access.underwriting.read && (
                     <>

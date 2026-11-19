@@ -92,3 +92,25 @@ function toLine(rule: TaxFeeRule, amount: Money): TaxFeeLine {
     amount,
   };
 }
+
+/** Re-levies existing lines on a new premium, e.g. when the carrier's premium replaces ours. */
+export function repriceTaxesAndFees(
+  lines: readonly TaxFeeLine[],
+  premium: Money,
+  fallback: TaxFeeRounding,
+): TaxFeeLine[] {
+  const rules: TaxFeeRule[] = lines.map((line) => ({
+    code: line.code,
+    label: line.label,
+    basis: line.basis,
+    ...(line.rate !== undefined && { rate: line.rate }),
+    ...(line.basis === "flat" && {
+      amount: line.amount.toString(),
+      currency: line.amount.currency,
+    }),
+    taxable: line.taxable,
+    remitter: line.remitter,
+  }));
+
+  return computeTaxesAndFees(rules, premium, fallback);
+}

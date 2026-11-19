@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, Building2, Plus, Users } from "lucide-react";
 import { useState } from "react";
+import { AgencyDownloadsPanel } from "@/components/agency-downloads/agency-downloads-panel";
 import { StatementsTable } from "@/components/billing/statements";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { AgencyDialog } from "@/components/distribution/agency-dialog";
@@ -35,7 +36,15 @@ import { formatMoney, formatPlainDate } from "@/lib/format";
 import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
-const TABS = ["producers", "licenses", "appointments", "statement", "account"] as const;
+const TABS = [
+  "producers",
+  "licenses",
+  "appointments",
+  "statement",
+  "account",
+  "downloads",
+] as const;
+
 type Tab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/_authed/agencies/$agencyId")({
@@ -123,6 +132,7 @@ function AgencyPage() {
                   { value: "licenses", label: "Licenses" },
                   { value: "appointments", label: "Appointments" },
                   { value: "statement", label: "Commissions" },
+                  ...(staff ? [{ value: "downloads" as const, label: "Downloads" }] : []),
                   ...(agency.data.billing.eligible || agency.data.billing.suspension
                     ? [{ value: "account" as const, label: "Account current" }]
                     : []),
@@ -134,6 +144,7 @@ function AgencyPage() {
               {tab === "licenses" && <LicensesPanel agency={agency.data} />}
               {tab === "appointments" && <AppointmentsPanel agency={agency.data} />}
               {tab === "account" && <StatementsTable agencyId={agency.data.id} />}
+              {tab === "downloads" && <AgencyDownloadsPanel agencyId={agency.data.id} />}
               {tab === "statement" && (
                 <AgencyStatement
                   agencyId={agency.data.id}

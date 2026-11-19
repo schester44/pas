@@ -1,6 +1,7 @@
 import type { DecisionKind } from "@pas/decisions-engine";
 import type { Instant, Money } from "@pas/kernel";
 import type { Attestation, DiligentSearch } from "./bind-requirements";
+import type { CarrierQuoteState } from "./carrier-quote";
 import type { CoverageOffer } from "./coverages";
 import type { PayPlanOffer } from "./pay-plan-offers";
 import type { TaxFeeLine } from "./taxes-fees";
@@ -47,6 +48,8 @@ export interface QuoteEvaluation {
   payPlans: PayPlanOffer[];
   /** An underwriter's loading or credit, already in the premium lines. */
   adjustment?: { percent: string; reason: string; amount: Money };
+  /** Set when the release's carrier rates or confirms (PLAN §12). */
+  carrier?: CarrierQuoteState;
   evaluatedAt: Instant;
   durationMs: number;
 }

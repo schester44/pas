@@ -182,6 +182,9 @@ export function mockInspections(clocks: ClockProvider): InspectionProvider {
     async check(ctx, providerRef) {
       return status(ctx, decode(providerRef));
     },
+    async cancel(_ctx, providerRef) {
+      decode(providerRef);
+    },
   };
 }
 

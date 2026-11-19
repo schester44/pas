@@ -23,6 +23,7 @@ import { Download } from "lucide-react";
 import type * as React from "react";
 import { useId, useState } from "react";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
+import { humanize } from "@/components/decisions/jdm-edit";
 import {
   downloadFile,
   kindLabel,
@@ -240,7 +241,7 @@ function Summary({ obligation: o }: { obligation: ObligationDetail }) {
             <span className="text-amber-800"> · no licensee on record for {o.jurisdiction}</span>
           )}
         </Row>
-        <Row label="Delivery">{o.channel.replaceAll("_", " ")}</Row>
+        <Row label="Delivery">{humanize(o.channel)}</Row>
         <Row label="Decided by">
           <code className="font-mono text-[0.8125rem]">{o.source.decision}</code>
         </Row>

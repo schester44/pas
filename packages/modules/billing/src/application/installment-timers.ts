@@ -1,3 +1,4 @@
+import { invoiceOpened } from "./issue-invoice";
 import {
   asId,
   type ClockProvider,
@@ -191,6 +192,7 @@ export function makeInstallmentTimers(
             if (!current.open(clock)) return;
 
             await deps.invoices.save(tx, current);
+            await deps.outbox.add(tx, [invoiceOpened(ctx, current, clock.now())]);
 
             await deps.timeline.record(tx, ctx, {
               policyId: i.policyId,

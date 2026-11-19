@@ -6,6 +6,7 @@ import {
   type MortgageeBilling,
   mortgageeBillWorkflow,
 } from "@pas/billing";
+import { nightlyBatchWorkflow } from "@pas/agency-downloads";
 import { filingWorkflow, obligationWorkflow, type ObligationTimers } from "@pas/compliance";
 import type { TenantContext } from "@pas/kernel";
 import { policyCancellationWorkflow, policyTermWorkflow, type TermTimers } from "@pas/policy";
@@ -25,14 +26,14 @@ const SETTLE_LIMIT_MS = 20_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type Describe = (
+export type DescribeRun = (
   ctx: TenantContext,
-  timer: ScheduledTimer,
+  run: Pick<ScheduledTimer, "workflowId" | "stepId" | "input">,
 ) => Promise<Pick<UpcomingTimer, "label" | "reference">>;
 
-/** Turns the workflow engine's timers into what a sandbox user recognises. */
-export function makeSandboxTimers(deps: {
-  workflows: PostgresWorkflows;
+type Describe = DescribeRun;
+
+export interface RunDescriberDeps {
   terms: TermTimers;
   quotes: QuoteTimers;
   installments: InstallmentTimers;
@@ -41,7 +42,10 @@ export function makeSandboxTimers(deps: {
   subjectivities: SubjectivityTimers;
   agencyStatements: AgencyStatements;
   mortgagee: MortgageeBilling;
-}): SandboxTimers {
+}
+
+/** Names a run or timer the way a person recognises it: what it waits for, and on which record. */
+export function makeRunDescriber(deps: RunDescriberDeps): DescribeRun {
   const describers: Record<string, Describe> = {
     [agencyAccountWorkflow.id]: async (_ctx, timer) => {
       const step = timer.stepId.replace(/^wait-/, "");
@@ -72,6 +76,10 @@ export function makeSandboxTimers(deps: {
 
       return { label, reference: bill ? `${bill.policyNumber} · ${bill.lender}` : null };
     },
+    [nightlyBatchWorkflow.id]: async (_ctx, timer) => ({
+      label: "Agency downloads batch",
+      reference: `Batch for ${(timer.input as { runDate: string }).runDate}`,
+    }),
     [policyTermWorkflow.id]: async (ctx, timer) => {
       const policy = await deps.terms.describe(ctx, timer.input as { termId: string });
 
@@ -150,9 +158,18 @@ export function makeSandboxTimers(deps: {
     },
   };
 
-  const describe: Describe = (ctx, timer) =>
-    describers[timer.workflowId]?.(ctx, timer) ??
-    Promise.resolve({ label: timer.workflowId, reference: null });
+  return (ctx, timer) =>
+    describers[timer.workflowId]?.(ctx, timer).catch(() => ({
+      label: timer.workflowId,
+      reference: null,
+    })) ?? Promise.resolve({ label: timer.workflowId, reference: null });
+}
+
+/** Turns the workflow engine's timers into what a sandbox user recognises. */
+export function makeSandboxTimers(
+  deps: RunDescriberDeps & { workflows: PostgresWorkflows },
+): SandboxTimers {
+  const describe = makeRunDescriber(deps);
 
   return {
     async upcoming(ctx, options) {

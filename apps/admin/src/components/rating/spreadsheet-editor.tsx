@@ -32,7 +32,7 @@ import { operandOptions } from "./model";
 import { OperandPicker } from "./operand-picker";
 import type { RaterWorkbookDetail, RatingIssue } from "./use-rating";
 import { formatSize, UploadWorkbookDialog, WorkbookReport } from "./workbook-report";
-import { readable } from "@/lib/readable";
+import { formatMessage } from "@/lib/messages";
 
 type SpreadsheetConfig = Extract<RatingConfig, { engine: "spreadsheet" }>;
 
@@ -366,7 +366,7 @@ function ManifestEditor({
           {general.map((issue, i) => (
             <li key={i} className="flex items-center gap-2 px-(--card-p) py-2.5 text-sm">
               <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-red-500" />
-              {readable(issue.message, coverages)}
+              {formatMessage(issue, coverages)}
             </li>
           ))}
         </ul>
@@ -449,7 +449,7 @@ function ManifestEditor({
           return (
             <BindingRow
               key={i}
-              problems={problems.map((p) => readable(p.message, coverages))}
+              problems={problems.map((p) => formatMessage(p, coverages))}
               readOnly={readOnly}
               onRemove={() =>
                 onChange({ ...manifest, inputs: manifest.inputs.filter((_, j) => j !== i) })
@@ -557,7 +557,7 @@ function ManifestEditor({
         {manifest.outputs.map((binding, i) => (
           <BindingRow
             key={i}
-            problems={issuesAt(`outputs[${i}]`).map((p) => readable(p.message, coverages))}
+            problems={issuesAt(`outputs[${i}]`).map((p) => formatMessage(p, coverages))}
             readOnly={readOnly}
             onRemove={() =>
               onChange({ ...manifest, outputs: manifest.outputs.filter((_, j) => j !== i) })

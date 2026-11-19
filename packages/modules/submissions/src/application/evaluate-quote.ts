@@ -1,3 +1,4 @@
+import { carrierAssignmentOf } from "@pas/carriers";
 import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
 import { currencyDecimals } from "@pas/forms-core";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@pas/kernel";
 import type { CoverageSelection, RatingInput, RatingResult } from "@pas/rating-engine";
 import type { Attestation, DiligentSearch } from "../domain/bind-requirements";
+import { pendingCarrierQuote } from "../domain/carrier-quote";
 import {
   type CoverageChoice,
   coverageOffers,
@@ -162,6 +164,7 @@ export async function evaluateQuote(
 
   const outcome = outcomeOf(reasons);
   const clock = deps.clocks.forTenant(ctx.tenantId);
+  const carrier = priced && !input.transaction ? carrierQuoteFor(release) : undefined;
 
   const payPlans =
     priced && input.channel
@@ -191,6 +194,7 @@ export async function evaluateQuote(
       diligentSearch,
       attestations,
       payPlans,
+      ...(carrier && { carrier }),
       evaluatedAt: clock.now(),
       durationMs: performance.now() - started,
     },
@@ -264,6 +268,19 @@ async function price(
     rating,
     adjustment: adjusted && loading && { ...loading, amount: adjusted.amount },
   };
+}
+
+function carrierQuoteFor(release: CatalogRelease) {
+  const assignment = carrierAssignmentOf(release.lifecycle);
+
+  if (!assignment || assignment.ownership.rating === "pas") return undefined;
+
+  return pendingCarrierQuote({
+    carrier: assignment.carrier,
+    rating: assignment.ownership.rating,
+    figuresWin:
+      assignment.ownership.rating === "carrier" || assignment.ownership.lineItems === "carrier",
+  });
 }
 
 function toRatingSelection(choice: CoverageChoice): CoverageSelection {
