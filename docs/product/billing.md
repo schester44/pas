@@ -25,7 +25,8 @@ _Pay plans per product version, with a live schedule preview for any premium._
 - **Automate nonpayment**: reminder, notice of intent by email and print and mail with proof recorded, cancellation at the earliest valid date, held if there's no proof of mailing. A payment before the date rescinds the cancellation and sends a rescission notice.
 - **Run agency bill**: per-agency eligibility, gross or net remittance, remittance days, credit limits checked at bind, a monthly account current with commission netted and a PDF emailed to the agency, aging with reminders and suspension of the agency bill privilege until the account is current.
 - **Run mortgagee bill**: the lender packet (invoice, evidence of insurance, declarations) by print and mail with proof and by email, reminders, an offer to switch the insured to direct bill, then nonpayment notices to the insured and the mortgagee.
-- **Simulate billing events** in sandboxes or on built-in billing to rehearse payments, reversals and delinquency.
+- **Choose who moves the money**: [native billing](native-billing.md) with a double-entry ledger, or your existing billing platform through canonical billing events.
+- **Simulate billing events** in sandboxes connected to an external billing system, to rehearse payments, reversals and delinquency.
 
 ![A policy's billing tab with a quarterly plan: one installment paid and three scheduled](images/billing-installments.png)
 _Installments per policy with due dates and status, and whether autopay is on._
@@ -42,6 +43,13 @@ _Mortgagee bill: the lender was invoiced, didn't pay, and the policy switched to
 ![A policy pending cancellation for nonpayment: past due amount, notice of intent mailed and the cancellation date](images/nonpayment-policy.png)
 _Nonpayment in progress: the notice of intent was mailed and the policy cancels on the earliest valid date unless paid._
 
+## Native billing or bring your own
+
+Tenants choose one of two billing systems in the integrations catalog, and both drive the policy side identically.
+
+- **[Native billing](native-billing.md)**: the built-in billing system with a double-entry ledger, payments by card, ACH, check and wire, lockbox import, cash application, NSF reversals, refunds, write-offs, receivables on the written basis, commission payable per agency, reports and daily reconciliation.
+- **Your existing billing platform**, connected through signed canonical billing events, as below.
+
 ## Bring your own billing
 
 Already run a billing platform? PAS keeps owning **invoices** (what's owed, by whom, when) and the **policy consequences** of money events (cure, nonpayment cancellation, reinstatement). Your billing platform owns money movement.
@@ -53,6 +61,9 @@ Already run a billing platform? PAS keeps owning **invoices** (what's owed, by w
 - Publishing invoices and schedules outbound to an external billing platform is planned.
 
 ## How it fits
+
+- The built-in ledger, payments, cash application and reconciliation: [Native billing](native-billing.md)
+- Premium payable to carriers and carrier-owned billing: [Carriers](carriers.md)
 
 - Pay plans and billing methods are chosen at the pay step: [Quote to bind](quote-to-bind.md)
 - Cancellations, rescissions and reinstatements: [Policy lifecycle](policy-lifecycle.md)

@@ -45,6 +45,8 @@ Obligation kinds say what's owed; **filing channels** say how it's delivered. A 
 - **File export** for states and kinds delivered by upload, with a manual checklist.
 - **Test filing office** for sandboxes, which accepts or rejects so you can rehearse corrections.
 
+Agency downloads use the same engine: each delivery to an enrolled agency's management system is an `ams_download` obligation on the dashboard. See [Agency downloads](agency-downloads.md).
+
 Illinois is the first jurisdiction with content. Other states are configuration: new decision rows for deadlines and taxes, plus a channel.
 
 ## How it fits

@@ -43,6 +43,8 @@ _Agency admins see their producers, account currents and book in the agent app._
 - The license check runs at the pay step: [Quote to bind](quote-to-bind.md)
 - Book scoping is part of role-based access: [Security and multi-tenancy](security.md)
 - Licensing providers in the catalog: [Integrations, events and webhooks](integrations.md)
+- Nightly downloads into agencies' management systems: [Agency downloads](agency-downloads.md)
+- Commission payable per agency, on written or collected premium: [Native billing](native-billing.md)
 
 ## Under the hood
 

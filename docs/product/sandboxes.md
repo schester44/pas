@@ -22,6 +22,7 @@ _Advance the sandbox clock and see how many events each jump fired._
 - **Advance time** by a day, a week, 30 days, to the next event, or to a chosen date, and see the history of every jump.
 - **Rehearse whole lifecycles**: bind on agency bill and watch the account current cut, age and suspend; let a mortgagee ignore its invoice and watch the switch to direct bill; let an installment lapse and watch nonpayment run to cancellation.
 - **Simulate billing events** such as payments, reversals and delinquency without a billing platform.
+- **See every timer** on Settings → Developers → Workflows: what each run is waiting on and when it wakes in sandbox time, with wake now, retry and cancel. See [Technology](technology.md#durable-workflows-built-for-an-industry-that-runs-on-waiting).
 - **Give underwriters and agents a safe place** to practice with the same apps and logins.
 
 ![The sandbox list with each sandbox's purpose and a switch button](images/sandboxes-list.png)

@@ -17,6 +17,9 @@ What PAS does today, written for MGA, carrier and brokerage decision-makers, wit
 - [Quote to bind](./docs/product/quote-to-bind.md): the agent app from quote to bound policy
 - [Policy lifecycle](./docs/product/policy-lifecycle.md): endorsements, cancellations with notice rules and MEP, rescission, reinstatement
 - [Billing](./docs/product/billing.md): pay plans, installments, nonpayment, agency bill, mortgagee bill, bring your own billing
+- [Native billing](./docs/product/native-billing.md): double-entry ledger, payments, lockbox, cash application, reports, daily reconciliation
+- [Carriers](./docs/product/carriers.md): bring your own carrier with configured multi-step connectors and an ownership matrix
+- [Agency downloads](./docs/product/agency-downloads.md): nightly ACORD downloads to agencies through IVANS
 - [Documents](./docs/product/documents.md): template editor, state clause variants, forms library
 - [Surplus lines and compliance](./docs/product/compliance.md): obligation engine, filings, remittance
 - [Distribution](./docs/product/distribution.md): agencies, producers, license checks, commissions
