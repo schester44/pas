@@ -13,6 +13,7 @@ coverage
 # generated
 **/generated/prisma/
 **/routeTree.gen.ts
+**/.tanstack/
 
 # local file storage
 .storage
