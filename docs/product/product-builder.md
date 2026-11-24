@@ -10,6 +10,8 @@ In most policy systems a rate change is a project. Product logic lives in code o
 
 A **product** is the long-lived identity ("Homeowners Coastal"). A **version** ("2027.8") holds everything that defines it: risk data, questions, coverages, rules, rating, pay plans and documents. Each version lists the jurisdictions it's sold in, with separate effective dates for new business and renewal.
 
+Agents don't see products. They see **offerings**: "Landlord" or "Homeowners", each grouping the products (usually one per carrier program) that can write that kind of risk, in your order of preference. An offering also decides what happens when several products quote: the agent compares and chooses, the lowest premium wins, or the first eligible product in your order wins. The first product available in the risk's state supplies the questions, so the products in an offering share their risk data. Offerings are managed under **Configure → Offerings**. Changes apply to quotes started afterwards.
+
 When you publish, the platform resolves a **release** per jurisdiction: an immutable, content-hashed manifest of every artifact the version uses. New quotes resolve the release in force for the risk state and effective date. Quotes, policy terms and transactions keep that release forever.
 
 ![Versions with their status and availability, and the releases quotes resolve to by state and date](images/product-versions.png)
@@ -17,6 +19,7 @@ _Every version with its status and states, and the releases that quotes resolve 
 
 ## What you can do
 
+- **Group products into offerings** so agents pick a line, not a carrier, and set how the winning quote is chosen.
 - **Version per state with effective dates.** Publish 2027.8 for Illinois and Indiana new business from March 1 and renewals from May 1, while earlier versions keep serving earlier dates.
 - **Copy to a new version** from any published version and change only what's different. Published versions are read-only.
 - **Move through draft, in review and published**, with retirement for versions you no longer sell.

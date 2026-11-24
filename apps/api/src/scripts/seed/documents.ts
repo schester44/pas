@@ -7,6 +7,8 @@ export interface DocumentOptions {
   /** Plain-language notes shown on the declarations when a coverage is selected. */
   coverageNotes: { coverage: string; body: string }[];
   issuer: string;
+  /** Replaces the standard replacement cost report template. */
+  replacementCostReport?: object;
 }
 
 const cancellationClause = {
@@ -244,7 +246,7 @@ export function documentSet(options: DocumentOptions) {
       declarations(options),
       quoteProposal(options),
       cancellationNotice,
-      replacementCostReport,
+      options.replacementCostReport ?? replacementCostReport,
     ],
     clauses: [cancellationClause],
     schedule: [
@@ -335,3 +337,90 @@ export const BILLING = {
     },
   ],
 };
+
+/** A carrier's replacement cost estimate: the building, the valuation and every cost component. */
+export function detailedReplacementCostReport(issuer: string) {
+  const rce = "enrichment.call.rce";
+  const location = "risk.locations[0]";
+
+  return {
+    key: "rce_report",
+    kind: "enrichment_report",
+    title: "Replacement cost estimate",
+    page,
+    blocks: [
+      {
+        id: "header",
+        type: "header",
+        title: "Replacement cost estimate",
+        subtitle: `${issuer} · {{product.name}}`,
+      },
+      {
+        id: "property",
+        type: "keyValue",
+        title: "Property",
+        columns: 2,
+        rows: [
+          { label: "Address", value: `{{${location}.address}}` },
+          { label: "Dwelling type", value: `{{${location}.dwellingType}}` },
+          { label: "Units", value: `{{${location}.units}}` },
+          { label: "Stories", value: `{{${location}.stories}}` },
+          { label: "Year built", value: `{{${location}.yearBuilt}}` },
+          { label: "Construction", value: `{{${location}.construction}}` },
+          { label: "Roof covering", value: `{{${location}.roofCovering}}` },
+          { label: "Square feet", value: `{{${rce}.squareFeet}}` },
+        ],
+      },
+      {
+        id: "valuation",
+        type: "keyValue",
+        title: "Valuation",
+        columns: 2,
+        rows: [
+          { label: "Valuation", value: `{{${rce}.valuationId}}` },
+          { label: "Quality", value: `{{${rce}.quality}}` },
+          { label: "Cost per square foot", value: `{{${rce}.costPerSquareFoot}}` },
+          { label: "Estimated replacement cost", value: `{{${rce}.replacementCost}}` },
+          { label: "Exclusions", value: `{{${rce}.exclusions}}` },
+          { label: "Insurable replacement cost", value: `{{${rce}.insurableReplacementCost}}` },
+          { label: "Suggested dwelling limit", value: "{{enrichment.derived.dwellingValue}}" },
+        ],
+      },
+      {
+        id: "breakdown",
+        type: "dataTable",
+        title: "Cost breakdown",
+        path: `${rce}.breakdown`,
+        rowWhen: "$.excluded != true",
+        columns: [
+          { path: "component", label: "Component" },
+          { path: "amount", label: "Amount" },
+        ],
+        total: { path: `${rce}.insurableReplacementCost`, label: "Insurable replacement cost" },
+      },
+      {
+        id: "exclusions",
+        type: "dataTable",
+        title: "Excluded from the insurable value",
+        path: `${rce}.breakdown`,
+        rowWhen: "$.excluded == true",
+        columns: [
+          { path: "component", label: "Component" },
+          { path: "amount", label: "Amount" },
+        ],
+        total: { path: `${rce}.exclusions`, label: "Total exclusions" },
+      },
+      {
+        id: "basis",
+        type: "notice",
+        title: "How this estimate is used",
+        body: "The dwelling limit is set from the insurable replacement cost, rounded to the nearest $1,000. Changes to square footage, quality, construction or stories change the estimate.",
+      },
+      {
+        id: "disclaimer",
+        type: "text",
+        body: "This estimate is for insurance purposes only and isn't an appraisal.",
+      },
+    ],
+  };
+}

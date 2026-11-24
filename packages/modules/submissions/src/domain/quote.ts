@@ -6,14 +6,19 @@ import {
   formatMoney,
   type Id,
   type Instant,
-  Money,
+  type Money,
   newId,
   type PlainDate,
   type TenantId,
   type UserId,
 } from "@pas/kernel";
 import type { Acknowledgement, BindDetails, CompletedBy } from "./bind-details";
-import type { CarrierBindState, CarrierQuoteResult, CarrierQuoteState } from "./carrier-quote";
+import {
+  awaitingCarrierPrice,
+  type CarrierBindState,
+  type CarrierQuoteResult,
+  type CarrierQuoteState,
+} from "./carrier-quote";
 import {
   type ActivityActor,
   CATEGORY,
@@ -291,12 +296,7 @@ export class Quote extends AggregateRoot {
   recheck(evaluation: QuoteEvaluation, reviewWithin: Temporal.Duration, clock: Clock): boolean {
     this.guard("bind", clock);
     const outcome = outcomeOf(evaluation.reasons, this.props.approvedReasonCodes);
-    const carrier = this.props.evaluation.carrier;
-    const pasTotal = carrier?.pas?.total ?? this.props.evaluation.total.toJSON();
-
-    const repriced =
-      evaluation.total.toString() !== pasTotal.amount ||
-      evaluation.total.currency !== pasTotal.currency;
+    const repriced = !evaluation.total.equals(this.props.evaluation.total);
 
     if (outcome === "quoted" && !repriced) return true;
 
@@ -523,59 +523,44 @@ export class Quote extends AggregateRoot {
   }
 
   /**
-   * The carrier answered. With figures replaced (carrier figures win) the premium lines, taxes
-   * and fees become the carrier's; the PAS figures and the diff stay for the explanation.
+   * The carrier answered. With a re-evaluation (the carrier's figures, or a price mismatch to
+   * refer) the quote settles again on it; otherwise only the carrier's state changes.
    */
   applyCarrierQuote(
     result: CarrierQuoteResult,
-    figures: Pick<
-      QuoteEvaluation,
-      "premium" | "writtenPremium" | "taxesFees" | "total" | "payPlans"
-    > | null,
+    evaluation: QuoteEvaluation | null,
+    reviewWithin: Temporal.Duration,
     clock: Clock,
   ): void {
     const carrier = this.requireCarrier();
     const now = clock.now();
-    const before = this.props.evaluation;
 
-    this.props = {
-      ...this.props,
-      evaluation: {
-        ...before,
-        ...figures,
-        carrier: {
-          ...carrier,
-          status: result.status,
-          reference: result.reference ?? carrier.reference,
-          messages: result.messages,
-          pas: carrier.pas ?? {
-            premium: before.writtenPremium.toJSON(),
-            total: before.total.toJSON(),
-          },
-          diff: result.diff,
-          updatedAt: now.toString(),
-        },
-      },
-      updatedAt: now,
+    const state: CarrierQuoteState = {
+      ...carrier,
+      status: result.status,
+      reference: result.reference ?? carrier.reference,
+      messages: result.messages,
+      price: result.price,
+      updatedAt: now.toString(),
     };
 
+    const next = { ...(evaluation ?? this.props.evaluation), carrier: state };
+
+    this.props = { ...this.props, evaluation: next, updatedAt: now };
+
     const actor = { type: "system" as const, name: carrier.name };
-    const messages = result.messages.map((m) => m.text).join("; ");
 
     if (result.status === "quoted") {
-      const total = this.props.evaluation.total;
-      const moved = result.diff && result.diff.difference !== "0" ? result.diff : null;
-
-      const summary = `${carrier.name} quoted ${formatMoney(total)}${moved ? ` (${moved.difference.startsWith("-") ? "" : "+"}${formatMoney(Money.of(moved.difference, total.currency))} vs our rating)` : ""}`;
-
-      this.log("carrier_quoted", now, actor, summary, {
+      this.log("carrier_quoted", now, actor, `${carrier.name} quoted ${formatMoney(next.total)}`, {
         reference: result.reference,
-        figuresWin: figures !== null,
-        ...(result.diff && { diff: result.diff }),
       });
+
+      if (evaluation) this.settle(next, reviewWithin, now, actor, "", { logQuoted: false });
 
       return;
     }
+
+    const messages = result.messages.map((m) => m.text).join("; ");
 
     const verb = {
       referred: "referred the quote",
@@ -694,6 +679,7 @@ export class Quote extends AggregateRoot {
     now: Instant,
     actor: ActivityActor,
     verb: string,
+    options: { logQuoted: boolean } = { logQuoted: true },
   ): void {
     const status = outcomeOf(evaluation.reasons, this.props.approvedReasonCodes);
     const previous = this.props.status;
@@ -731,13 +717,17 @@ export class Quote extends AggregateRoot {
       });
     }
 
-    if (status === "quoted") {
+    if (status === "quoted" && options.logQuoted) {
       const total = evaluation.total;
+      const awaiting = awaitingCarrierPrice(evaluation.carrier);
 
-      this.log("quoted", now, actor, `${verb} at ${formatMoney(total)}`, {
-        revision: this.props.revision,
-        total: total.toJSON(),
-      });
+      this.log(
+        "quoted",
+        now,
+        actor,
+        awaiting ? `${verb}; waiting for the carrier's price` : `${verb} at ${formatMoney(total)}`,
+        { revision: this.props.revision, ...(!awaiting && { total: total.toJSON() }) },
+      );
     }
   }
 

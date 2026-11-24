@@ -1,17 +1,9 @@
 type MoneyJson = { amount: string; currency: string };
 
-export interface CarrierFigureDiff {
-  currency: string;
-  changes: {
-    key: string;
-    label: string;
-    pas: string | null;
-    carrier: string | null;
-    difference: string;
-  }[];
-  pasTotal: string;
-  carrierTotal: string;
-  difference: string;
+/** The carrier's own premium and the taxes and fees it charges, as it answered. */
+export interface CarrierPrice {
+  lines: { coverage: string; exposure?: string; amount: string }[];
+  taxesFees: { code: string; label: string; amount: string }[];
 }
 
 export interface CarrierPayment {
@@ -38,19 +30,20 @@ export interface CarrierBindState {
 
 /**
  * The carrier's side of a quote on a release whose carrier rates or confirms. Plain JSON on the
- * evaluation, so every requote starts the carrier conversation over.
+ * evaluation, so every requote starts the carrier conversation over. When the carrier rates, the
+ * quote has no price until it answers.
  */
 export interface CarrierQuoteState {
   carrier: string;
   name: string;
   rating: "carrier" | "pas_confirmed";
-  figuresWin: boolean;
+  /** Whose premium, taxes and fees the quote carries once the carrier answers. */
+  lineItems: "pas" | "carrier";
   status: "pending_carrier" | "quoted" | "referred" | "declined" | "failed";
   flowRunId: string | null;
   reference: string | null;
   messages: { code?: string; text: string }[];
-  pas: { premium: MoneyJson; total: MoneyJson } | null;
-  diff: CarrierFigureDiff | null;
+  price: CarrierPrice | null;
   bind: CarrierBindState | null;
   updatedAt: string | null;
 }
@@ -58,27 +51,36 @@ export interface CarrierQuoteState {
 export function pendingCarrierQuote(input: {
   carrier: string;
   rating: CarrierQuoteState["rating"];
-  figuresWin: boolean;
+  lineItems: CarrierQuoteState["lineItems"];
 }): CarrierQuoteState {
   return {
     carrier: input.carrier,
     name: input.carrier,
     rating: input.rating,
-    figuresWin: input.figuresWin,
+    lineItems: input.lineItems,
     status: "pending_carrier",
     flowRunId: null,
     reference: null,
     messages: [],
-    pas: null,
-    diff: null,
+    price: null,
     bind: null,
     updatedAt: null,
   };
 }
 
+/** The carrier rates and hasn't answered, so the quote has no price yet. */
+export const awaitingCarrierPrice = (carrier: CarrierQuoteState | undefined | null) =>
+  carrier?.rating === "carrier" && carrier.status === "pending_carrier";
+
+/** The carrier's price when the quote's figures come from it. */
+export const carrierPriceFor = (carrier: CarrierQuoteState | undefined | null) =>
+  carrier?.price && (carrier.rating === "carrier" || carrier.lineItems === "carrier")
+    ? carrier.price
+    : null;
+
 export interface CarrierQuoteResult {
   status: "quoted" | "referred" | "declined" | "failed";
   reference: string | null;
   messages: { code?: string; text: string }[];
-  diff: CarrierFigureDiff | null;
+  price: CarrierPrice | null;
 }

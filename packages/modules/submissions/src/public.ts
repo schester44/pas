@@ -9,6 +9,7 @@ export {
   type SubmitSubmission,
   type SubmitSubmissionResult,
 } from "./application/submit-submission";
+export { makeChooseQuoteOption, type ChooseQuoteOption } from "./application/choose-quote-option";
 export { makeGetSubmission, type GetSubmission } from "./application/get-submission";
 export { makeListSubmissions, type ListSubmissions } from "./application/list-submissions";
 export { makeGetQuote, type GetQuote } from "./application/get-quote";
@@ -79,7 +80,7 @@ export {
   quoteJourneyWorkflow,
   type QuoteJourneyInput,
 } from "./application/quote-journey";
-export type { SubmissionDto, SubmissionSummaryDto } from "./application/dto";
+export type { QuoteOptionDto, SubmissionDto, SubmissionSummaryDto } from "./application/dto";
 export type { QuoteDto, StaffQuoteDto } from "./application/quote-dto";
 export { INTEREST_KINDS, type BindDetails } from "./domain/bind-details";
 export type { BindRequirement } from "./domain/bind-requirements";

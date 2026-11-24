@@ -6,7 +6,7 @@ enum SubmissionStatus {
   @@map("submission_status")
 }
 
-/// Pinned to the product release it was started on; never re-resolved (CLAUDE.md rule 5).
+/// Pinned to its candidate releases at start; choosing a quote option narrows the pin once (PLAN §6.0).
 model Submission {
   id               String           @id @db.Uuid
   tenantId         String           @map("tenant_id")
@@ -16,6 +16,12 @@ model Submission {
   productVersionId String           @map("product_version_id") @db.Uuid
   productVersion   String           @map("product_version")
   formKey          String           @map("form_key")
+  /// The release whose schema and form the risk is entered on (PLAN §6.0).
+  intakeReleaseId  String           @map("intake_release_id") @db.Uuid
+  offeringId       String?          @map("offering_id") @db.Uuid
+  selection        String?
+  candidates       Json             @default("[]")
+  options          Json             @default("[]")
   country          String           @db.Char(2)
   subdivision      String?          @db.VarChar(6)
   effectiveDate    DateTime         @map("effective_date") @db.Date

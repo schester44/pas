@@ -565,6 +565,7 @@ async function recheck(
     selection: q.selection,
     channel: submission.toSnapshot().channel,
     modifications: quote.modifications(),
+    ...(q.evaluation.carrier && { carrier: q.evaluation.carrier }),
   });
 
   return deps.uow.run(ctx, async (tx) => {

@@ -8,9 +8,9 @@ Agents bounce between a rater, an application PDF, an e-signature tool and a pay
 
 ## How it works
 
-The agent picks the product, the state and the effective date. The app resolves the release in force and walks five steps:
+The agent picks what they're quoting (an **offering** such as "Landlord" or "Homeowners"), the state and the effective date. They never pick a carrier program. The app pins every product in the offering that's available there and walks five steps:
 
-1. **Quote**: answer the questions; rules and rating run and return a premium with taxes, fees and pay plans, or a referral with the reason.
+1. **Quote**: answer one set of questions. Rules and rating run for every product in the offering. Depending on the offering, the app either picks the quote itself (lowest premium, or the first eligible in your preferred order) or shows the agent the products that can write the risk, side by side, to choose from. The quote comes back with a premium, taxes, fees and pay plans, or a referral with the reason.
 2. **Customize**: change limits, deductibles, optional coverages and the pay plan, with live re-rating.
 3. **Details**: named insureds, mailing address, home state, producer, additional interests such as mortgagees, the diligent search affidavit when required, and disclosures.
 4. **Review and sign**: the actual documents built from this quote, signed with an embedded click-to-sign step.
@@ -24,7 +24,8 @@ _A quote in under a second, with every tax and fee itemized and each eligible pa
 
 ## What you can do
 
-- **Start a quote** for any product available in the state on the effective date, with the release pinned automatically.
+- **Start a quote** for any offering open in the state on the effective date. Every product in it is pinned automatically.
+- **Compare products** when several can write the risk: premium, whether it needs underwriting review and why, and which products declined and why. Choosing one makes it the quote, and the rest of the journey follows that product.
 - **Customize within the rules**: limit and deductible options, optional coverages and dependencies come from the product version. The premium and the difference from the last price update as you change them.
 - **Compare pay plans** with the exact amount due today and each installment.
 - **Capture surplus lines requirements**: the home state that decides which state's taxes and filings apply, admitted declinations for the diligent search affidavit when the state requires them, and the non-admitted disclosure.

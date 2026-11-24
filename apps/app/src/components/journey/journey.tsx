@@ -57,7 +57,10 @@ export function Journey({
   };
 
   const heading = (aside?: React.ReactNode) => (
-    <SubmissionHeading submission={submission} aside={aside} />
+    <SubmissionHeading
+      submission={{ ...submission, title: submission.productName }}
+      aside={aside}
+    />
   );
 
   const go = (next: StepId) => {

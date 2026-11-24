@@ -393,6 +393,34 @@ async function seedProducts(ctx: TenantContext) {
   }
 }
 
+/** What agents pick: one offering per line, its carrier programs in preference order (PLAN §6.0). */
+async function seedOfferings(ctx: TenantContext) {
+  const existing = new Set(
+    (await prisma.offering.findMany({ where: { tenantId: ctx.tenantId } })).map((o) => o.key),
+  );
+
+  const products = await prisma.product.findMany({ where: { tenantId: ctx.tenantId } });
+  const idOf = (key: string) => products.find((p) => p.key === key)!.id;
+
+  const offerings = [
+    { key: "landlord", name: "Landlord", programs: LANDLORD_PROGRAMS },
+    { key: "homeowners", name: "Homeowners", programs: HOMEOWNERS_PROGRAMS },
+  ];
+
+  for (const offering of offerings) {
+    if (existing.has(offering.key)) continue;
+
+    await uc.catalog.createOffering(ctx, {
+      key: offering.key,
+      name: offering.name,
+      selection: "all_eligible",
+      productIds: offering.programs.map((program) => idOf(program.product.key)),
+    });
+
+    log(`Offering ${offering.name} created`);
+  }
+}
+
 async function seedIntegrations(ctx: TenantContext, environment: "test" | "live") {
   const { configure, setStatus } = container.integrations;
 
@@ -440,6 +468,7 @@ async function main() {
 
   await seedCarriers(ctx);
   await seedProducts(ctx);
+  await seedOfferings(ctx);
   await seedIntegrations(ctx, "live");
   await uc.underwriting.settings.update(ctx, SETTINGS);
   log("Underwriting authority and decline reasons");

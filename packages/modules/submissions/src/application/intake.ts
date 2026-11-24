@@ -23,14 +23,14 @@ export function intakeForm(release: CatalogRelease, channel: string, stage: stri
   return release.forms.find((entry) => entry.channel === channel && entry.stage === stage)?.form;
 }
 
-/** The exact schema and form a submission was started with, from its pinned release. */
+/** The exact schema and form a submission was started with, from its pinned intake release. */
 export async function pinnedIntake(
   catalog: ProductCatalog,
   ctx: TenantContext,
   submission: Submission,
 ) {
   const s = submission.toSnapshot();
-  const release = await catalog.getRelease(ctx, s.productReleaseId);
+  const release = await catalog.getRelease(ctx, s.intakeReleaseId);
   const form = release.forms.find((entry) => entry.form.key === s.formKey)?.form;
 
   if (!form) throw new Error(`Release ${release.id} lost form ${s.formKey}`);

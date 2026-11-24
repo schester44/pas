@@ -18,7 +18,7 @@ export function makeListSubmissions(deps: {
   ): Promise<SubmissionSummaryDto[]> {
     const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
 
-    const [{ submissions, quotes }, names] = await Promise.all([
+    const [{ submissions, quotes }, names, offerings] = await Promise.all([
       deps.uow.run(ctx, async (tx) => {
         const found = await deps.submissions.list(tx, ctx, scope, { limit });
         const ids = found.map((submission) => submission.id);
@@ -26,17 +26,23 @@ export function makeListSubmissions(deps: {
         return { submissions: found, quotes: await deps.quotes.listBySubmissions(tx, ctx, ids) };
       }),
       deps.catalog.productNames(ctx),
+      deps.catalog.offeringNames(ctx),
     ]);
 
     const bySubmission = new Map(quotes.map((q) => [q.toSnapshot().submissionId, q]));
 
-    return submissions.map((submission) =>
-      toSummaryDto(
+    return submissions.map((submission) => {
+      const s = submission.toSnapshot();
+
+      return toSummaryDto(
         submission,
-        names.get(submission.toSnapshot().productId) ?? "Product",
+        {
+          product: names.get(s.productId) ?? "Product",
+          offering: (s.offeringId && offerings.get(s.offeringId)) ?? null,
+        },
         bySubmission.get(submission.id) ?? null,
-      ),
-    );
+      );
+    });
   };
 }
 

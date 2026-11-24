@@ -47,7 +47,8 @@ import {
   QueueClient,
   queueConnectionFromEnv,
   reconciliationQueue,
-  shouldManageQueueSchema,KNOWN_DOMAIN_EVENTS
+  shouldManageQueueSchema,
+  KNOWN_DOMAIN_EVENTS,
 } from "@pas/queues";
 import { filingWorkflow, obligationWorkflow } from "@pas/compliance";
 import { composeCompliance } from "@pas/compliance/infrastructure";
@@ -433,6 +434,7 @@ const carriers = composeWorkerCarriers({
   applyBillingEvent,
   schedules,
   extensions: extensions.invoker,
+  enrichmentTransforms: extensions.enrichmentTransforms,
   branding: async (ctx) => {
     const profile = await getProfile(ctx);
 

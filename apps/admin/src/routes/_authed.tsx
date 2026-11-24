@@ -25,28 +25,29 @@ import {
   Banknote,
   BookOpen,
   Building,
-  ChartColumn,
-  ClipboardCheck,
   Building2,
+  ChartColumn,
   Check,
   ChevronsUpDown,
+  ClipboardCheck,
   FileStack,
   FolderDown,
-  House,
   HandCoins,
+  House,
   Inbox,
   Landmark,
   Layers,
   LogOut,
   Percent,
-  Puzzle,
   Plus,
+  Puzzle,
   ReceiptText,
   Scale,
   ScrollText,
-  ShieldCheck,
   Search,
   Settings,
+  ShieldCheck,
+  Store,
   Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -242,8 +243,13 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <NavSection
             label="Configure"
             collapsible
-            active={within("/products", "/carriers", "/documents", "/extensions")}
+            active={within("/offerings", "/products", "/carriers", "/documents", "/extensions")}
           >
+            {access.products.read && (
+              <Link to="/offerings" className={navItemClassName}>
+                <Store /> Offerings
+              </Link>
+            )}
             {access.products.read && (
               <Link to="/products" className={navItemClassName}>
                 <Layers /> Products

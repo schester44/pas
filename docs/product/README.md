@@ -29,11 +29,11 @@ _Every policy in one place: term, premium, balance due, the next dates that matt
 
 | Area                                                 | What it covers                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| [Product builder and versioning](product-builder.md) | Products, versions per state with effective dates, immutable releases, publish checks, golden cases                  |
+| [Product builder and versioning](product-builder.md) | Offerings, products, versions per state with effective dates, immutable releases, publish checks, golden cases       |
 | [Forms and intake](forms-and-intake.md)              | Risk data dictionary, config-driven questions, repeatable locations, address verification                            |
 | [Rating](rating.md)                                  | Rating plans with rate tables and step-by-step worksheets, spreadsheet raters, golden test cases                     |
 | [Rules and underwriting workbench](underwriting.md)  | Decision tables, referrals with "Why referred?", authority levels, subjectivities, inspections                       |
-| [Quote to bind](quote-to-bind.md)                    | The agent app: quote, customize, legal and surplus lines details, review and sign, pay and bind                      |
+| [Quote to bind](quote-to-bind.md)                    | The agent app: quote across an offering's products, customize, details, review and sign, pay and bind                |
 | [Policy lifecycle](policy-lifecycle.md)              | Endorsements with diffs and pro rata, cancellations with notice rules and MEP, rescission, reinstatement             |
 | [Billing](billing.md)                                | Pay plans, installments and autopay, nonpayment automation, agency bill, mortgagee bill, bring your own billing      |
 | [Native billing](native-billing.md)                  | Double-entry ledger, payments by card, ACH, check and wire, lockbox, cash application, reports, daily reconciliation |

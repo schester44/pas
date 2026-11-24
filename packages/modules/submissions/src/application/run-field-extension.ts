@@ -19,7 +19,7 @@ async function context(deps: Deps, ctx: TenantContext, scope: SubmissionScope, i
   );
 
   const s = submission.toSnapshot();
-  const release = await deps.catalog.getRelease(ctx, s.productReleaseId);
+  const release = await deps.catalog.getRelease(ctx, s.intakeReleaseId);
 
   return {
     release,

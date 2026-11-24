@@ -78,7 +78,7 @@ export interface QuoteDto {
   };
   insuredValue: MoneyDto;
   /** The carrier's quote and any carrier-owned bind in flight (PLAN §12). */
-  carrier: CarrierQuoteState | null;
+  carrier: Omit<CarrierQuoteState, "price" | "lineItems"> | null;
   declineReasons: ReasonDto[];
   referral: {
     reasons: ReasonDto[];
@@ -242,7 +242,7 @@ export function toQuoteDto(
         : null,
     },
     insuredValue: money(insuredValueOf(e.offers, q.selection, e.total.currency)),
-    carrier: e.carrier ?? null,
+    carrier: e.carrier ? carrierDto(e.carrier) : null,
     declineReasons:
       q.status === "declined"
         ? q.referral?.decision?.declineReasons?.length
@@ -309,3 +309,6 @@ export function toQuoteDto(
     },
   };
 }
+
+const carrierDto = ({ price: _price, lineItems: _lineItems, ...carrier }: CarrierQuoteState) =>
+  carrier;

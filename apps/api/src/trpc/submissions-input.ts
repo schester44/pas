@@ -12,10 +12,12 @@ export const availableProductsInput = z
   });
 
 export const startSubmissionInput = z.object({
-  productId: id,
+  offeringId: id,
   jurisdiction: jurisdictionInput,
   effectiveDate: z.iso.date(),
 });
+
+export const chooseOptionInput = z.object({ submissionId: id, productReleaseId: id });
 
 export const submissionById = z.object({ id });
 export const submissionData = z.object({ id, riskData });

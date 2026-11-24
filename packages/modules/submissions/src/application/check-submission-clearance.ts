@@ -28,7 +28,7 @@ export function makeCheckSubmissionClearance(deps: {
     );
 
     const s = submission.toSnapshot();
-    const release = await deps.catalog.getRelease(ctx, s.productReleaseId);
+    const release = await deps.catalog.getRelease(ctx, s.intakeReleaseId);
     const intake = await pinnedIntake(deps.catalog, ctx, submission);
 
     const addressIds = addressesIn(intake.riskSchema, input.riskData ?? s.riskData)

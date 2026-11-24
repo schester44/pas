@@ -2,10 +2,13 @@ import {
   makeGetProduct,
   makeGetProductRelease,
   makeListProductReleases,
+  makeListOfferings,
   makeListProducts,
+  makeResolveOffering,
   makeResolveRelease,
 } from "@pas/catalog";
 import {
+  PrismaOfferingRepository,
   PrismaProductReleaseRepository,
   PrismaProductRepository,
 } from "@pas/catalog/infrastructure";
@@ -65,8 +68,11 @@ export function composePolicyServices(deps: {
   const { uow, clocks } = deps;
   const products = new PrismaProductRepository();
   const releases = new PrismaProductReleaseRepository();
+  const offerings = new PrismaOfferingRepository();
 
   const catalog = new CatalogProductCatalog({
+    resolveOffering: makeResolveOffering({ uow, offerings, products, releases }),
+    listOfferings: makeListOfferings({ uow, offerings, products }),
     resolveRelease: makeResolveRelease({ uow, products, releases }),
     getRelease: makeGetProductRelease({ uow, releases }),
     getProduct: makeGetProduct({ uow, products }),
@@ -79,10 +85,12 @@ export function composePolicyServices(deps: {
     storage: deps.storage,
   });
 
+  const quoteRater = new RatingModuleQuoteRater(
+    makeRateRisk({ models: workbookModels, extensions: deps.extensions.rater }),
+  );
+
   const rater = makeRateTerm({
-    rater: new RatingModuleQuoteRater(
-      makeRateRisk({ models: workbookModels, extensions: deps.extensions.rater }),
-    ),
+    rater: quoteRater,
     enricher: noEnrichment,
     clocks,
     catalog,
@@ -146,6 +154,7 @@ export function composePolicyServices(deps: {
   return {
     emails,
     catalog,
+    quoteRater,
     changes: {
       uow,
       outbox: deps.outbox,

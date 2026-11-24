@@ -1,6 +1,11 @@
 import type { DecisionResult } from "@pas/decisions-engine";
 
-export type ReasonSource = "eligibility" | "underwriting" | "referral_triggers" | "extension";
+export type ReasonSource =
+  | "eligibility"
+  | "underwriting"
+  | "referral_triggers"
+  | "extension"
+  | "carrier";
 
 export interface UnderwritingReason {
   source: ReasonSource;

@@ -1,32 +1,25 @@
-import {
-  type CarrierOutcome,
-  chargeFigures,
-  premiumFigures,
-  premiumKey,
-  reconcileFigures,
-} from "@pas/carriers";
-import { currencyDecimals } from "@pas/forms-core";
+import type { CarrierOutcome } from "@pas/carriers";
 import {
   asId,
   DomainError,
-  jurisdictionCode,
-  Money,
   type Outbox,
   type TenantContext,
   type UnitOfWork,
   type ClockProvider,
 } from "@pas/kernel";
-import type { CarrierQuoteResult } from "../domain/carrier-quote";
-import { payPlanOffers } from "../domain/pay-plan-offers";
+import type { CarrierPrice, CarrierQuoteResult, CarrierQuoteState } from "../domain/carrier-quote";
 import type { Quote } from "../domain/quote";
 import type { QuoteEvaluation } from "../domain/quote-evaluation";
-import { repriceTaxesAndFees, totalOf, type TaxFeeLine } from "../domain/taxes-fees";
+import type { Submission } from "../domain/submission";
+import type { UnderwritingReason } from "../domain/underwriting";
 import type { CarrierGateway } from "../ports/carrier-gateway";
 import type { CatalogRelease, ProductCatalog } from "../ports/product-catalog";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
 import { carrierInputFor } from "./carrier-input";
+import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
 import { JOURNEY_EVENTS, type QuoteJourney } from "./quote-journey";
+import { termOf } from "./quoting";
 
 export interface CarrierQuotingDeps {
   uow: UnitOfWork;
@@ -115,8 +108,9 @@ export function makeRequestCarrierQuote(deps: CarrierQuotingDeps) {
         current.carrierRequested({ name, flowRunId: null }, clock);
 
         current.applyCarrierQuote(
-          { status: "failed", reference: null, messages: [{ text: started.error }], diff: null },
+          { status: "failed", reference: null, messages: [{ text: started.error }], price: null },
           null,
+          termOf(release, q.termStart).reviewWithin,
           clock,
         );
       }
@@ -126,131 +120,146 @@ export function makeRequestCarrierQuote(deps: CarrierQuotingDeps) {
   };
 }
 
-/** The carrier's figures in place of ours, with the diff (PLAN §12 "carrier figures win"). */
-export function carrierFigures(
-  evaluation: QuoteEvaluation,
+const priceOf = (outcome: CarrierOutcome): CarrierPrice | null =>
+  outcome.premium && outcome.premium.lines.length > 0
+    ? {
+        lines: outcome.premium.lines.map((line) => ({
+          coverage: line.coverage,
+          ...(line.exposure !== undefined && { exposure: line.exposure }),
+          amount: line.amount,
+        })),
+        taxesFees: outcome.premium.taxesFees.map(({ code, label, amount }) => ({
+          code,
+          label,
+          amount,
+        })),
+      }
+    : null;
+
+function resultOf(
+  carrier: CarrierQuoteState,
   outcome: CarrierOutcome,
-  release: Pick<CatalogRelease, "coverages">,
-) {
-  const premium = outcome.premium;
+  error: string | null,
+): CarrierQuoteResult {
+  const status: CarrierQuoteResult["status"] =
+    outcome.status === "quoted" || outcome.status === "confirmed"
+      ? "quoted"
+      : outcome.status === "referred" || outcome.status === "declined"
+        ? outcome.status
+        : "failed";
 
-  if (!premium || premium.lines.length === 0) return null;
+  const price = status === "quoted" ? priceOf(outcome) : null;
+  const reference = outcome.reference ?? null;
 
-  const currency = evaluation.total.currency;
-  const names = new Map(release.coverages.map((c) => [c.code, c.name]));
-  const label = (line: { coverage: string }) => names.get(line.coverage) ?? line.coverage;
-
-  const ours = [
-    ...evaluation.premium.map((l) => ({ key: premiumKey(l), label: label(l), amount: l.premium })),
-    ...evaluation.taxesFees.map((l) => ({ key: l.code, label: l.label, amount: l.amount })),
-  ];
-
-  const lines = premium.lines.map((line) => ({
-    coverage: line.coverage,
-    ...(line.exposure !== undefined && { exposure: line.exposure }),
-    premium: Money.of(line.amount, currency),
-  }));
-
-  const writtenPremium = totalOf(
-    lines.map((l) => ({ amount: l.premium })),
-    currency,
-  );
-
-  const rounding = { mode: "half_up" as const, places: currencyDecimals(currency) };
-  const carrierCodes = new Set(premium.taxesFees.map((t) => t.code));
-
-  const taxesFees: TaxFeeLine[] = [
-    ...repriceTaxesAndFees(
-      evaluation.taxesFees.filter((t) => !carrierCodes.has(t.code)),
-      writtenPremium,
-      rounding,
-    ),
-    ...premium.taxesFees.map((t) => ({
-      code: t.code,
-      label: t.label,
-      basis: "flat" as const,
-      taxable: false,
-      remitter: "carrier" as const,
-      amount: Money.of(t.amount, currency),
-    })),
-  ];
-
-  const theirs = [
-    ...premiumFigures(premium.lines, currency, label),
-    ...chargeFigures(
-      taxesFees.map((t) => ({ code: t.code, label: t.label, amount: t.amount.toString() })),
-      currency,
-    ),
-  ];
-
-  const { diff } = reconcileFigures(ours, theirs, currency);
+  if (status === "quoted" && !price && carrier.rating === "carrier") {
+    return {
+      status: "failed",
+      reference,
+      messages: [{ text: `${carrier.name} answered without a premium` }],
+      price: null,
+    };
+  }
 
   return {
-    figures: {
-      premium: lines,
-      writtenPremium,
-      taxesFees,
-      total: writtenPremium.plus(totalOf(taxesFees, currency)),
-    },
-    diff,
+    status,
+    reference,
+    messages: outcome.messages.length > 0 ? outcome.messages : error ? [{ text: error }] : [],
+    price,
   };
 }
 
-export function makeApplyCarrierQuote(deps: CarrierQuotingDeps & { journey: QuoteJourney }) {
+/**
+ * The quote re-evaluated on the carrier's answer, so rules that read the premium see the real
+ * one. When we rate and the carrier only confirms, a different premium is referred instead.
+ */
+async function evaluationOnAnswer(
+  deps: EvaluationDeps,
+  ctx: TenantContext,
+  input: {
+    quote: Quote;
+    submission: Submission;
+    release: CatalogRelease;
+    answered: CarrierQuoteState;
+  },
+): Promise<QuoteEvaluation | null> {
+  const q = input.quote.toSnapshot();
+  const s = input.submission.toSnapshot();
+
+  const evaluate = (carrier: CarrierQuoteState) =>
+    evaluateQuote(deps, ctx, {
+      release: input.release,
+      submissionId: q.submissionId,
+      risk: q.riskData,
+      jurisdiction: s.jurisdiction,
+      termStart: q.termStart,
+      termEnd: q.termEnd,
+      selection: q.selection,
+      channel: s.channel,
+      modifications: input.quote.modifications(),
+      carrier,
+    }).then((output) => output.evaluation);
+
+  const { answered } = input;
+
+  if (answered.rating === "carrier") return evaluate(answered);
+
+  const theirs = await evaluate({ ...answered, lineItems: "carrier" });
+  const ours = q.evaluation;
+  const agreed = theirs.writtenPremium.equals(ours.writtenPremium);
+  const kept = answered.lineItems === "carrier" ? theirs : ours;
+
+  if (agreed) return answered.lineItems === "carrier" ? theirs : null;
+
+  const mismatch: UnderwritingReason = {
+    source: "carrier",
+    decision: `carrier.${answered.carrier}`,
+    rule: "premium_mismatch",
+    outcome: "refer",
+    reasonCode: "carrier_premium_mismatch",
+    message: `${answered.name}'s premium differs from our rating`,
+    internalMessage: `${answered.name}: ${theirs.writtenPremium.toString()} ${theirs.writtenPremium.currency}; our rating: ${ours.writtenPremium.toString()} ${ours.writtenPremium.currency}`,
+  };
+
+  return { ...kept, reasons: [...kept.reasons, mismatch] };
+}
+
+export function makeApplyCarrierQuote(
+  deps: CarrierQuotingDeps & EvaluationDeps & { journey: QuoteJourney },
+) {
   return async function applyCarrierQuote(
     ctx: TenantContext,
     input: { quoteId: string; revision: number; outcome: CarrierOutcome; error: string | null },
   ): Promise<{ applied: boolean }> {
-    const quote = await deps.uow.run(ctx, (tx) =>
-      deps.quotes.findById(tx, ctx, asId(input.quoteId)),
-    );
+    const loaded = await deps.uow.run(ctx, async (tx) => {
+      const quote = await deps.quotes.findById(tx, ctx, asId(input.quoteId));
+      const q = quote?.toSnapshot();
 
-    const q = quote?.toSnapshot();
+      if (!quote || !q || q.revision !== input.revision || !q.evaluation.carrier) return null;
 
-    if (!quote || !q || q.revision !== input.revision || !q.evaluation.carrier)
-      return { applied: false };
+      const submission = await deps.submissions.findById(
+        tx,
+        ctx,
+        { kind: "tenant" },
+        q.submissionId,
+      );
 
+      return submission && { quote, submission, carrier: q.evaluation.carrier };
+    });
+
+    if (!loaded) return { applied: false };
+
+    const q = loaded.quote.toSnapshot();
     const release = await deps.catalog.getRelease(ctx, q.productReleaseId);
-    const carrier = q.evaluation.carrier;
-    const { outcome } = input;
+    const result = resultOf(loaded.carrier, input.outcome, input.error);
 
-    const status: CarrierQuoteResult["status"] =
-      outcome.status === "quoted" || outcome.status === "confirmed"
-        ? "quoted"
-        : outcome.status === "referred" || outcome.status === "declined"
-          ? outcome.status
-          : "failed";
-
-    const reconciled = status === "quoted" ? carrierFigures(q.evaluation, outcome, release) : null;
-
-    const submission = await deps.uow.run(ctx, (tx) =>
-      deps.submissions.findById(tx, ctx, { kind: "tenant" }, q.submissionId),
-    );
-
-    const s = submission?.toSnapshot();
-
-    const figures =
-      reconciled && s
-        ? {
-            ...reconciled.figures,
-            payPlans: payPlanOffers(release.billing, {
-              premium: reconciled.figures.writtenPremium,
-              taxesFees: reconciled.figures.taxesFees,
-              jurisdiction: jurisdictionCode(s.jurisdiction),
-              channel: s.channel,
-              termStart: q.termStart,
-              today: deps.clocks.forTenant(ctx.tenantId).today("UTC"),
-            }),
-          }
-        : null;
-
-    const result: CarrierQuoteResult = {
-      status,
-      reference: outcome.reference ?? null,
-      messages:
-        outcome.messages.length > 0 ? outcome.messages : input.error ? [{ text: input.error }] : [],
-      diff: reconciled?.diff ?? null,
-    };
+    const evaluation = result.price
+      ? await evaluationOnAnswer(deps, ctx, {
+          quote: loaded.quote,
+          submission: loaded.submission,
+          release,
+          answered: { ...loaded.carrier, status: "quoted", price: result.price },
+        })
+      : null;
 
     const saved = await deps.uow.run(ctx, async (tx) => {
       const current = await deps.quotes.findById(tx, ctx, asId(input.quoteId));
@@ -259,7 +268,8 @@ export function makeApplyCarrierQuote(deps: CarrierQuotingDeps & { journey: Quot
 
       current.applyCarrierQuote(
         result,
-        carrier.figuresWin ? figures : null,
+        evaluation,
+        termOf(release, q.termStart).reviewWithin,
         deps.clocks.forTenant(ctx.tenantId),
       );
 
@@ -269,7 +279,9 @@ export function makeApplyCarrierQuote(deps: CarrierQuotingDeps & { journey: Quot
       return current;
     });
 
-    if (saved) await deps.journey.signal(ctx, saved, JOURNEY_EVENTS.changed, { carrier: status });
+    if (saved) {
+      await deps.journey.signal(ctx, saved, JOURNEY_EVENTS.changed, { carrier: result.status });
+    }
 
     return { applied: saved !== null };
   };

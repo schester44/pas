@@ -54,6 +54,7 @@ import {
   QuoteJourney,
 } from "@pas/submissions";
 import {
+  composeRiskEnricher,
   PrismaQuoteRepository,
   PrismaSubmissionRepository,
   ReactPdfQuoteDocuments,
@@ -93,6 +94,7 @@ export function composeWorkerCarriers(deps: {
   workflows: () => Workflows;
   logger: Logger;
   extensions: BindingInvoker;
+  enrichmentTransforms: Parameters<typeof composeRiskEnricher>[0]["transforms"];
 }) {
   const { uow, outbox, clocks, storage, integrations } = deps;
   const catalog: ProductCatalog = deps.policyServices.catalog;
@@ -223,6 +225,17 @@ export function composeWorkerCarriers(deps: {
     carrier: gateway,
   });
 
+  const { enricher } = composeRiskEnricher({
+    uow,
+    clocks,
+    storage,
+    providers: integrations.resolver.dataProviders,
+    branding: deps.branding,
+    productName: (ctx, productId) => catalog.productName(ctx, productId),
+    jurisdictionName,
+    transforms: deps.enrichmentTransforms,
+  });
+
   const applyQuote = makeApplyCarrierQuote({
     uow,
     outbox,
@@ -232,6 +245,9 @@ export function composeWorkerCarriers(deps: {
     carrier: gateway,
     clocks,
     journey,
+    rater: deps.policyServices.quoteRater,
+    enricher,
+    extensions: deps.extensions,
   });
 
   const completeTransaction = makeCompleteCarrierTransaction({

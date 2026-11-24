@@ -25,6 +25,31 @@ model Product {
   @@map("products")
 }
 
+enum OfferingStatus {
+  ACTIVE
+  RETIRED
+
+  @@map("offering_status")
+}
+
+/// What agents and customers pick; PAS quotes its member products (PLAN §6.0).
+model Offering {
+  id         String         @id @db.Uuid
+  tenantId   String         @map("tenant_id")
+  key        String
+  name       String
+  /// Ordered by preference; the first available member is the intake.
+  productIds String[]       @map("product_ids") @db.Uuid
+  selection  String
+  status     OfferingStatus @default(ACTIVE)
+  createdAt  DateTime       @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("offerings")
+}
+
 enum ProductVersionStatus {
   DRAFT
   IN_REVIEW

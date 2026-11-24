@@ -2,26 +2,35 @@ import { clearanceModeFrom } from "@pas/addresses";
 import { validateSubmission, withRowIds } from "@pas/forms-core";
 import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
 import { deferToEnrichment, enrichedRisk, unfilledTargets } from "../domain/enrichment";
-import { Quote } from "../domain/quote";
+import { optionFrom, pickOption } from "../domain/quote-options";
 import type { RiskData } from "../domain/submission";
 import type { SubmissionScope } from "../domain/scope";
 import type { AddressRegistry } from "../ports/address-registry";
 import type { ProductCatalog } from "../ports/product-catalog";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
-import { type SubmissionSummaryDto, toSummaryDto } from "./dto";
-import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
+import { type SubmissionSummaryDto, submissionNames, toSummaryDto } from "./dto";
+import type { EvaluationDeps } from "./evaluate-quote";
 import { prepareRisk, validateRisk } from "./extension-hooks";
 import { noExtensions } from "@pas/extension-points";
 import { loadSubmission, pinnedIntake } from "./intake";
+import { candidatesOf, evaluateCandidate, quoteFor } from "./quote-candidates";
 import type { QuoteJourney } from "./quote-journey";
-import { termOf } from "./quoting";
 
 export type SubmitSubmissionResult =
-  | { ok: true; submission: SubmissionSummaryDto; quote: { id: string; status: string } }
+  | {
+      ok: true;
+      submission: SubmissionSummaryDto;
+      /** Null when the agent has options to compare and choose from (PLAN §6.0). */
+      quote: { id: string; status: string } | null;
+    }
   | { ok: false; errors: Record<string, string[]> };
 
-/** Validates the intake, then quotes it synchronously: rules, rating, taxes and fees (PLAN §7.2.1). */
+/**
+ * Validates the intake, then evaluates every candidate release synchronously: rules, rating, taxes
+ * and fees (PLAN §6.0, §7.2.1). The offering's selection strategy picks the quote, or leaves the
+ * choice to the agent.
+ */
 export function makeSubmitSubmission(
   deps: EvaluationDeps & {
     uow: UnitOfWork;
@@ -45,10 +54,9 @@ export function makeSubmitSubmission(
 
     const d = draft.toSnapshot();
 
-    const [productName, intake, release] = await Promise.all([
-      deps.catalog.productName(ctx, d.productId),
+    const [intake, release] = await Promise.all([
       pinnedIntake(deps.catalog, ctx, draft),
-      deps.catalog.getRelease(ctx, d.productReleaseId),
+      deps.catalog.getRelease(ctx, d.intakeReleaseId),
     ]);
 
     const result = validateSubmission(intake.riskSchema, intake.form, input.riskData);
@@ -139,19 +147,15 @@ export function makeSubmitSubmission(
       };
     }
 
-    const { terms, termStart, termEnd, reviewWithin } = termOf(release, d.effectiveDate);
+    const evaluated = await Promise.all(
+      candidatesOf(draft).map((candidate) =>
+        evaluateCandidate(deps, ctx, draft, candidate, stamped.data),
+      ),
+    );
 
-    const { evaluation, selection } = await evaluateQuote(deps, ctx, {
-      release,
-      submissionId: input.id,
-      risk: stamped.data,
-      jurisdiction: d.jurisdiction,
-      termStart,
-      termEnd,
-      selection: null,
-      channel: d.channel,
-      subject: { type: "submission", id: d.id },
-    });
+    const evaluation = (
+      evaluated.find((e) => e.candidate.productReleaseId === d.intakeReleaseId) ?? evaluated[0]!
+    ).evaluation;
 
     const unfilled = unfilledTargets(
       release.enrichment,
@@ -175,55 +179,49 @@ export function makeSubmitSubmission(
       };
     }
 
-    const quote = await deps.uow.run(ctx, async (tx) => {
-      const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
-      submission.submit(stamped.data, deps.clocks.forTenant(ctx.tenantId));
+    const options = evaluated.map((e) => optionFrom(e.candidate, e.evaluation));
+    const picked = pickOption(options, d.selection ?? "first_eligible");
+    const chosen = picked && evaluated[options.indexOf(picked)]!;
 
-      const created = Quote.create(
-        {
-          tenantId: ctx.tenantId,
-          submissionId: submission.id,
-          submissionNumber: d.number,
-          productReleaseId: d.productReleaseId,
-          termStart,
-          termEnd,
-          riskData: stamped.data,
-          selection,
-          evaluation,
-          timing: {
-            expiresAt: deps.clocks
-              .forTenant(ctx.tenantId)
-              .now()
-              .add({ hours: terms.validityDays * 24 }),
-            reviewWithin,
-          },
-          actor: { type: "user", id: d.producer.userId, name: d.producer.name },
-        },
-        deps.clocks.forTenant(ctx.tenantId),
-      );
+    const settled = await deps.uow.run(ctx, async (tx) => {
+      const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
+      const clock = deps.clocks.forTenant(ctx.tenantId);
+      submission.submit(stamped.data, options, clock);
+
+      const created = chosen && quoteFor(submission, chosen, stamped.data, deps.clocks);
+
+      if (chosen) submission.choose(chosen.candidate.productReleaseId, clock);
 
       await deps.submissions.save(tx, submission);
-      await deps.quotes.save(tx, created);
-      await deps.outbox.add(tx, [...submission.pullEvents(), ...created.pullEvents()]);
 
-      return { created, summary: toSummaryDto(submission, productName) };
+      if (created) await deps.quotes.save(tx, created);
+
+      await deps.outbox.add(tx, [...submission.pullEvents(), ...(created?.pullEvents() ?? [])]);
+
+      return { submission, created };
     });
+
+    const summary = toSummaryDto(
+      settled.submission,
+      await submissionNames(deps.catalog, ctx, settled.submission),
+      settled.created,
+    );
 
     await deps.addresses.track(ctx, {
       subject: { kind: "submission", id: d.id },
       label: d.number,
-      productId: d.productId,
+      productId: settled.submission.toSnapshot().productId,
       producer: { id: d.producer.userId, name: d.producer.name },
       active: true,
       addresses: stamped.addresses,
     });
 
-    await deps.journey.start(ctx, quote.created);
+    if (settled.created) await deps.journey.start(ctx, settled.created);
 
     return {
       ok: true,
-      submission: quote.summary,
-      quote: { id: quote.created.id, status: quote.created.status },
+      submission: summary,
+      quote: settled.created && { id: settled.created.id, status: settled.created.status },
     };
   };
 }

@@ -12,7 +12,10 @@ export const SUBMISSION_STATUS: Record<string, { label: string; tone: StatusTone
 export function submissionStatus(
   status: string,
   quote?: { status: string; approved: boolean } | null,
+  awaitingChoice = false,
 ) {
+  if (awaitingChoice) return { label: "Choose a quote", tone: "accent" as const };
+
   if (quote)
     return (
       QUOTE_STATUS[quote.approved && quote.status === "quoted" ? "approved" : quote.status] ??
@@ -38,4 +41,16 @@ export function isUnavailable(details: unknown): details is Unavailable {
     details !== null &&
     (details as { reason?: unknown }).reason === "product_unavailable"
   );
+}
+
+/** The offering's name until a quote option is chosen, then the chosen product's. */
+export function submissionTitle(submission: {
+  status: string;
+  awaitingChoice: boolean;
+  offeringName: string | null;
+  productName: string;
+}) {
+  const choosing = submission.status === "draft" || submission.awaitingChoice;
+
+  return (choosing && submission.offeringName) || submission.productName;
 }

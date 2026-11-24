@@ -58,6 +58,66 @@ export function Field({
 
   const grouped = field.kind === "address" || field.kind === "multi_enum";
 
+  const control = (
+    <fieldset disabled={!!readOnly} className="m-0 min-w-0 border-0 p-0">
+      {extensionOptions ? (
+        <ExtensionOptions
+          id={id}
+          canonical={canonical}
+          values={values}
+          value={value}
+          onChange={onChange}
+          invalid={errors.length > 0}
+          describedBy={describedBy}
+          {...(item.placeholder && { placeholder: item.placeholder })}
+          copy={copy}
+        />
+      ) : (
+        <Control
+          id={id}
+          field={field}
+          item={item}
+          value={value}
+          onChange={onChange}
+          invalid={errors.length > 0}
+          describedBy={describedBy}
+          copy={copy}
+          uploadFile={uploadFile}
+        />
+      )}
+    </fieldset>
+  );
+
+  const messages = (
+    <>
+      {help && (
+        <p id={`${id}-help`} className="m-0 text-xs text-muted-foreground">
+          {help}
+        </p>
+      )}
+      {errors.length > 0 && (
+        <p id={`${id}-error`} className="m-0 text-sm text-destructive">
+          {errors[0]}
+        </p>
+      )}
+    </>
+  );
+
+  // An unchecked box is itself an answer, so inline checkboxes never show "Optional".
+  if (field.kind === "boolean" && item.widget === "checkbox") {
+    return (
+      <div className={cn("flex items-start gap-2.5", wide && "@xl:col-span-2")}>
+        <div className="flex h-5 items-center">{control}</div>
+        <div className="grid gap-1">
+          <Label htmlFor={id} className="leading-5 font-normal">
+            {item.label ?? field.label}
+          </Label>
+          {messages}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("@container grid content-start gap-2", wide && "@xl:col-span-2")}>
       <div className="flex items-baseline justify-between gap-3">
@@ -70,43 +130,8 @@ export function Field({
           <span className="text-xs leading-none text-muted-foreground">{copy.optional}</span>
         )}
       </div>
-      <fieldset disabled={!!readOnly} className="m-0 min-w-0 border-0 p-0">
-        {extensionOptions ? (
-          <ExtensionOptions
-            id={id}
-            canonical={canonical}
-            values={values}
-            value={value}
-            onChange={onChange}
-            invalid={errors.length > 0}
-            describedBy={describedBy}
-            {...(item.placeholder && { placeholder: item.placeholder })}
-            copy={copy}
-          />
-        ) : (
-          <Control
-            id={id}
-            field={field}
-            item={item}
-            value={value}
-            onChange={onChange}
-            invalid={errors.length > 0}
-            describedBy={describedBy}
-            copy={copy}
-            uploadFile={uploadFile}
-          />
-        )}
-      </fieldset>
-      {help && (
-        <p id={`${id}-help`} className="m-0 text-xs text-muted-foreground">
-          {help}
-        </p>
-      )}
-      {errors.length > 0 && (
-        <p id={`${id}-error`} className="m-0 text-sm text-destructive">
-          {errors[0]}
-        </p>
-      )}
+      {control}
+      {messages}
     </div>
   );
 }

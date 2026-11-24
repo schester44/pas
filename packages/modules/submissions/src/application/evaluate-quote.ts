@@ -14,16 +14,26 @@ import {
 } from "@pas/kernel";
 import type { CoverageSelection, RatingInput, RatingResult } from "@pas/rating-engine";
 import type { Attestation, DiligentSearch } from "../domain/bind-requirements";
-import { pendingCarrierQuote } from "../domain/carrier-quote";
+import {
+  type CarrierPrice,
+  type CarrierQuoteState,
+  carrierPriceFor,
+  pendingCarrierQuote,
+} from "../domain/carrier-quote";
 import {
   type CoverageChoice,
   coverageOffers,
   defaultSelection,
   normalizeSelection,
 } from "../domain/coverages";
-import type { DecisionRecord, QuoteEvaluation, RatingRecord } from "../domain/quote-evaluation";
+import type {
+  DecisionRecord,
+  PremiumLine,
+  QuoteEvaluation,
+  RatingRecord,
+} from "../domain/quote-evaluation";
 import { payPlanOffers } from "../domain/pay-plan-offers";
-import { computeTaxesAndFees, totalOf } from "../domain/taxes-fees";
+import { computeTaxesAndFees, type TaxFeeLine, totalOf } from "../domain/taxes-fees";
 import { outcomeOf, reasonsFrom, type UnderwritingReason } from "../domain/underwriting";
 import {
   adjustPremium,
@@ -58,6 +68,8 @@ export interface EvaluationInput {
   submissionId?: string;
   /** Issued terms are rated on the enrichment pinned at bind, so they pass `false`. */
   enrich?: boolean;
+  /** The carrier's answer for this revision; with a price, the quote is priced from it. */
+  carrier?: CarrierQuoteState;
 }
 
 export interface EvaluationOutput {
@@ -146,17 +158,18 @@ export async function evaluateQuote(
   const diligentSearch: DiligentSearch | null = run("dea").find((r) => r !== null) ?? null;
   const attestations: Attestation[] = run("attestations").flatMap((r) => r.attestations);
 
+  const declined = outcomeOf(reasons) === "declined";
+  const assignment = input.transaction ? null : carrierAssignmentOf(release.lifecycle);
+  const carrierPrice = carrierPriceFor(input.carrier);
+  const awaitingCarrier = assignment?.ownership.rating === "carrier" && !carrierPrice;
+
   const priced =
-    outcomeOf(reasons) === "declined"
+    declined || awaitingCarrier
       ? null
-      : await price(
-          deps,
-          ctx,
-          input,
-          risk,
-          selection,
-          run("taxes_fees").flatMap((r) => r.lines),
-        );
+      : await price(deps, ctx, input, risk, selection, {
+          taxRules: run("taxes_fees").flatMap((r) => r.lines),
+          carrier: carrierPrice,
+        });
 
   const currency = priced?.currency ?? currencyOf(release);
   const insuredValue = insuredValueOf(offers, selection, currency);
@@ -188,21 +201,31 @@ export async function evaluateQuote(
     run("inspection_requirements", quoted);
   }
 
-  reasons.push(
-    ...(await underwriteRisk(deps.extensions ?? noExtensions, ctx, {
-      release,
-      risk,
-      jurisdiction: input.jurisdiction,
-      effectiveDate: (input.transaction?.effective ?? input.termStart).toString(),
-      transaction: input.transaction?.type ?? "NEW_BUSINESS",
-      quote: { ...quoted.quote, selection },
-      ...(input.subject && { subject: input.subject }),
-    })),
-  );
+  if (!awaitingCarrier)
+    reasons.push(
+      ...(await underwriteRisk(deps.extensions ?? noExtensions, ctx, {
+        release,
+        risk,
+        jurisdiction: input.jurisdiction,
+        effectiveDate: (input.transaction?.effective ?? input.termStart).toString(),
+        transaction: input.transaction?.type ?? "NEW_BUSINESS",
+        quote: { ...quoted.quote, selection },
+        ...(input.subject && { subject: input.subject }),
+      })),
+    );
 
   const outcome = outcomeOf(reasons);
   const clock = deps.clocks.forTenant(ctx.tenantId);
-  const carrier = priced && !input.transaction ? carrierQuoteFor(release) : undefined;
+
+  const carrier =
+    input.carrier ??
+    (!declined && assignment && assignment.ownership.rating !== "pas"
+      ? pendingCarrierQuote({
+          carrier: assignment.carrier,
+          rating: assignment.ownership.rating,
+          lineItems: assignment.ownership.lineItems,
+        })
+      : undefined);
 
   const offerInput = priced && {
     premium: priced.writtenPremium,
@@ -270,8 +293,53 @@ async function price(
   input: EvaluationInput,
   risk: Record<string, unknown>,
   selection: CoverageChoice[],
-  taxRules: DecisionResult<"taxes_fees">["lines"],
+  sources: { taxRules: DecisionResult<"taxes_fees">["lines"]; carrier: CarrierPrice | null },
 ) {
+  const rated = sources.carrier
+    ? fromCarrier(sources.carrier, currencyOf(input.release))
+    : await rate(deps, ctx, input, risk, selection);
+
+  const { currency } = rated;
+  const rounding = { mode: "half_up" as const, places: currencyDecimals(currency) };
+  const loading = input.modifications?.adjustment ?? null;
+  const adjusted = loading ? adjustPremium(rated.lines, loading.percent, rounding) : null;
+  const premium = adjusted?.lines ?? rated.lines;
+  const writtenPremium = adjusted ? rated.total.plus(adjusted.amount) : rated.total;
+  const theirs = new Set(rated.taxesFees.map((line) => line.code));
+
+  const taxesFees = [
+    ...computeTaxesAndFees(sources.taxRules, writtenPremium, rounding).filter(
+      (line) => !theirs.has(line.code),
+    ),
+    ...rated.taxesFees,
+  ];
+
+  return {
+    currency,
+    premium,
+    writtenPremium,
+    taxesFees,
+    total: writtenPremium.plus(totalOf(taxesFees, currency)),
+    rating: rated.rating,
+    adjustment: adjusted && loading && { ...loading, amount: adjusted.amount },
+  };
+}
+
+interface Rated {
+  currency: string;
+  lines: PremiumLine[];
+  total: Money;
+  taxesFees: TaxFeeLine[];
+  rating: RatingRecord | null;
+}
+
+async function rate(
+  deps: EvaluationDeps,
+  ctx: TenantContext,
+  input: EvaluationInput,
+  risk: Record<string, unknown>,
+  selection: CoverageChoice[],
+): Promise<Rated> {
   const { release } = input;
 
   if (!release.rating) {
@@ -280,7 +348,6 @@ async function price(
     });
   }
 
-  const currency = currencyOf(release);
   const started = performance.now();
 
   const result: RatingResult = await deps.rater.rate(ctx, {
@@ -295,55 +362,55 @@ async function price(
         effective: (input.transaction?.effective ?? input.termStart).toString(),
       },
       jurisdiction: input.jurisdiction,
-      currency,
+      currency: currencyOf(release),
     },
   });
 
-  const rating: RatingRecord = {
-    artifact: result.artifact,
-    worksheet: toPlainJson(result.worksheet),
-    factors: toPlainJson(result.factors),
-    adjustments: toPlainJson(result.adjustments),
-    warnings: result.warnings.map(({ code, message }) => ({ code, message })),
-    durationMs: performance.now() - started,
-  };
-
-  const rounding = { mode: "half_up" as const, places: currencyDecimals(result.currency) };
-
-  const rated = result.coverages.map((line) => ({
-    coverage: line.coverage,
-    ...(line.exposure !== undefined && { exposure: line.exposure }),
-    premium: line.premium,
-  }));
-
-  const loading = input.modifications?.adjustment ?? null;
-  const adjusted = loading ? adjustPremium(rated, loading.percent, rounding) : null;
-  const premium = adjusted?.lines ?? rated;
-  const writtenPremium = adjusted ? result.total.plus(adjusted.amount) : result.total;
-  const taxesFees = computeTaxesAndFees(taxRules, writtenPremium, rounding);
-
   return {
     currency: result.currency,
-    premium,
-    writtenPremium,
-    taxesFees,
-    total: writtenPremium.plus(totalOf(taxesFees, result.currency)),
-    rating,
-    adjustment: adjusted && loading && { ...loading, amount: adjusted.amount },
+    lines: result.coverages.map((line) => ({
+      coverage: line.coverage,
+      ...(line.exposure !== undefined && { exposure: line.exposure }),
+      premium: line.premium,
+    })),
+    total: result.total,
+    taxesFees: [],
+    rating: {
+      artifact: result.artifact,
+      worksheet: toPlainJson(result.worksheet),
+      factors: toPlainJson(result.factors),
+      adjustments: toPlainJson(result.adjustments),
+      warnings: result.warnings.map(({ code, message }) => ({ code, message })),
+      durationMs: performance.now() - started,
+    },
   };
 }
 
-function carrierQuoteFor(release: CatalogRelease) {
-  const assignment = carrierAssignmentOf(release.lifecycle);
+/** The carrier's premium lines, and the taxes and fees it charges in place of ours. */
+function fromCarrier(price: CarrierPrice, currency: string): Rated {
+  const lines = price.lines.map((line) => ({
+    coverage: line.coverage,
+    ...(line.exposure !== undefined && { exposure: line.exposure }),
+    premium: Money.of(line.amount, currency),
+  }));
 
-  if (!assignment || assignment.ownership.rating === "pas") return undefined;
-
-  return pendingCarrierQuote({
-    carrier: assignment.carrier,
-    rating: assignment.ownership.rating,
-    figuresWin:
-      assignment.ownership.rating === "carrier" || assignment.ownership.lineItems === "carrier",
-  });
+  return {
+    currency,
+    lines,
+    total: totalOf(
+      lines.map((line) => ({ amount: line.premium })),
+      currency,
+    ),
+    taxesFees: price.taxesFees.map((line) => ({
+      code: line.code,
+      label: line.label,
+      basis: "flat" as const,
+      taxable: false,
+      remitter: "carrier" as const,
+      amount: Money.of(line.amount, currency),
+    })),
+    rating: null,
+  };
 }
 
 function toRatingSelection(choice: CoverageChoice): CoverageSelection {

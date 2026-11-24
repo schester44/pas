@@ -2,6 +2,7 @@ import { Card } from "@pas/ui/components/card";
 import { Spinner } from "@pas/ui/components/spinner";
 import { cn } from "@pas/ui/lib/utils";
 import type * as React from "react";
+import { useEffect, useState } from "react";
 import {
   formatMoney,
   formatPlainDate,
@@ -12,6 +13,67 @@ import {
 import { amountLabel, type Quote } from "@/lib/quotes";
 
 const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 3 });
+
+/** The carrier prices this quote and hasn't answered yet. */
+export const crunching = (quote: Quote) =>
+  quote.carrier?.rating === "carrier" && quote.carrier.status === "pending_carrier";
+
+/** The carrier prices this quote and there's no price on it: still pricing, or it didn't quote. */
+export const unpriced = (quote: Quote) =>
+  quote.carrier?.rating === "carrier" && quote.carrier.status !== "quoted";
+
+const scramble = (currency: string): MoneyValue => ({
+  amount: (1000 + Math.random() * 9000).toFixed(2),
+  currency,
+});
+
+function CrunchingMoney({ currency }: { currency: string }) {
+  const [shown, setShown] = useState(() => scramble(currency));
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const timer = window.setInterval(() => setShown(scramble(currency)), 80);
+
+    return () => window.clearInterval(timer);
+  }, [currency]);
+
+  return (
+    <span role="status" aria-label="Crunching the numbers" className="text-muted-foreground/70">
+      <span aria-hidden>{formatMoney(shown, { cents: true })}</span>
+    </span>
+  );
+}
+
+/** The term total: rolling digits while the carrier prices it, a dash if it never did. */
+export function TotalPrice({ quote }: { quote: Quote }) {
+  if (crunching(quote)) return <CrunchingMoney currency={quote.currency} />;
+
+  if (unpriced(quote)) return <Dash />;
+
+  return formatMoney(quote.premium.total, { cents: true });
+}
+
+function Price({
+  quote,
+  value,
+  cents = true,
+}: {
+  quote: Quote;
+  value: MoneyValue;
+  cents?: boolean;
+}) {
+  if (crunching(quote)) {
+    return (
+      <span
+        aria-hidden
+        className="inline-block h-4 w-14 animate-pulse rounded bg-muted align-middle"
+      />
+    );
+  }
+
+  return unpriced(quote) ? <Dash /> : formatMoney(value, { cents });
+}
 
 export function rateLabel(line: Quote["premium"]["taxesFees"][number]) {
   return line.rate === undefined ? null : percent.format(Number(line.rate));
@@ -65,25 +127,29 @@ export function PremiumBreakdown({ quote }: { quote: Quote }) {
               {exposure.deductible ? amountLabel(exposure.deductible) : <Dash />}
             </Amount>
             <Amount className="row-span-3 self-start sm:row-span-1 sm:self-auto">
-              {exposure.premium ? formatMoney(exposure.premium) : <Dash />}
+              {exposure.premium ? (
+                <Price quote={quote} value={exposure.premium} cents={false} />
+              ) : (
+                <Dash />
+              )}
             </Amount>
           </li>
         ))}
       </ul>
       <dl className="m-0 grid gap-2 border-t bg-muted/30 px-(--card-p) py-4">
-        <Line label="Premium" value={formatMoney(quote.premium.written, { cents: true })} />
+        <Line label="Premium" value={<Price quote={quote} value={quote.premium.written} />} />
         {quote.premium.taxesFees.map((line) => (
           <Line
             key={line.code}
             label={line.label}
             meta={rateLabel(line)}
-            value={formatMoney(line.amount, { cents: true })}
+            value={<Price quote={quote} value={line.amount} />}
           />
         ))}
         <Line
           strong
           label="Total"
-          value={formatMoney(quote.premium.total, { cents: true })}
+          value={<Price quote={quote} value={quote.premium.total} />}
           className="mt-1 border-t pt-3"
         />
       </dl>
@@ -100,7 +166,7 @@ function Line({
 }: {
   label: string;
   meta?: string | null;
-  value: string;
+  value: React.ReactNode;
   strong?: boolean;
   className?: string;
 }) {
@@ -142,7 +208,7 @@ export function PremiumSummary({
       <div className="grid gap-4 p-(--card-p)">
         <div className="grid gap-1">
           <p className="m-0 flex items-center gap-2 text-sm text-muted-foreground">
-            Total for the term {busy && <Spinner className="size-3.5" />}
+            Total for the term {busy && !crunching(quote) && <Spinner className="size-3.5" />}
           </p>
           <p
             className={cn(
@@ -150,7 +216,7 @@ export function PremiumSummary({
               busy && "opacity-60",
             )}
           >
-            {formatMoney(quote.premium.total, { cents: true })}
+            <TotalPrice quote={quote} />
           </p>
           {change !== undefined && (
             <p
@@ -165,8 +231,11 @@ export function PremiumSummary({
           )}
         </div>
         <dl className="m-0 grid gap-2 border-t pt-4 text-sm">
-          <Line label="Premium" value={formatMoney(quote.premium.written, { cents: true })} />
-          <Line label="Taxes and fees" value={formatMoney(taxesAndFees(quote), { cents: true })} />
+          <Line label="Premium" value={<Price quote={quote} value={quote.premium.written} />} />
+          <Line
+            label="Taxes and fees"
+            value={<Price quote={quote} value={taxesAndFees(quote)} />}
+          />
           <Line label="Term" value={formatPlainDateRange(quote.term.start, quote.term.end)} />
           <Line label="Valid until" value={formatPlainDate(quote.expiresAt.slice(0, 10))} />
         </dl>

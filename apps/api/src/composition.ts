@@ -6,7 +6,12 @@ import {
   makeGetProduct,
   makeGetProductRelease,
   makeGetProductVersion,
+  makeCreateOffering,
+  makeListAvailableOfferings,
   makeListAvailableProducts,
+  makeListOfferings,
+  makeResolveOffering,
+  makeUpdateOffering,
   makeListProductReleases,
   makeListProducts,
   makeListProductVersions,
@@ -20,6 +25,7 @@ import {
 import {
   PrismaCatalogCloner,
   PrismaProductReleaseRepository,
+  PrismaOfferingRepository,
   PrismaProductRepository,
   PrismaProductVersionRepository,
 } from "@pas/catalog/infrastructure";
@@ -201,6 +207,7 @@ import {
   makeSignQuote,
   makeQuoteTimers,
   makeRequestCarrierQuote,
+  makeChooseQuoteOption,
   makeStartSubmission,
   makeSubmitSubmission,
   QuoteJourney,
@@ -261,6 +268,7 @@ export function compose() {
   const clocks = new TenantClocks(prisma);
 
   const products = new PrismaProductRepository();
+  const offerings = new PrismaOfferingRepository();
   const versions = new PrismaProductVersionRepository();
   const releases = new PrismaProductReleaseRepository();
   const tenantProfiles = new PrismaTenantProfileRepository();
@@ -326,6 +334,8 @@ export function compose() {
     getProduct: makeGetProduct({ uow, products }),
     getRelease: makeGetProductRelease({ uow, releases }),
     resolveRelease: makeResolveRelease({ uow, products, releases }),
+    resolveOffering: makeResolveOffering({ uow, offerings, products, releases }),
+    listOfferings: makeListOfferings({ uow, offerings, products }),
   };
 
   const productCatalog = new CatalogProductCatalog(catalog);
@@ -1041,6 +1051,9 @@ export function compose() {
         createProduct: makeCreateProduct({ uow, outbox, products, clocks }),
         ...catalog,
         listAvailableProducts: makeListAvailableProducts({ uow, products, releases }),
+        listAvailableOfferings: makeListAvailableOfferings({ uow, products, releases, offerings }),
+        createOffering: makeCreateOffering({ uow, outbox, offerings, products, clocks }),
+        updateOffering: makeUpdateOffering({ uow, outbox, offerings, products, clocks }),
         dataProviders: enrichmentExtensions.directory.providers,
         listVersions: makeListProductVersions({ uow, versions }),
         getVersion: makeGetProductVersion({ uow, versions }),
@@ -1090,6 +1103,7 @@ export function compose() {
         panel: makeSubmissionPanel({ ...quoting, extensions: extensions.invoker }),
         action: makeRunSubmissionAction({ ...quoting, extensions: extensions.invoker, saveDraft }),
         submit: makeSubmitSubmission({ ...quoting, ...evaluation, addresses }),
+        chooseOption: makeChooseQuoteOption({ ...quoting, ...evaluation }),
         clearance: makeCheckSubmissionClearance({
           uow,
           submissions,

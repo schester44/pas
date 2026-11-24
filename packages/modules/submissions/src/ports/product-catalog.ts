@@ -7,6 +7,7 @@ import type { Jurisdiction, TenantContext } from "@pas/kernel";
 import type { BillingConfig } from "@pas/pay-plans";
 import type { RatingConfig } from "@pas/rating-engine";
 import type { CoverageDefinition } from "../domain/coverages";
+import type { SelectionStrategy } from "../domain/quote-options";
 
 export interface ReleaseForm {
   channel: string;
@@ -40,8 +41,22 @@ export interface CatalogRelease {
   enrichment: EnrichmentPlan;
 }
 
+export interface CatalogOffering {
+  id: string;
+  name: string;
+  selection: SelectionStrategy;
+  active: boolean;
+  /** Member releases available there, in member order. */
+  releases: CatalogRelease[];
+}
+
 /** The submissions context's view of the catalog. Never call it inside a unit of work. */
 export interface ProductCatalog {
+  resolveOffering(
+    ctx: TenantContext,
+    input: { offeringId: string; jurisdiction: Jurisdiction; effectiveDate: string },
+  ): Promise<CatalogOffering>;
+  offeringNames(ctx: TenantContext): Promise<Map<string, string>>;
   resolveNewBusiness(
     ctx: TenantContext,
     input: { productId: string; jurisdiction: Jurisdiction; effectiveDate: string },

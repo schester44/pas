@@ -5,7 +5,7 @@ import { canonicalJson, type IdRemap, type TenantContext, type UnitOfWork } from
 
 const json = (value: Prisma.JsonValue, ids: IdRemap) => ids.rewrite(value) as Prisma.InputJsonValue;
 
-/** Copies a tenant's products, versions and releases into a sandbox (PLAN §15.4). */
+/** Copies a tenant's offerings, products, versions and releases into a sandbox (PLAN §15.4). */
 export class PrismaCatalogCloner {
   constructor(private readonly uow: UnitOfWork) {}
 
@@ -18,10 +18,18 @@ export class PrismaCatalogCloner {
         products: await db.product.findMany({ where, orderBy: { createdAt: "asc" } }),
         versions: await db.productVersion.findMany({ where, orderBy: { createdAt: "asc" } }),
         releases: await db.productRelease.findMany({ where, orderBy: { publishedAt: "asc" } }),
+        offerings: await db.offering.findMany({ where, orderBy: { createdAt: "asc" } }),
       };
     });
 
-    for (const row of [...source.products, ...source.versions, ...source.releases]) ids.id(row.id);
+    for (const row of [
+      ...source.products,
+      ...source.versions,
+      ...source.releases,
+      ...source.offerings,
+    ]) {
+      ids.id(row.id);
+    }
 
     await this.uow.run(to, async (tx) => {
       const db = prismaTx(tx);
@@ -66,12 +74,22 @@ export class PrismaCatalogCloner {
           };
         }),
       });
+
+      await db.offering.createMany({
+        data: source.offerings.map((o) => ({
+          ...o,
+          id: ids.id(o.id),
+          tenantId: to.tenantId,
+          productIds: o.productIds.map((id) => ids.id(id)),
+        })),
+      });
     });
 
     return {
       products: source.products.length,
       versions: source.versions.length,
       releases: source.releases.length,
+      offerings: source.offerings.length,
     };
   }
 }

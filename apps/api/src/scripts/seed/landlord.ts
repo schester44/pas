@@ -5,13 +5,13 @@ import {
   LANDLORD_BROKER_FEES,
 } from "./compliance";
 import { col, decision, outputs, type Row, table, text } from "./decisions";
-import { BILLING, documentSet } from "./documents";
+import { BILLING, detailedReplacementCostReport, documentSet } from "./documents";
 import {
   band,
   baseRates,
   CONSTRUCTION,
   dollars,
-  ENRICHMENT,
+  enrichmentPlan,
   exact,
   field,
   flatRate,
@@ -33,6 +33,8 @@ export interface LandlordProgram {
   deductibles: { options: number[]; selected: number };
   rates: { frameAtClassOne: number; perClass: number; minimumPremium: number };
   underwriting: Row[];
+  /** The carrier's own replacement cost estimate, fed construction and stories. */
+  detailedReplacementCost?: boolean;
 }
 
 const RISK_SCHEMA = {
@@ -771,6 +773,9 @@ export function landlordContents(program: LandlordProgram) {
     documents: documentSet({
       declarationsTitle: "Dwelling property declarations",
       issuer: program.issuer,
+      ...(program.detailedReplacementCost && {
+        replacementCostReport: detailedReplacementCostReport(program.issuer),
+      }),
       proposalIntro:
         "Thank you for the opportunity to quote insurance for your rental property. This proposal summarizes the coverages we can offer for the property below. Review the limits and deductibles with your agent, then sign to apply.",
       locationColumns: [
@@ -796,6 +801,14 @@ export function landlordContents(program: LandlordProgram) {
     ],
     rating: { engine: "plan", plan: ratingPlan(program), goldenCases: [] },
     billing: BILLING,
-    enrichment: ENRICHMENT,
+    enrichment: program.detailedReplacementCost
+      ? enrichmentPlan({
+          rceInputs: {
+            constructionType: "locations[0].construction",
+            stories: "locations[0].stories",
+          },
+          reportSource: "template",
+        })
+      : enrichmentPlan(),
   };
 }

@@ -3,7 +3,7 @@ import type { SubmissionScope } from "../domain/scope";
 import type { ProductCatalog } from "../ports/product-catalog";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
-import { type SubmissionDto, toSubmissionDto } from "./dto";
+import { type SubmissionDto, submissionNames, toSubmissionDto } from "./dto";
 import { loadSubmission, pinnedIntake } from "./intake";
 
 export function makeGetSubmission(deps: {
@@ -23,12 +23,13 @@ export function makeGetSubmission(deps: {
       return { submission: found, quote: await deps.quotes.findBySubmission(tx, ctx, found.id) };
     });
 
-    const [productName, intake] = await Promise.all([
-      deps.catalog.productName(ctx, submission.toSnapshot().productId),
+    const [names, intake, productNames] = await Promise.all([
+      submissionNames(deps.catalog, ctx, submission),
       pinnedIntake(deps.catalog, ctx, submission),
+      deps.catalog.productNames(ctx),
     ]);
 
-    return toSubmissionDto(submission, productName, intake, quote);
+    return toSubmissionDto(submission, names, intake, quote, productNames);
   };
 }
 

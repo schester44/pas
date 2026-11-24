@@ -4,7 +4,8 @@ import type {
   SubmissionStatus as DbSubmissionStatus,
   Submission as SubmissionRow,
 } from "@pas/db/client";
-import { asId, type Jurisdiction, type TenantContext, type Transaction } from "@pas/kernel";
+import { asId, type Jurisdiction, Money, type TenantContext, type Transaction } from "@pas/kernel";
+import type { Candidate, QuoteOption, SelectionStrategy } from "../domain/quote-options";
 import type { SubmissionScope } from "../domain/scope";
 import {
   type RiskData,
@@ -35,6 +36,11 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
     const s = submission.toSnapshot();
 
     const data = {
+      productId: s.productId,
+      productReleaseId: s.productReleaseId,
+      productVersionId: s.productVersionId,
+      productVersion: s.productVersion,
+      options: s.options.map(optionToDb) as Prisma.InputJsonValue,
       riskData: s.riskData as Prisma.InputJsonValue,
       insuredName: s.insuredName,
       status: toDbStatus(s.status),
@@ -51,11 +57,11 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
         id: s.id,
         tenantId: s.tenantId,
         number: s.number,
-        productId: s.productId,
-        productReleaseId: s.productReleaseId,
-        productVersionId: s.productVersionId,
-        productVersion: s.productVersion,
         formKey: s.formKey,
+        intakeReleaseId: s.intakeReleaseId,
+        offeringId: s.offeringId,
+        selection: s.selection,
+        candidates: s.candidates as unknown as Prisma.InputJsonValue,
         country: s.jurisdiction.country,
         subdivision: s.jurisdiction.subdivision ?? null,
         effectiveDate: plainDateToDb(s.effectiveDate),
@@ -121,6 +127,11 @@ function toSubmission(row: SubmissionRow): Submission {
     productVersionId: row.productVersionId,
     productVersion: row.productVersion,
     formKey: row.formKey,
+    intakeReleaseId: row.intakeReleaseId,
+    offeringId: row.offeringId,
+    selection: row.selection as SelectionStrategy | null,
+    candidates: row.candidates as unknown as Candidate[],
+    options: (row.options as unknown as OptionRow[]).map(optionFromDb),
     jurisdiction,
     effectiveDate: plainDateFromDb(row.effectiveDate),
     channel: row.channel as SubmissionChannel,
@@ -135,3 +146,9 @@ function toSubmission(row: SubmissionRow): Submission {
     withdrawnAt: row.withdrawnAt ? instantFromDb(row.withdrawnAt) : null,
   });
 }
+
+type OptionRow = Omit<QuoteOption, "total"> & { total: ReturnType<Money["toJSON"]> };
+
+const optionToDb = (o: QuoteOption): OptionRow => ({ ...o, total: o.total.toJSON() });
+
+const optionFromDb = (o: OptionRow): QuoteOption => ({ ...o, total: Money.fromJSON(o.total) });

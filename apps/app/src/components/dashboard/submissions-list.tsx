@@ -4,7 +4,7 @@ import { StatusChip } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { FileText } from "lucide-react";
 import { formatMoney, formatPlainDate, formatRelative } from "@/lib/format";
-import { submissionStatus } from "@/lib/submissions";
+import { submissionStatus, submissionTitle } from "@/lib/submissions";
 import { DashboardRows, RowLink } from "./rows";
 
 type Submission = AppOutputs["submissions"]["list"][number];
@@ -45,7 +45,11 @@ export function SubmissionsList({
   return (
     <DashboardRows pending={!submissions}>
       {submissions?.map((submission) => {
-        const status = submissionStatus(submission.status, submission.quote);
+        const status = submissionStatus(
+          submission.status,
+          submission.quote,
+          submission.awaitingChoice,
+        );
 
         return (
           <li key={submission.id}>
@@ -57,9 +61,9 @@ export function SubmissionsList({
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums sm:truncate">
-                  {submission.quote?.policyNumber ?? submission.number} · {submission.productName} ·{" "}
-                  {jurisdictionName(submission.jurisdiction)} · Effective{" "}
-                  {formatPlainDate(submission.effectiveDate)}
+                  {submission.quote?.policyNumber ?? submission.number} ·{" "}
+                  {submissionTitle(submission)} · {jurisdictionName(submission.jurisdiction)} ·
+                  Effective {formatPlainDate(submission.effectiveDate)}
                 </span>
               </div>
               <span className="hidden w-28 text-right text-sm tabular-nums sm:block">

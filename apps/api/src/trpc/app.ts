@@ -16,6 +16,7 @@ import { producerUnderwritingRouter } from "./underwriting";
 import {
   availableProductsInput,
   listSubmissionsInput,
+  chooseOptionInput,
   startSubmissionInput,
   submissionById,
   submissionData,
@@ -98,12 +99,12 @@ export const appRouter = router({
   addresses: addressRouter(tenantFromHost),
 
   submissions: router({
-    availableProducts: inBook({ submission: ["create"] })
+    availableOfferings: inBook({ submission: ["create"] })
       .input(availableProductsInput)
       .query(({ ctx, input }) => {
         const { jurisdiction, effectiveDate } = input;
 
-        return ctx.container.useCases.catalog.listAvailableProducts(ctx.tenant, {
+        return ctx.container.useCases.catalog.listAvailableOfferings(ctx.tenant, {
           kind: "new_business",
           ...(jurisdiction && effectiveDate && { at: { jurisdiction, effectiveDate } }),
         });
@@ -155,6 +156,11 @@ export const appRouter = router({
       .input(submissionData)
       .mutation(({ ctx, input }) =>
         ctx.container.useCases.submissions.submit(ctx.tenant, ctx.scope, input),
+      ),
+    chooseOption: inBook({ submission: ["update"] })
+      .input(chooseOptionInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.chooseOption(ctx.tenant, ctx.scope, input),
       ),
     clearance: inBook({ submission: ["read"] })
       .input(submissionById.extend({ riskData: z.record(z.string(), z.unknown()).optional() }))

@@ -3,6 +3,7 @@ import {
   type Jurisdiction,
   parsePlainDate,
   type TenantContext,
+  type Transaction,
   type UnitOfWork,
 } from "@pas/kernel";
 import { type AvailabilityKind, dateWindowToJson } from "../domain/availability";
@@ -16,44 +17,54 @@ export interface ListAvailableProductsInput {
   at?: { jurisdiction: Jurisdiction; effectiveDate: string };
 }
 
-export function makeListAvailableProducts(deps: {
-  uow: UnitOfWork;
-  products: ProductRepository;
-  releases: ProductReleaseRepository;
-}) {
+export function makeListAvailableProducts(deps: AvailabilityDeps) {
   return async function listAvailableProducts(
     ctx: TenantContext,
     input: ListAvailableProductsInput,
   ): Promise<AvailableProductDto[]> {
-    const at = input.at && {
-      where: jurisdiction(input.at.jurisdiction.country, input.at.jurisdiction.subdivision),
-      date: parsePlainDate(input.at.effectiveDate),
-    };
-
-    return deps.uow.run(ctx, async (tx) => {
-      const [products, releases] = await Promise.all([
-        deps.products.list(tx, ctx),
-        deps.releases.listOffered(tx, ctx),
-      ]);
-
-      const byProduct = Map.groupBy(releases, (release) => release.toSnapshot().productId);
-
-      return products.flatMap((product) => {
-        const offered = byProduct.get(product.id) ?? [];
-
-        if (product.toSnapshot().status !== "active" || offered.length === 0) return [];
-
-        if (
-          at &&
-          !selectRelease(offered, at.where, at.date, input.kind)?.toSnapshot().manifest.rating
-        ) {
-          return [];
-        }
-
-        return [{ ...toProductDto(product), availability: availabilityOf(offered, input.kind) }];
-      });
-    });
+    return deps.uow.run(ctx, (tx) => availableProducts(deps, tx, ctx, input));
   };
+}
+
+export interface AvailabilityDeps {
+  uow: UnitOfWork;
+  products: ProductRepository;
+  releases: ProductReleaseRepository;
+}
+
+/** Active products with an offered release, narrowed to one jurisdiction and date when given. */
+export async function availableProducts(
+  deps: AvailabilityDeps,
+  tx: Transaction,
+  ctx: TenantContext,
+  input: ListAvailableProductsInput,
+): Promise<AvailableProductDto[]> {
+  const at = input.at && {
+    where: jurisdiction(input.at.jurisdiction.country, input.at.jurisdiction.subdivision),
+    date: parsePlainDate(input.at.effectiveDate),
+  };
+
+  const [products, releases] = await Promise.all([
+    deps.products.list(tx, ctx),
+    deps.releases.listOffered(tx, ctx),
+  ]);
+
+  const byProduct = Map.groupBy(releases, (release) => release.toSnapshot().productId);
+
+  return products.flatMap((product) => {
+    const offered = byProduct.get(product.id) ?? [];
+
+    if (product.toSnapshot().status !== "active" || offered.length === 0) return [];
+
+    if (
+      at &&
+      !selectRelease(offered, at.where, at.date, input.kind)?.toSnapshot().manifest.rating
+    ) {
+      return [];
+    }
+
+    return [{ ...toProductDto(product), availability: availabilityOf(offered, input.kind) }];
+  });
 }
 
 function availabilityOf(releases: ProductRelease[], kind: AvailabilityKind) {

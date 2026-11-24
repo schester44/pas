@@ -9,7 +9,8 @@ import {
   type WorkflowStep,
   type Workflows,
   workflowRef,
-  workflowSubject,isRecord
+  workflowSubject,
+  isRecord,
 } from "@pas/kernel";
 import type { AutomationServices, HostServices } from "../ports/services";
 import type { ExtensionDeps } from "./deps";

@@ -14,6 +14,7 @@ import {
 } from "../domain/availability";
 import type { CheckIssue } from "../domain/checks";
 import type { CoverageDefinition } from "../domain/coverage";
+import type { Offering, OfferingStatus, SelectionStrategy } from "../domain/offering";
 import type { Product } from "../domain/product";
 import type { ProductRelease, ReleaseManifest } from "../domain/product-release";
 import type { ProductVersion } from "../domain/product-version";
@@ -134,8 +135,7 @@ export function toVersionDto(version: ProductVersion): ProductVersionDto {
     billing,
     enrichment,
     extensions,
-  } =
-    version.contents;
+  } = version.contents;
 
   return {
     ...toVersionSummaryDto(version),
@@ -170,4 +170,34 @@ export function toReleaseDto(release: ProductRelease): ProductReleaseDto {
 
 export function toResolvedReleaseDto(release: ProductRelease): ResolvedReleaseDto {
   return { ...toReleaseDto(release), manifest: release.toSnapshot().manifest };
+}
+
+export interface OfferingDto {
+  id: string;
+  key: string;
+  name: string;
+  products: { id: string; name: string }[];
+  selection: SelectionStrategy;
+  status: OfferingStatus;
+  updatedAt: string;
+}
+
+export function toOfferingDto(offering: Offering, names: ReadonlyMap<string, string>): OfferingDto {
+  const o = offering.toSnapshot();
+
+  return {
+    id: o.id,
+    key: o.key,
+    name: o.name,
+    products: o.productIds.map((id) => ({ id, name: names.get(id) ?? "Removed product" })),
+    selection: o.selection,
+    status: o.status,
+    updatedAt: o.updatedAt.toString(),
+  };
+}
+
+export interface AvailableOfferingDto {
+  id: string;
+  name: string;
+  availability: AvailableProductDto["availability"];
 }

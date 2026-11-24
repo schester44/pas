@@ -1,12 +1,15 @@
 import type {
   GetProduct,
   GetProductRelease,
+  ListOfferings,
   ListProducts,
   ResolvedReleaseDto,
+  ResolveOffering,
   ResolveRelease,
 } from "@pas/catalog";
 import type { Jurisdiction, TenantContext } from "@pas/kernel";
-import type { CatalogRelease, ProductCatalog } from "../ports/product-catalog";
+import type { SelectionStrategy } from "../domain/quote-options";
+import type { CatalogOffering, CatalogRelease, ProductCatalog } from "../ports/product-catalog";
 
 /** Adapts the catalog's public use cases. Releases are immutable, so they're cached by id forever. */
 export class CatalogProductCatalog implements ProductCatalog {
@@ -18,8 +21,29 @@ export class CatalogProductCatalog implements ProductCatalog {
       getRelease: GetProductRelease;
       getProduct: GetProduct;
       listProducts: ListProducts;
+      resolveOffering: ResolveOffering;
+      listOfferings: ListOfferings;
     },
   ) {}
+
+  async resolveOffering(
+    ctx: TenantContext,
+    input: { offeringId: string; jurisdiction: Jurisdiction; effectiveDate: string },
+  ): Promise<CatalogOffering> {
+    const offering = await this.catalog.resolveOffering(ctx, { ...input, kind: "new_business" });
+
+    return {
+      ...offering,
+      selection: offering.selection as SelectionStrategy,
+      releases: offering.releases.map((release) => this.remember(ctx, release)),
+    };
+  }
+
+  async offeringNames(ctx: TenantContext): Promise<Map<string, string>> {
+    const offerings = await this.catalog.listOfferings(ctx);
+
+    return new Map(offerings.map((offering) => [offering.id, offering.name]));
+  }
 
   async resolveNewBusiness(
     ctx: TenantContext,

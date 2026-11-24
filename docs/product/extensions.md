@@ -10,19 +10,19 @@ Every product eventually needs one rule a decision table can't hold: a proprieta
 
 Each extension point has a fixed input and a checked output, so an extension changes one answer and never the lifecycle around it.
 
-| Point | What it does |
-| --- | --- |
-| Prepare risk data | Fills or reshapes fields before a submission or endorsement is quoted |
-| Validate risk data | Returns errors on fields, shown inline like any other validation |
-| Rate | Prices every selected coverage; chosen as the Extension engine on the Rating tab |
-| Underwrite | Adds referrals and declines next to the decision tables' |
-| Installment schedule | Splits the premium and sets due dates for a pay plan; billing bills exactly what was quoted |
-| Cancellation charges | Keeps part of the return premium, never more than is left to return |
+| Point                               | What it does                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Prepare risk data                   | Fills or reshapes fields before a submission or endorsement is quoted                                |
+| Validate risk data                  | Returns errors on fields, shown inline like any other validation                                     |
+| Rate                                | Prices every selected coverage; chosen as the Extension engine on the Rating tab                     |
+| Underwrite                          | Adds referrals and declines next to the decision tables'                                             |
+| Installment schedule                | Splits the premium and sets due dates for a pay plan; billing bills exactly what was quoted          |
+| Cancellation charges                | Keeps part of the return premium, never more than is left to return                                  |
 | Select documents, add document data | Adds or removes scheduled documents and supplies `extension.*` merge fields to templates and notices |
-| Field options, prefill fields | Supplies a field's choices, or fills fields when another one changes, while the agent types |
-| Record panel, record action | Shows information or a button on the submission or policy page |
-| Enrichment transform | Reshapes provider data on the product's Data tab |
-| Automation | Runs when a domain event happens, such as a bound term or a failed payment |
+| Field options, prefill fields       | Supplies a field's choices, or fills fields when another one changes, while the agent types          |
+| Record panel, record action         | Shows information or a button on the submission or policy page                                       |
+| Enrichment transform                | Reshapes provider data on the product's Data tab                                                     |
+| Automation                          | Runs when a domain event happens, such as a bound term or a failed payment                           |
 
 Failures follow the binding's setting: stop with an error, or carry on without the extension. Rating and underwriting always stop, because a guessed premium or outcome is worse than none.
 

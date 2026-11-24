@@ -1,3 +1,4 @@
+import { SELECTION_STRATEGIES } from "@pas/catalog";
 import { riskSchemaSchema } from "@pas/forms-core";
 import type { PolicyScope } from "@pas/policy";
 import type { SubmissionScope } from "@pas/submissions";
@@ -80,6 +81,12 @@ const clientsAdmin = policyRead.use(({ ctx, next }) => {
 
 const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
+const offeringInput = z.object({
+  name: z.string().min(1).max(200),
+  productIds: z.array(z.uuid()).min(1).max(50),
+  selection: z.enum(SELECTION_STRATEGIES),
+});
+
 /** admin.pas.com: tenant staff (configuration + operations). */
 export const adminRouter = router({
   me: authedProcedure.query(({ ctx }) => ({
@@ -106,6 +113,22 @@ export const adminRouter = router({
       get: requirePermission({ product: ["read"] })
         .input(byId)
         .query(({ ctx, input }) => ctx.container.useCases.catalog.getProduct(ctx.tenant, input)),
+    }),
+
+    offerings: router({
+      list: requirePermission({ product: ["read"] }).query(({ ctx }) =>
+        ctx.container.useCases.catalog.listOfferings(ctx.tenant),
+      ),
+      create: requirePermission({ product: ["write"] })
+        .input(offeringInput.extend({ key: z.string().min(2).max(63) }))
+        .mutation(({ ctx, input }) =>
+          ctx.container.useCases.catalog.createOffering(ctx.tenant, input),
+        ),
+      update: requirePermission({ product: ["write"] })
+        .input(offeringInput.extend({ id: z.uuid(), active: z.boolean() }))
+        .mutation(({ ctx, input }) =>
+          ctx.container.useCases.catalog.updateOffering(ctx.tenant, input),
+        ),
     }),
 
     versions: router({

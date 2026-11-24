@@ -56,10 +56,35 @@ export {
   type ListAvailableProducts,
   type ListAvailableProductsInput,
 } from "./application/list-available-products";
+export {
+  makeCreateOffering,
+  type CreateOffering,
+  type CreateOfferingInput,
+} from "./application/create-offering";
+export {
+  makeUpdateOffering,
+  type UpdateOffering,
+  type UpdateOfferingInput,
+} from "./application/update-offering";
+export { makeListOfferings, type ListOfferings } from "./application/list-offerings";
+export {
+  makeListAvailableOfferings,
+  type ListAvailableOfferings,
+} from "./application/list-available-offerings";
+export {
+  makeResolveOffering,
+  type ResolveOffering,
+  type ResolveOfferingInput,
+  type ResolvedOfferingDto,
+} from "./application/resolve-offering";
+export { SELECTION_STRATEGIES, type SelectionStrategy } from "./domain/offering";
+export type { OfferingRepository } from "./ports/offering-repository";
 export type {
+  AvailableOfferingDto,
   AvailableProductDto,
   AvailabilityWindowDto,
   CheckIssueDto,
+  OfferingDto,
   ProductDto,
   ProductReleaseDto,
   ProductVersionDto,

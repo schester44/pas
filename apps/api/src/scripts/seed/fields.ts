@@ -92,8 +92,18 @@ export const mailingAddress = field.address("mailingAddress", "Mailing address",
   endorsable: true,
 });
 
-/** Hazard and replacement cost prefill from the data vendors, falling back to the mock vendor. */
-export const ENRICHMENT = {
+/**
+ * Hazard and replacement cost prefill from the data vendors, falling back to the mock vendor.
+ * `rceInputs` sends more of the risk to the replacement cost call, e.g. construction and stories;
+ * `reportSource` "template" always renders our report instead of the vendor's PDF.
+ */
+export const enrichmentPlan = ({
+  rceInputs = {},
+  reportSource = "vendor_then_template",
+}: {
+  rceInputs?: Record<string, string>;
+  reportSource?: "vendor_then_template" | "template";
+} = {}) => ({
   stages: {
     pre_rate: [
       {
@@ -128,8 +138,9 @@ export const ENRICHMENT = {
           postalCode: "locations[0].address.postalCode",
           yearBuilt: "locations[0].yearBuilt",
           squareFeet: "locations[0].squareFeet",
+          ...rceInputs,
         },
-        optional: ["yearBuilt", "squareFeet"],
+        optional: ["yearBuilt", "squareFeet", ...Object.keys(rceInputs)],
         response: {},
         mode: "prefill",
         cacheTtl: "P30D",
@@ -166,11 +177,13 @@ export const ENRICHMENT = {
       stage: "pre_rate",
       title: "Replacement cost report",
       callId: "rce",
-      source: "vendor_then_template",
+      source: reportSource,
       template: "rce_report",
     },
   ],
-};
+});
+
+export const ENRICHMENT = enrichmentPlan();
 
 /** Rates per $1,000 of dwelling by protection class and construction. */
 export function baseRates(frameAtClassOne: number, perClass: number) {

@@ -32,7 +32,7 @@ async function recordContext<P extends "record_panel" | "action">(
   );
 
   const s = submission.toSnapshot();
-  const release = await deps.catalog.getRelease(ctx, s.productReleaseId);
+  const release = await deps.catalog.getRelease(ctx, s.intakeReleaseId);
 
   const binding = release.extensions.find(
     (b) => b.id === input.bindingId && b.point === point && b.record === "submission",

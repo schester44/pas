@@ -3,7 +3,6 @@ import { StatusChip } from "@pas/ui/components/status-chip";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { StaffQuote } from "@/components/submissions/quote";
-import { formatMoney } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 import { capabilityLabel, RUN_TONES, runLabel } from "./labels";
 
@@ -15,7 +14,7 @@ const STATUS = {
   failed: { label: "Carrier failed", tone: "danger" },
 } as const;
 
-/** The carrier's quote, how its figures moved ours, and every carrier conversation about it. */
+/** The carrier's quote and every carrier conversation about it. */
 export function QuoteCarrierPanel({ quote }: { quote: StaffQuote }) {
   const trpc = useTRPC();
   const carrier = quote.carrier;
@@ -37,11 +36,6 @@ export function QuoteCarrierPanel({ quote }: { quote: StaffQuote }) {
   const status =
     carrier.bind?.status === "pending_carrier" ? STATUS.pending_carrier : STATUS[carrier.status];
 
-  const diff = carrier.diff;
-
-  const fmt = (amount: string | null) =>
-    amount === null || !diff ? "–" : formatMoney({ amount, currency: diff.currency });
-
   return (
     <Panel
       flush
@@ -49,9 +43,9 @@ export function QuoteCarrierPanel({ quote }: { quote: StaffQuote }) {
       description={
         carrier.bind?.status === "pending_carrier"
           ? `With the carrier to ${carrier.bind.phase}`
-          : carrier.figuresWin
-            ? "Carrier figures win: its premium, taxes and fees replace ours."
-            : "PAS rates; the carrier confirms."
+          : carrier.rating === "carrier"
+            ? "The carrier prices this quote."
+            : "We rate; the carrier confirms."
       }
       action={<StatusChip tone={status.tone}>{status.label}</StatusChip>}
     >
@@ -64,34 +58,6 @@ export function QuoteCarrierPanel({ quote }: { quote: StaffQuote }) {
         <p className="m-0 border-b px-(--card-p) py-3 text-sm text-red-800">
           Bind failed: {carrier.bind.message}
         </p>
-      )}
-      {diff && diff.changes.length > 0 && (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="h-10 bg-muted/40 text-xs text-muted-foreground">
-              <th className="pl-(--card-p) text-left font-medium">Line</th>
-              <th className="px-3 text-right font-medium">Our rating</th>
-              <th className="px-3 text-right font-medium">Carrier</th>
-              <th className="pr-(--card-p) text-right font-medium">Change</th>
-            </tr>
-          </thead>
-          <tbody>
-            {diff.changes.map((c) => (
-              <tr key={c.key} className="h-11 border-t">
-                <td className="pl-(--card-p)">{c.label}</td>
-                <td className="px-3 text-right tabular-nums">{fmt(c.pas)}</td>
-                <td className="px-3 text-right tabular-nums">{fmt(c.carrier)}</td>
-                <td className="pr-(--card-p) text-right tabular-nums">{fmt(c.difference)}</td>
-              </tr>
-            ))}
-            <tr className="h-11 border-t font-semibold">
-              <td className="pl-(--card-p)">Total</td>
-              <td className="px-3 text-right tabular-nums">{fmt(diff.pasTotal)}</td>
-              <td className="px-3 text-right tabular-nums">{fmt(diff.carrierTotal)}</td>
-              <td className="pr-(--card-p) text-right tabular-nums">{fmt(diff.difference)}</td>
-            </tr>
-          </tbody>
-        </table>
       )}
       {(runs.data ?? []).length > 0 && (
         <ul className="m-0 list-none divide-y border-t p-0">

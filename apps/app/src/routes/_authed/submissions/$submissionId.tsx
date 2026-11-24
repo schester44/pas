@@ -9,8 +9,10 @@ import { Check } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { DuplicateRiskNotice } from "@/components/duplicate-risk";
 import { Journey } from "@/components/journey/journey";
+import { QuoteOptions } from "@/components/journey/quote-options";
 import { BackLink, SubmissionHeading as Heading } from "@/components/submission-heading";
 import { isStep, type StepId } from "@/lib/quotes";
+import { submissionTitle } from "@/lib/submissions";
 import { trpcClient, useTRPC } from "@/lib/trpc";
 import { type SaveState, useAutosave } from "@/lib/use-autosave";
 import { useRecordView } from "@/lib/recent-views";
@@ -66,7 +68,11 @@ function JourneyPage({ submission }: { submission: Submission }) {
   return (
     <div className="grid w-full gap-6">
       <DuplicateRiskNotice submissionId={submission.id} />
-      <Journey submission={submission} step={step} />
+      {submission.awaitingChoice ? (
+        <QuoteOptions submission={submission} />
+      ) : (
+        <Journey submission={submission} step={step} />
+      )}
     </div>
   );
 }
@@ -101,6 +107,8 @@ function Intake({ submission }: { submission: Submission }) {
           ...result.submission,
           riskData: input.riskData,
         });
+
+        if (!result.quote) void queryClient.invalidateQueries({ queryKey: getKey });
 
         void queryClient.invalidateQueries({ queryKey: trpc.submissions.list.queryKey() });
       },
@@ -161,7 +169,7 @@ function Intake({ submission }: { submission: Submission }) {
   return (
     <div className={FLOW}>
       <Heading
-        submission={submission}
+        submission={{ ...submission, title: submissionTitle(submission) }}
         aside={<SaveIndicator state={autosave.state} onRetry={autosave.flush} />}
       />
       <DuplicateRiskNotice submissionId={submission.id} riskData={data} />

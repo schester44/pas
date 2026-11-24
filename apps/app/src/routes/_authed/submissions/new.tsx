@@ -46,18 +46,18 @@ function StartQuotePage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const products = useQuery(trpc.submissions.availableProducts.queryOptions({}));
+  const offerings = useQuery(trpc.submissions.availableOfferings.queryOptions({}));
   const [chosenId, setChosenId] = useState<string>();
   const [subdivision, setSubdivision] = useState("");
   const [effectiveDate, setEffectiveDate] = useState("");
 
-  const product = products.data?.find((p) => p.id === chosenId) ?? products.data?.[0];
-  const offered = new Set(product?.availability.map((w) => w.jurisdiction.subdivision));
+  const offering = offerings.data?.find((o) => o.id === chosenId) ?? offerings.data?.[0];
+  const offered = new Set(offering?.availability.map((w) => w.jurisdiction.subdivision));
   const states = subdivisionsOf(COUNTRY);
-  const ready = !!product && !!subdivision && !!effectiveDate;
+  const ready = !!offering && !!subdivision && !!effectiveDate;
 
   const unavailable =
-    ready && !product.availability.some((window) => covers(window, subdivision, effectiveDate));
+    ready && !offering.availability.some((window) => covers(window, subdivision, effectiveDate));
 
   const start = useMutation(
     trpc.submissions.start.mutationOptions({
@@ -86,13 +86,13 @@ function StartQuotePage() {
     if (!ready) return;
 
     start.mutate({
-      productId: product.id,
+      offeringId: offering.id,
       jurisdiction: { country: COUNTRY, subdivision },
       effectiveDate,
     });
   }
 
-  if (products.data?.length === 0) {
+  if (offerings.data?.length === 0) {
     return (
       <div className="mx-auto grid w-full max-w-2xl gap-6">
         <Heading />
@@ -112,18 +112,18 @@ function StartQuotePage() {
       <Heading />
       <form onSubmit={onSubmit} className="grid gap-6">
         <Panel title="Product">
-          {products.error ? (
+          {offerings.error ? (
             <Notice tone="error" title="Couldn't load products">
-              {products.error.data?.code === "FORBIDDEN"
+              {offerings.error.data?.code === "FORBIDDEN"
                 ? "Ask your administrator for access to start quotes."
                 : "Refresh the page to try again."}
             </Notice>
-          ) : products.isPending ? (
+          ) : offerings.isPending ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
           ) : (
             <div role="radiogroup" aria-label="Product" className="grid gap-2">
-              {products.data?.map((option) => {
-                const selected = option.id === product?.id;
+              {offerings.data?.map((option) => {
+                const selected = option.id === offering?.id;
 
                 const where = [
                   ...new Set(option.availability.map((w) => jurisdictionName(w.jurisdiction))),
@@ -222,12 +222,12 @@ function StartQuotePage() {
               />
             </div>
           </div>
-          {unavailable && product && (
+          {unavailable && offering && (
             <p role="status" className="m-0 mt-4 flex items-start gap-2 text-sm">
               <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500" />
               <span>
                 {unavailableMessage({
-                  productName: product.name,
+                  productName: offering.name,
                   jurisdiction: { country: COUNTRY, subdivision },
                   effectiveDate,
                 })}{" "}
