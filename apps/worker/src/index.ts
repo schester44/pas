@@ -40,6 +40,7 @@ import {
 import {
   allQueues,
   domainEventsQueue,
+  extensionRunRetentionQueue,
   eventDeliveriesQueue,
   PgBossOutbox,
   QueueClient,
@@ -71,6 +72,8 @@ import { composeWorkerBillingMethods, withHandlers } from "./billing-methods";
 import { composeWorkerEvents } from "./events";
 import { createDomainEventDispatcher } from "./handlers/domain-events";
 import { KNOWN_DOMAIN_EVENTS } from "./handlers/known-events";
+import { composeWorkerExtensions } from "./extensions";
+import { purgeExtensionRuns } from "@pas/extensions/infrastructure";
 import { composePolicyServices } from "./policy-services";
 import { makeApprovalDemoWorkflow } from "./workflows/approval-demo";
 import { makeFilingWorkflow, makeObligationWorkflow } from "./workflows/compliance";
@@ -221,6 +224,16 @@ const sendPortalInvite = makeSendPortalInvite({
 
 const mailers = integrations.resolver.port("email");
 
+const extensions = composeWorkerExtensions({
+  uow,
+  outbox,
+  clocks,
+  recordPolicyEvent,
+  sendEmail: async (ctx, message) => {
+    await (await mailers.for(ctx)).send(message);
+  },
+});
+
 const policyServices = composePolicyServices({
   prisma,
   uow,
@@ -240,6 +253,7 @@ const policyServices = composePolicyServices({
     await (await mailers.for(ctx)).send(message);
   },
   sendLetter: integrations.sendLetter,
+  extensions: { invoker: extensions.invoker, rater: extensions.rater },
 });
 
 const compliance = composeCompliance({
@@ -390,6 +404,7 @@ const carriers = composeWorkerCarriers({
   policyServices,
   applyBillingEvent,
   schedules,
+  extensions: extensions.invoker,
   branding: async (ctx) => {
     const profile = await getProfile(ctx);
 
@@ -454,6 +469,16 @@ const dispatch = createDomainEventDispatcher(
 
           if (result.published > 0)
             logger.info({ type: event.type, ...result }, "events published");
+        },
+        async (event) => {
+          const ran = await extensions.dispatchAutomations(workerContext(event.tenantId), event);
+          const failed = ran.filter((r) => r.status === "failed");
+
+          if (ran.length > 0) logger.info({ type: event.type, ran }, "automations dispatched");
+
+          // Rethrowing makes the queue redeliver; succeeded automations skip themselves on retry.
+          if (failed.length > 0)
+            throw new Error(`${failed.length} automation(s) failed for ${event.type}`);
         },
       ],
       "events.subscription_disabled": [
@@ -735,6 +760,17 @@ await queues.work(reconciliationQueue, async (job) => {
 });
 
 await queues.schedule(reconciliationQueue, "17 3 * * *", { tenantId: null, days: 30 });
+
+await queues.work(extensionRunRetentionQueue, async (job) => {
+  const before = Temporal.Now.instant().subtract({ hours: job.days * 24 });
+  const deleted = await purgeExtensionRuns(prisma, before);
+
+  logger.info({ days: job.days, deleted }, "extension runs purged");
+});
+
+await queues.schedule(extensionRunRetentionQueue, "41 3 * * *", {
+  days: Number(process.env.EXTENSION_RUN_RETENTION_DAYS ?? 90),
+});
 
 await workflows.open();
 

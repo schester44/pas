@@ -1,3 +1,4 @@
+import { fieldExtensionInput, recordActionInput, recordPanelInput } from "./extensions";
 import { TRPCError } from "@trpc/server";
 import { asId } from "@pas/kernel";
 import { z } from "zod";
@@ -121,6 +122,26 @@ export const appRouter = router({
       .input(submissionById)
       .query(({ ctx, input }) =>
         ctx.container.useCases.submissions.get(ctx.tenant, ctx.scope, input),
+      ),
+    fieldOptions: inBook({ submission: ["read"] })
+      .input(fieldExtensionInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.fieldOptions(ctx.tenant, ctx.scope, input),
+      ),
+    fieldPrefill: inBook({ submission: ["read"] })
+      .input(fieldExtensionInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.fieldPrefill(ctx.tenant, ctx.scope, input),
+      ),
+    extensionPanel: inBook({ submission: ["read"] })
+      .input(recordPanelInput.extend({ submissionId: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.submissions.panel(ctx.tenant, ctx.scope, input),
+      ),
+    extensionAction: inBook({ submission: ["update"] })
+      .input(recordActionInput.extend({ submissionId: z.uuid() }))
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.action(ctx.tenant, ctx.scope, input),
       ),
     saveDraft: inBook({ submission: ["update"] })
       .input(submissionData)
@@ -267,6 +288,21 @@ export const appRouter = router({
       .input(policyById)
       .query(({ ctx, input }) =>
         ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input),
+      ),
+    extensionSurfaces: inBook({ policy: ["read"] })
+      .input(z.object({ policyId: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.extensions.surfaces(ctx.tenant, ctx.scope, input),
+      ),
+    extensionPanel: inBook({ policy: ["read"] })
+      .input(recordPanelInput.extend({ policyId: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.extensions.panel(ctx.tenant, ctx.scope, input),
+      ),
+    extensionAction: inBook({ policy: ["update"] })
+      .input(recordActionInput.extend({ policyId: z.uuid() }))
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.policies.extensions.action(ctx.tenant, ctx.scope, input),
       ),
     carrier: inBook({ policy: ["read"] })
       .input(policyById)

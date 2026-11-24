@@ -65,6 +65,7 @@ import {
   makeGetEndorsementSetup,
   makeGetPolicyRisk,
   makeGetPolicy,
+  makePolicyExtensions,
   makeGetTransactionFacts,
   makeGetTransactionFinancials,
   makeInitiateCancellation,
@@ -193,6 +194,10 @@ import {
   makeRenderQuotePacket,
   makeSaveBindDetails,
   makeSaveDraft,
+  makeFieldOptions,
+  makeFieldPrefill,
+  makeRunSubmissionAction,
+  makeSubmissionPanel,
   makeSignQuote,
   makeQuoteTimers,
   makeRequestCarrierQuote,
@@ -223,6 +228,11 @@ import {
 import { composeApiBillingMethods } from "./billing-methods";
 import { composeApiCarriers, mockCarrier } from "./carriers";
 import { PrismaCarrierCloner } from "@pas/carriers/infrastructure";
+import {
+  composeExtensions,
+  PrismaExtensionCloner,
+  sandboxSettingsFromEnv,
+} from "@pas/extensions/infrastructure";
 import { composeApiLedger } from "./ledger";
 import { env } from "./env";
 import { sandboxAccess } from "./sandbox-access";
@@ -267,6 +277,19 @@ export function compose() {
 
   const formEditionDirectory = { existing: formLibrary.findExisting };
 
+  const extensions = composeExtensions({
+    uow,
+    outbox,
+    clocks,
+    secretBox: new AesSecretBox(process.env.INTEGRATIONS_SECRET_KEY),
+    isSandbox: async (ctx) => {
+      await clocks.refresh(ctx.tenantId);
+
+      return clocks.isSandbox(ctx.tenantId);
+    },
+    ...sandboxSettingsFromEnv(),
+  });
+
   const raterWorkbooks = new PrismaRaterWorkbookRepository();
   const workbookModels = makeWorkbookModels({ uow, workbooks: raterWorkbooks, storage });
 
@@ -280,8 +303,8 @@ export function compose() {
     }),
     listWorkbooks: makeListRaterWorkbooks({ uow, workbooks: raterWorkbooks }),
     getWorkbook: makeGetRaterWorkbook({ models: workbookModels }),
-    check: makeCheckRating({ models: workbookModels }),
-    preview: makePreviewRating({ models: workbookModels }),
+    check: makeCheckRating({ models: workbookModels, extensions: extensions.rater }),
+    preview: makePreviewRating({ models: workbookModels, extensions: extensions.rater }),
   };
 
   const ratingVerifier = {
@@ -643,9 +666,12 @@ export function compose() {
   };
 
   const evaluation = {
-    rater: new RatingModuleQuoteRater(makeRateRisk({ models: workbookModels })),
+    rater: new RatingModuleQuoteRater(
+      makeRateRisk({ models: workbookModels, extensions: extensions.rater }),
+    ),
     enricher: new PassThroughRiskEnricher(),
     clocks,
+    extensions: extensions.invoker,
   };
 
   const documentBranding = async (ctx: TenantContext) => {
@@ -663,9 +689,11 @@ export function compose() {
     formEdition: formLibrary.getFile,
     jurisdictionName,
     branding: documentBranding,
+    extensions: extensions.invoker,
   });
 
   const quoting = { uow, outbox, submissions, quotes, catalog: productCatalog, journey, clocks };
+  const saveDraft = makeSaveDraft({ uow, submissions, clocks });
   const getSubmission = makeGetSubmission({ uow, submissions, quotes, catalog: productCatalog });
   const getQuote = makeGetQuote({ uow, submissions, quotes });
   const decideReferral = makeDecideReferral({ ...quoting, ...evaluation });
@@ -705,6 +733,7 @@ export function compose() {
       rules: r.rules,
       documents: r.documents,
       lifecycle: r.lifecycle,
+      extensions: r.extensions,
     };
   };
 
@@ -800,6 +829,7 @@ export function compose() {
     delivery: noticeDelivery,
     billing: billingStatus,
     carriers: carriers.transactions,
+    extensions: extensions.invoker,
   };
 
   const quoteEndorsement = makeQuoteEndorsement(policyChanges);
@@ -905,6 +935,7 @@ export function compose() {
     integrations,
     events,
     carriers,
+    extensions,
     mockCarrier: env.NODE_ENV === "production" ? null : mockCarrier(),
     useCases: {
       catalog: {
@@ -924,6 +955,7 @@ export function compose() {
           formEditions: formEditionDirectory,
           rating: ratingVerifier,
           carriers: { verify: carriers.services.verify },
+          extensions: { verify: extensions.verifyBindings },
         }),
         publishVersion: makePublishProductVersion({
           uow,
@@ -934,6 +966,7 @@ export function compose() {
           formEditions: formEditionDirectory,
           rating: ratingVerifier,
           carriers: { verify: carriers.services.verify },
+          extensions: { verify: extensions.verifyBindings },
           clocks,
         }),
         listReleases: makeListProductReleases({ uow, releases }),
@@ -949,7 +982,11 @@ export function compose() {
           clocks,
         }),
         get: getSubmission,
-        saveDraft: makeSaveDraft({ uow, submissions, clocks }),
+        saveDraft,
+        fieldOptions: makeFieldOptions({ ...quoting, extensions: extensions.invoker }),
+        fieldPrefill: makeFieldPrefill({ ...quoting, extensions: extensions.invoker }),
+        panel: makeSubmissionPanel({ ...quoting, extensions: extensions.invoker }),
+        action: makeRunSubmissionAction({ ...quoting, extensions: extensions.invoker, saveDraft }),
         submit: makeSubmitSubmission({ ...quoting, ...evaluation, addresses }),
         clearance: makeCheckSubmissionClearance({
           uow,
@@ -1042,6 +1079,12 @@ export function compose() {
       policies: {
         list: policy.list,
         get: policy.get,
+        extensions: makePolicyExtensions({
+          uow,
+          policies,
+          config: policyConfig,
+          extensions: extensions.invoker,
+        }),
         changeRequests: listChangeRequests,
         changeProducer: makeChangeProducer({ uow, outbox, policies, clocks }),
         billing: async (ctx: TenantContext, scope: PolicyScope, input: { id: string }) => {
@@ -1120,6 +1163,7 @@ export function compose() {
           seeds: [
             new PrismaFormEditionCloner(uow),
             new PrismaRaterWorkbookCloner(uow),
+            new PrismaExtensionCloner(uow, secretBox),
             new PrismaCatalogCloner(uow),
             new PrismaDistributionCloner(uow),
             new PrismaUnderwritingSettingsCloner(uow),

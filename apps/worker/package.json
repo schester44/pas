@@ -21,6 +21,8 @@
     "@pas/db": "workspace:*",
     "@pas/distribution": "workspace:*",
     "@pas/events": "workspace:*",
+    "@pas/extension-points": "workspace:*",
+    "@pas/extensions": "workspace:*",
     "@pas/form-library": "workspace:*",
     "@pas/integrations": "workspace:*",
     "@pas/kernel": "workspace:*",

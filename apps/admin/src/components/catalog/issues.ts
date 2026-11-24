@@ -16,7 +16,8 @@ export type IssueLink =
   | { to: "/products/$productId/versions/$versionId/rules"; search: { decision?: string } }
   | { to: "/products/$productId/versions/$versionId/rating"; search: RatingSearch }
   | { to: "/products/$productId/versions/$versionId/billing"; search: { plan?: string } }
-  | { to: "/products/$productId/versions/$versionId/carrier"; search: Record<string, never> };
+  | { to: "/products/$productId/versions/$versionId/carrier"; search: Record<string, never> }
+  | { to: "/products/$productId/versions/$versionId/extensions"; search: { binding?: string } };
 
 export interface RatingSearch {
   section?: "rater" | "golden";
@@ -180,6 +181,18 @@ export function describeIssue(
         where: [],
         link: { to: "/products/$productId/versions/$versionId/carrier", search: {} },
       };
+    case "extensions": {
+      const binding = contents.extensions.find((b) => b.id === target.binding);
+
+      return {
+        area: "Extensions",
+        where: binding ? [binding.label || binding.point.replaceAll("_", " ")] : [],
+        link: {
+          to: "/products/$productId/versions/$versionId/extensions",
+          search: target.binding ? { binding: target.binding } : {},
+        },
+      };
+    }
     case "coverages": {
       const coverage = contents.coverages[target.coverage];
 

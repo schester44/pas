@@ -1,3 +1,4 @@
+import { planOf } from "../domain/pay-plan-offers";
 import {
   type CarrierOutcome,
   carrierAssignmentOf,
@@ -332,7 +333,7 @@ export function makeContinueCarrierBind(deps: ContinueCarrierBindDeps) {
     const carrierNumber = input.outcome.policyNumber ?? null;
     const history = await deps.uow.run(ctx, (tx) => deps.quotes.listActivity(tx, ctx, quote.id));
     const offer = quote.selectedPayPlan();
-    const plan = offer ? (release.billing.payPlans.find((p) => p.key === offer.key) ?? null) : null;
+    const plan = offer ? planOf(release.billing.payPlans, offer) : null;
 
     const issued = await deps.policies.issue(ctx, {
       ...issueRequest(quote, submission, release, productName),

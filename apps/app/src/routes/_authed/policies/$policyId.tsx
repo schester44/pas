@@ -1,3 +1,4 @@
+import { PolicyExtensions } from "@/components/extensions/policy-extensions";
 import type { AppOutputs } from "@pas/api-client";
 import { Notice } from "@pas/ui/components/notice";
 import { Panel } from "@pas/ui/components/panel";
@@ -98,6 +99,7 @@ function PolicyPage() {
         <Timeline policy={p} />
         <div className="grid gap-6">
           <SubjectivitiesList policyId={p.id} />
+          <PolicyExtensions policyId={p.id} />
           <Panel title="Documents" flush>
             <PolicyDocumentList policyId={p.id} documents={p.documents} />
           </Panel>

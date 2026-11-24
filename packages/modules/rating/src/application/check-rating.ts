@@ -2,6 +2,7 @@ import type { RiskSchema } from "@pas/forms-core";
 import type { TenantContext } from "@pas/kernel";
 import { type GoldenReport, type RatingConfig, runGoldenCases } from "@pas/rating-engine";
 import { goldenIssues, type RatingIssue, staticIssues } from "../domain/rating-issues";
+import type { ExtensionRaterRunner } from "../ports/extension-rater";
 import { buildRater, workbookFor } from "./build-rater";
 import type { WorkbookModels } from "./workbook-models";
 
@@ -16,7 +17,10 @@ export interface RatingCheckDto {
   golden: GoldenReport | null;
 }
 
-export function makeCheckRating(deps: { models: WorkbookModels }) {
+export function makeCheckRating(deps: {
+  models: WorkbookModels;
+  extensions?: ExtensionRaterRunner;
+}) {
   return async function checkRating(
     ctx: TenantContext,
     input: CheckRatingInput,
@@ -30,7 +34,13 @@ export function makeCheckRating(deps: { models: WorkbookModels }) {
     let golden: GoldenReport;
 
     try {
-      golden = await runGoldenCases(buildRater(rating, workbook), rating.goldenCases);
+      golden = await runGoldenCases(
+        buildRater(rating, workbook, {
+          ctx,
+          ...(deps.extensions && { extensions: deps.extensions }),
+        }),
+        rating.goldenCases,
+      );
     } catch {
       return { issues, golden: null };
     }

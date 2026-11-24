@@ -1,5 +1,6 @@
 import type { DecisionKind, JdmDecision } from "@pas/decisions-engine";
 import type { DocumentSet } from "@pas/documents";
+import type { ExtensionBinding } from "@pas/extension-points";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import type { Jurisdiction, TenantContext } from "@pas/kernel";
 import type { BillingConfig } from "@pas/pay-plans";
@@ -34,6 +35,7 @@ export interface CatalogRelease {
   documents: DocumentSet;
   lifecycle: Record<string, unknown>;
   billing: BillingConfig;
+  extensions: ExtensionBinding[];
 }
 
 /** The submissions context's view of the catalog. Never call it inside a unit of work. */

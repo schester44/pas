@@ -12,6 +12,7 @@
   "dependencies": {
     "@pas/api-client": "workspace:*",
     "@pas/auth": "workspace:*",
+    "@pas/extension-points": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/forms-react": "workspace:*",
     "@pas/ui": "workspace:*",

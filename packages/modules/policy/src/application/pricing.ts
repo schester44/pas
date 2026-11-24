@@ -1,3 +1,5 @@
+import { type BindingInvoker, bindingsAt, noExtensions } from "@pas/extension-points";
+import { withCancellationCharges } from "../domain/cancellation-charges";
 import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
 import {
   asId,
@@ -51,6 +53,7 @@ export interface ChangeDeps {
   clocks: ClockProvider;
   /** Carrier-owned changes go to the carrier first (PLAN §12); absent where no carrier is wired. */
   carriers?: CarrierTransactions;
+  extensions?: BindingInvoker;
 }
 
 export interface Authority {
@@ -153,7 +156,7 @@ function minimumEarnedOf(
  * the minimum earned premium and fully earned fees from `cancellation_terms` (PLAN §7.4, §17.3).
  */
 export async function priceCancellation(
-  deps: Pick<ChangeDeps, "config" | "rater" | "clocks">,
+  deps: Pick<ChangeDeps, "config" | "rater" | "clocks" | "extensions">,
   ctx: TenantContext,
   policy: Policy,
   input: { reason: string; effectiveDate?: PlainDate; note?: string; transactionId?: string },
@@ -222,7 +225,46 @@ export async function priceCancellation(
     codes: [reason.code, reason.initiator],
   });
 
-  const retained = returned.minimumEarned?.lines ?? [];
+  const [chargesBinding] = bindingsAt(release.extensions, "cancellation_charges");
+
+  const charged = chargesBinding
+    ? await (deps.extensions ?? noExtensions).invoke(
+        ctx,
+        chargesBinding,
+        {
+          risk: snapshot.risk ?? {},
+          jurisdiction: term.jurisdiction,
+          product: { id: release.productId, version: release.version },
+          term: {
+            start: term.effectiveDate.toString(),
+            end: term.expirationDate.toString(),
+            writtenPremium: term.writtenPremium.toString(),
+          },
+          cancellation: {
+            reason: reason.code,
+            initiator: reason.initiator,
+            effectiveDate: effectiveDate.toString(),
+            noticeDate: noticeDate.toString(),
+          },
+          returned: returned.lines.map((l) => ({
+            coverage: l.coverage,
+            ...(l.exposure !== undefined && { exposure: l.exposure }),
+            amount: l.amount.toString(),
+          })),
+          minimumEarned: (returned.minimumEarned?.retained ?? Money.zero(currency)).toString(),
+          currency,
+        },
+        { type: "policy", id: policy.id },
+      )
+    : null;
+
+  const retained = withCancellationCharges(
+    returned.lines,
+    returned.minimumEarned?.lines ?? [],
+    charged?.charges ?? [],
+    currency,
+  );
+
   const net = sumOf([...returned.lines, ...retained], currency);
   const fullyEarnedFees = terms?.fullyEarnedFees ?? [];
 

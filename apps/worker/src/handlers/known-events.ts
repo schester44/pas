@@ -34,6 +34,7 @@ export const KNOWN_DOMAIN_EVENTS = [
   "distribution.commissions_recorded",
   "documents.form_edition_uploaded",
   "events.subscription_disabled",
+  "extensions.version_published",
   "integrations.billing_event_received",
   "integrations.install_changed",
   "integrations.payment_event_received",

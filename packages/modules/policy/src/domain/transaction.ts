@@ -180,7 +180,7 @@ const chargeLines = (charges: Charges, prefix = "") => [
   })),
   ...charges.retained.map((line) => ({
     kind: "written_premium" as const,
-    code: "MINIMUM_EARNED",
+    code: line.code ?? "MINIMUM_EARNED",
     label: `${prefix}${line.name}`,
     ...(line.coverage !== undefined && { coverage: line.coverage }),
     ...(line.exposure !== undefined && { exposure: line.exposure }),

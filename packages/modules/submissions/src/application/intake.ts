@@ -1,3 +1,4 @@
+import { extensionFieldsOf, surfacesFor } from "@pas/extension-points";
 import { asId, notFound, type TenantContext, type Transaction } from "@pas/kernel";
 import type { Submission } from "../domain/submission";
 import type { SubmissionScope } from "../domain/scope";
@@ -34,5 +35,10 @@ export async function pinnedIntake(
 
   if (!form) throw new Error(`Release ${release.id} lost form ${s.formKey}`);
 
-  return { riskSchema: release.riskSchema, form };
+  return {
+    riskSchema: release.riskSchema,
+    form,
+    extensionFields: extensionFieldsOf(release.extensions),
+    surfaces: surfacesFor(release.extensions, "submission"),
+  };
 }

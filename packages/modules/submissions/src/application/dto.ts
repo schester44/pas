@@ -1,3 +1,4 @@
+import type { ExtensionFields, ExtensionSurface } from "@pas/extension-points";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import type { Jurisdiction } from "@pas/kernel";
 import type { Quote } from "../domain/quote";
@@ -35,6 +36,8 @@ export interface SubmissionDto extends SubmissionSummaryDto {
   riskData: RiskData;
   riskSchema: RiskSchema;
   form: FormDefinition;
+  extensionFields: ExtensionFields;
+  surfaces: ExtensionSurface[];
 }
 
 export function toSummaryDto(
@@ -82,7 +85,12 @@ export function toSummaryDto(
 export function toSubmissionDto(
   submission: Submission,
   productName: string,
-  intake: { riskSchema: RiskSchema; form: FormDefinition },
+  intake: {
+    riskSchema: RiskSchema;
+    form: FormDefinition;
+    extensionFields?: ExtensionFields;
+    surfaces?: ExtensionSurface[];
+  },
   quote: Quote | null = null,
 ): SubmissionDto {
   const s = submission.toSnapshot();
@@ -93,5 +101,7 @@ export function toSubmissionDto(
     riskData: s.riskData,
     riskSchema: intake.riskSchema,
     form: intake.form,
+    extensionFields: intake.extensionFields ?? { options: [], prefill: [] },
+    surfaces: intake.surfaces ?? [],
   };
 }

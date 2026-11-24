@@ -22,6 +22,8 @@ export {
   type RatingPreviewDto,
 } from "./application/preview-rating";
 export { makeRateRisk, type RateRisk } from "./application/rate-risk";
+export type { ExtensionRaterRunner } from "./ports/extension-rater";
+export type { ExtensionRaterSource } from "./domain/extension-rating";
 export type { RaterWorkbookDetailDto, RaterWorkbookDto, WorkbookCellDto } from "./application/dto";
 export type { RatingIssue, RatingSection } from "./domain/rating-issues";
 export type { RaterWorkbookRepository } from "./ports/rater-workbook-repository";

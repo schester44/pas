@@ -54,6 +54,11 @@ export const resourceLabels: { [R in Resource]: ResourceLabel } = {
     description: "Templates for policy documents and notices.",
     actions: { read: "View", write: "Edit", publish: "Publish" },
   },
+  extension: {
+    label: "Extensions",
+    description: "Tenant code at extension points, its secrets and automations.",
+    actions: { read: "View", write: "Edit and test", publish: "Publish" },
+  },
   submission: {
     label: "Submissions",
     description: "New business and renewal submissions.",

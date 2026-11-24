@@ -33,7 +33,6 @@ export interface CarrierInput {
   admitted: string[];
   lines: string[];
   mode: ConnectionMode;
-  extensionKey?: string | null;
   activeEnvironment: CarrierEnvironment;
   status?: Carrier["status"];
 }
@@ -89,10 +88,6 @@ export function makeManageCarriers(deps: CarrierDeps) {
       const connections = await deps.carriers.connections(tx, ctx, carrier.id);
       const versions = await deps.connectors.versions(tx, ctx, carrier.id);
 
-      const extensions = deps.extensions
-        .list(ctx.tenantId)
-        .map((e) => ({ key: e.key, name: e.name, capabilities: e.capabilities }));
-
       return {
         ...toCarrierDto(carrier),
         connections: connections.map((c) => toConnectionDto(c, deps.publicUrl)),
@@ -101,7 +96,6 @@ export function makeManageCarriers(deps: CarrierDeps) {
 
           return summary;
         }),
-        extensions,
       };
     });
 
@@ -126,7 +120,6 @@ export function makeManageCarriers(deps: CarrierDeps) {
         ],
         lines: [...new Set(input.lines.map((line) => line.trim()).filter(Boolean))],
         mode: input.mode,
-        extensionKey: input.mode === "extension" ? input.extensionKey?.trim() || null : null,
         activeEnvironment: input.activeEnvironment,
         status: input.status ?? existing?.status ?? "active",
         createdAt: existing?.createdAt ?? now,

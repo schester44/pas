@@ -6,6 +6,8 @@ export interface Copy {
   yes: string;
   no: string;
   choose: string;
+  loadingOptions: string;
+  optionsUnavailable: string;
   add: (noun: string) => string;
   remove: string;
   entry: (noun: string, position: number) => string;
@@ -22,6 +24,8 @@ export const defaultCopy: Copy = {
   yes: "Yes",
   no: "No",
   choose: "Choose…",
+  loadingOptions: "Loading options…",
+  optionsUnavailable: "Options aren't available right now",
   add: (noun) => `Add ${noun.toLowerCase()}`,
   remove: "Remove",
   entry: (noun, position) => `${noun} ${position}`,

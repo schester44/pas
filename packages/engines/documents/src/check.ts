@@ -11,6 +11,9 @@ import { hasUnclosedField, mergeFields } from "./merge";
 import type { Block, DocumentSet, DocumentTemplate } from "./model";
 import { documentRef } from "./schedule";
 
+/** The document_data extension shapes `extension.*`; its own tests cover those paths. */
+const isExtensionPath = (path: string) => path === "extension" || path.startsWith("extension.");
+
 export type DocumentTarget =
   | { section: "templates"; template: string; block?: string; property?: string }
   | { section: "clauses"; clause: string; variant?: number }
@@ -57,6 +60,7 @@ class Checker {
 
     for (const field of mergeFields(text)) {
       if (!field.path) this.error(target, "A merge field is empty");
+      else if (isExtensionPath(field.path)) continue;
       else if (!resolvesInSchema(this.document, canonicalPath(field.path))) {
         this.error(target, `Merge field ${field.path} doesn't resolve`);
       }
@@ -77,7 +81,11 @@ class Checker {
     }
 
     for (const path of paths) {
-      if (!resolvesInSchema(index, path)) this.error(target, `Unknown path ${path}`);
+      const extensionData = index === this.document && isExtensionPath(path);
+
+      if (!extensionData && !resolvesInSchema(index, path)) {
+        this.error(target, `Unknown path ${path}`);
+      }
     }
   }
 }

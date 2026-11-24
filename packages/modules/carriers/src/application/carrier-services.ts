@@ -148,9 +148,7 @@ export function makeCarrierServices(deps: CarrierDeps) {
           ? await deps.connectors.latestPublished(tx, ctx, carrier.id)
           : null;
 
-      const supported = published
-        ? capabilitiesOf(published.definition)
-        : (deps.extensions.get(ctx.tenantId, carrier.extensionKey ?? "")?.capabilities ?? []);
+      const supported = published ? capabilitiesOf(published.definition) : [];
 
       const missing = needed.filter((c) => !supported.includes(c));
 

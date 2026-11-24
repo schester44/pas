@@ -8,6 +8,7 @@ import {
 } from "@pas/documents";
 import { mergePdfs, renderPdf } from "@pas/documents/render";
 import type { GetFormEditionFile } from "@pas/form-library";
+import { type BindingInvoker, bindingsAt, noExtensions } from "@pas/extension-points";
 import type { TenantContext } from "@pas/kernel";
 import type { CatalogRelease } from "../ports/product-catalog";
 import type { QuoteDocuments, RenderedPacket } from "../ports/quote-documents";
@@ -28,8 +29,62 @@ export class ReactPdfQuoteDocuments implements QuoteDocuments {
       formEdition: GetFormEditionFile;
       branding: (ctx: TenantContext) => Promise<DocumentBranding>;
       jurisdictionName: (jurisdiction: Jurisdiction) => string;
+      extensions?: BindingInvoker;
     },
   ) {}
+
+  /** `document_select`: the extension adds schedule entries by id or removes them. */
+  private async select(
+    ctx: TenantContext,
+    release: CatalogRelease,
+    transaction: string,
+    entries: ScheduleEntry[],
+    hook: Record<string, unknown>,
+  ): Promise<ScheduleEntry[]> {
+    const [binding] = bindingsAt(release.extensions, "document_select");
+
+    if (!binding) return entries;
+
+    const output = await (this.deps.extensions ?? noExtensions).invoke(ctx, binding, {
+      ...hook,
+      transaction,
+      scheduled: entries.map((e) => ({ id: e.id, document: documentRef(e.document) })),
+      available: release.documents.schedule.map((e) => ({
+        id: e.id,
+        document: documentRef(e.document),
+      })),
+    });
+
+    if (!output) return entries;
+
+    const removed = new Set(output.remove);
+    const present = new Set(entries.map((e) => e.id));
+
+    const added = release.documents.schedule.filter(
+      (e) => output.add.includes(e.id) && !present.has(e.id),
+    );
+
+    return [...entries.filter((e) => !removed.has(e.id)), ...added].toSorted(
+      (a, b) => a.order - b.order,
+    );
+  }
+
+  /** `document_data`: extra values templates can merge as `extension.*`. */
+  private async extensionData(
+    ctx: TenantContext,
+    release: CatalogRelease,
+    hook: Record<string, unknown>,
+  ): Promise<Record<string, unknown> | undefined> {
+    const bindings = bindingsAt(release.extensions, "document_data");
+
+    if (bindings.length === 0) return undefined;
+
+    const outputs = await Promise.all(
+      bindings.map((b) => (this.deps.extensions ?? noExtensions).invoke(ctx, b, hook)),
+    );
+
+    return Object.assign({}, ...outputs.map((o) => o?.data ?? {}));
+  }
 
   async render(ctx: TenantContext, input: Input): Promise<RenderedPacket> {
     const { release, context, transactions } = input;
@@ -37,16 +92,35 @@ export class ReactPdfQuoteDocuments implements QuoteDocuments {
     const tenant = await this.deps.branding(ctx);
     const seen = new Set<string>();
 
-    const packets = transactions.map((transaction) => {
-      const packet = buildPacket(release.documents.schedule, {
-        jurisdiction: context.policy.jurisdiction,
-        transaction,
-        coverages,
-        risk: context.risk,
-      });
+    const hook = {
+      jurisdiction: context.policy.jurisdiction,
+      product: { id: release.productId, version: release.version },
+      policy: {
+        number: context.policy.number ?? null,
+        effectiveDate: context.policy.effectiveDate,
+      },
+      risk: context.risk,
+      coverages,
+      premium: context.premium?.total ?? null,
+    };
 
-      return { transaction, entries: packet.entries };
-    });
+    const packets = await Promise.all(
+      transactions.map(async (transaction) => {
+        const packet = buildPacket(release.documents.schedule, {
+          jurisdiction: context.policy.jurisdiction,
+          transaction,
+          coverages,
+          risk: context.risk,
+        });
+
+        return {
+          transaction,
+          entries: await this.select(ctx, release, transaction, packet.entries, hook),
+        };
+      }),
+    );
+
+    const extension = await this.extensionData(ctx, release, hook);
 
     const editions = await this.editions(
       ctx,
@@ -72,6 +146,7 @@ export class ReactPdfQuoteDocuments implements QuoteDocuments {
           jurisdictionName: this.deps.jurisdictionName(context.policy.jurisdiction),
         },
         forms,
+        ...(extension && { extension }),
       };
 
       for (const entry of entries) {

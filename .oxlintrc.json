@@ -81,6 +81,7 @@
                   "!@pas/documents",
                   "!@pas/pay-plans",
                   "!@pas/addressing",
+                  "!@pas/extension-points",
                   "@prisma/*",
                   "pg-boss",
                   "fastify",
@@ -90,7 +91,7 @@
                   "**/infrastructure/**",
                   "**/ports/**"
                 ],
-                "message": "domain/ is pure: import only @pas/kernel, the pure engines (@pas/forms-core, @pas/expressions, @pas/documents, @pas/addressing) and other domain/ files (see CLAUDE.md)."
+                "message": "domain/ is pure: import only @pas/kernel, the pure engines (@pas/forms-core, @pas/expressions, @pas/documents, @pas/addressing, @pas/extension-points) and other domain/ files (see CLAUDE.md)."
               }
             ]
           }

@@ -120,6 +120,7 @@ export function useAccess() {
   const productWrite = usePermission({ product: ["write"] });
   const productPublish = usePermission({ product: ["publish"] });
   const submissionRead = usePermission({ submission: ["read"] });
+  const submissionUpdate = usePermission({ submission: ["update"] });
   const policyRead = usePermission({ policy: ["read"] });
   const policyUpdate = usePermission({ policy: ["update"] });
   const agencyRead = usePermission({ agency: ["read"] });
@@ -145,13 +146,16 @@ export function useAccess() {
   const complianceWrite = usePermission({ compliance: ["write"] });
   const billingRead = usePermission({ billing: ["read"] });
   const billingWrite = usePermission({ billing: ["write"] });
+  const extensionRead = usePermission({ extension: ["read"] });
+  const extensionWrite = usePermission({ extension: ["write"] });
+  const extensionPublish = usePermission({ extension: ["publish"] });
 
   const members = invite || updateMember || removeMember;
   const roles = createRole || updateRole || deleteRole;
 
   return {
     products: { read: !!productRead, write: !!productWrite, publish: !!productPublish },
-    submissions: { read: !!submissionRead },
+    submissions: { read: !!submissionRead, update: !!submissionUpdate },
     policies: { read: !!policyRead, update: !!policyUpdate },
     compliance: { read: !!complianceRead, write: !!complianceWrite },
     billing: { read: !!billingRead, write: !!billingWrite },
@@ -160,6 +164,11 @@ export function useAccess() {
     documents: { read: !!documentRead, write: !!documentWrite },
     decisions: { read: !!decisionRead, write: !!decisionWrite },
     rating: { read: !!ratingRead, write: !!ratingWrite },
+    extensions: {
+      read: !!extensionRead,
+      write: !!extensionWrite,
+      publish: !!extensionPublish,
+    },
     members: {
       view: !!members,
       invite: !!invite,

@@ -3,11 +3,7 @@ export {
   type CarrierCompositionDeps,
   type Carriers,
 } from "./infrastructure/compose";
-export {
-  FeedDeliveryChannels,
-  mergePdfs,
-  StaticExtensionRegistry,
-} from "./infrastructure/adapters";
+export { FeedDeliveryChannels, mergePdfs } from "./infrastructure/adapters";
 export {
   MOCK_CARRIER_API_KEY,
   MOCK_CARRIER_CALLBACK_SECRET,

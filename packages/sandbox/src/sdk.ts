@@ -6,6 +6,13 @@ export interface ExtensionContext {
   ) => Promise<ExtensionResponse>;
   clock?: { now(): Promise<string> };
   step?: { run<T>(id: string, fn: () => Promise<T>): Promise<T> };
+  /** Automations only, and only the services the extension declared. */
+  pas?: {
+    policy?: {
+      addNote(args: { policyId: string; summary: string; detail?: string }): Promise<unknown>;
+    };
+    email?: { send(args: { to: string; subject: string; text: string }): Promise<unknown> };
+  };
 }
 
 export interface ExtensionResponse {

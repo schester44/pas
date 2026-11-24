@@ -1,4 +1,5 @@
 import { checkDocuments, type DocumentSet, type DocumentTarget } from "@pas/documents";
+import { checkBindings } from "@pas/extension-points";
 import { checkEndorsableRules, checkReferences, schemaIndex } from "@pas/forms-core";
 import { jurisdictionCode, type MessageParams, sameJurisdiction } from "@pas/kernel";
 import { checkPayPlans } from "@pas/pay-plans";
@@ -37,7 +38,8 @@ export type CheckTarget =
   | { area: "rules"; decision?: string; node?: string; rule?: string; test?: string }
   | { area: "billing"; plan?: string; field?: string }
   | ({ area: "rating" } & RatingTarget)
-  | { area: "carrier" };
+  | { area: "carrier" }
+  | { area: "extensions"; binding?: string };
 
 export interface CheckIssue {
   severity: "error" | "warning";
@@ -66,6 +68,7 @@ export interface ResolvedReferences {
   formEditions?: ReadonlySet<string>;
   rating?: readonly RatingIssue[];
   carrier?: readonly { severity: "error" | "warning"; message: string }[];
+  extensions?: readonly { bindingId?: string; severity: "error" | "warning"; message: string }[];
 }
 
 export function checkVersion(
@@ -89,7 +92,23 @@ export function checkVersion(
       ...issue,
       target: { area: "carrier" as const },
     })),
+    ...checkExtensions(contents),
+    ...(resolved.extensions ?? []).map(({ bindingId, severity, message }) => ({
+      severity,
+      message,
+      target: { area: "extensions" as const, ...(bindingId && { binding: bindingId }) },
+    })),
   ];
+}
+
+function checkExtensions(contents: VersionContents): CheckIssue[] {
+  const paths = new Set(schemaIndex(contents.riskSchema).keys());
+
+  return checkBindings(contents.extensions, paths).map(({ bindingId, message }) => ({
+    severity: "error",
+    message,
+    target: { area: "extensions", binding: bindingId },
+  }));
 }
 
 export function scheduledEditionIds(documents: DocumentSet): string[] {

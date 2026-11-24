@@ -23,7 +23,6 @@ export interface CarrierValues {
   admitted: string[];
   lines: string[];
   mode: keyof typeof MODES;
-  extensionKey: string | null;
   activeEnvironment: "test" | "live";
 }
 
@@ -35,7 +34,6 @@ export const EMPTY_CARRIER: CarrierValues = {
   admitted: [],
   lines: [],
   mode: "connector",
-  extensionKey: null,
   activeEnvironment: "test",
 };
 
@@ -167,17 +165,6 @@ export function CarrierForm({
             </SelectContent>
           </Select>
         </Field>
-        {values.mode === "extension" && (
-          <Field label="Extension key" id="carrier-extension">
-            <Input
-              id="carrier-extension"
-              value={values.extensionKey ?? ""}
-              readOnly={readOnly}
-              className="font-mono text-xs"
-              onChange={(e) => set("extensionKey", e.target.value || null)}
-            />
-          </Field>
-        )}
       </div>
       {error && (
         <Notice tone="error" title="Couldn't save the carrier">

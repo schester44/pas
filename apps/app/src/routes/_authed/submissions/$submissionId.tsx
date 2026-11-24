@@ -1,16 +1,17 @@
 import type { AppOutputs } from "@pas/api-client";
-import { type FormData, IntakeForm } from "@pas/forms-react";
+import { type FormData, type FormExtensions, IntakeForm } from "@pas/forms-react";
+import { ExtensionSurfaces } from "@pas/ui/components/extension-surfaces";
 import { Notice } from "@pas/ui/components/notice";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DuplicateRiskNotice } from "@/components/duplicate-risk";
 import { Journey } from "@/components/journey/journey";
 import { BackLink, SubmissionHeading as Heading } from "@/components/submission-heading";
 import { isStep, type StepId } from "@/lib/quotes";
-import { useTRPC } from "@/lib/trpc";
+import { trpcClient, useTRPC } from "@/lib/trpc";
 import { type SaveState, useAutosave } from "@/lib/use-autosave";
 import { useRecordView } from "@/lib/recent-views";
 
@@ -106,6 +107,51 @@ function Intake({ submission }: { submission: Submission }) {
     }),
   );
 
+  const { options, prefill } = submission.extensionFields;
+
+  const extensions = useMemo<FormExtensions | undefined>(
+    () =>
+      options.length + prefill.length === 0
+        ? undefined
+        : {
+            optionFields: options,
+            prefillFields: prefill,
+            loadOptions: (field, values) =>
+              trpcClient.submissions.fieldOptions.mutate({
+                submissionId: submission.id,
+                field,
+                values,
+              }),
+            prefill: (field, values, path) =>
+              trpcClient.submissions.fieldPrefill.mutate({
+                submissionId: submission.id,
+                field,
+                path,
+                values,
+              }),
+          },
+    [options, prefill, submission.id],
+  );
+
+  const loadPanel = useCallback(
+    (bindingId: string) =>
+      trpcClient.submissions.extensionPanel.query({ submissionId: submission.id, bindingId }),
+    [submission.id],
+  );
+
+  const runAction = useCallback(
+    async (bindingId: string, values: Record<string, unknown>) => {
+      await autosave.flush();
+
+      return trpcClient.submissions.extensionAction.mutate({
+        submissionId: submission.id,
+        bindingId,
+        values,
+      });
+    },
+    [autosave, submission.id],
+  );
+
   async function onSubmit(riskData: FormData) {
     autosave.cancel();
     await autosave.flush();
@@ -131,6 +177,7 @@ function Intake({ submission }: { submission: Submission }) {
         busy={submit.isPending}
         copy={INTAKE_COPY}
         serverErrors={serverErrors}
+        {...(extensions && { extensions })}
         error={
           submit.error && (
             <Notice tone="error" title="Couldn't submit">
@@ -138,6 +185,22 @@ function Intake({ submission }: { submission: Submission }) {
             </Notice>
           )
         }
+      />
+      <ExtensionSurfaces
+        surfaces={submission.surfaces}
+        loadPanel={loadPanel}
+        runAction={runAction}
+        canAct
+        onActionDone={async (outcome) => {
+          if (!outcome.applied?.length) return;
+
+          const fresh = await queryClient.fetchQuery({
+            ...trpc.submissions.get.queryOptions({ id: submission.id }),
+            staleTime: 0,
+          });
+
+          setData(fresh.riskData);
+        }}
       />
     </div>
   );

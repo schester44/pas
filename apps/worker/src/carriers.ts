@@ -1,3 +1,4 @@
+import type { BindingInvoker } from "@pas/extension-points";
 import { composeAddresses } from "@pas/addresses/infrastructure";
 import { makeApplyPayment, makeEnrollAutopay } from "@pas/billing";
 import {
@@ -91,6 +92,7 @@ export function composeWorkerCarriers(deps: {
   senderName: (ctx: TenantContext) => Promise<string>;
   workflows: () => Workflows;
   logger: Logger;
+  extensions: BindingInvoker;
 }) {
   const { uow, outbox, clocks, storage, integrations } = deps;
   const catalog: ProductCatalog = deps.policyServices.catalog;
@@ -212,6 +214,7 @@ export function composeWorkerCarriers(deps: {
       }),
       jurisdictionName,
       branding: deps.branding,
+      extensions: deps.extensions,
     }),
     storage,
     journey,

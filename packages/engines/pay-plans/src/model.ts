@@ -21,6 +21,16 @@ export interface PayPlan {
   billDaysBeforeDue: number;
   graceDays: number;
   eligibility: PayPlanEligibility;
+  /**
+   * Set at quote time by an `installments` extension, never by config: the premium per
+   * installment and its due date. Travels with the plan so billing bills what was quoted.
+   */
+  split?: InstallmentSplit[];
+}
+
+export interface InstallmentSplit {
+  dueOn: string;
+  premium: string;
 }
 
 /**

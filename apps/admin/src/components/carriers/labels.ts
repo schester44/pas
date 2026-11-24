@@ -47,7 +47,6 @@ export const stepKindLabel = (kind: string) =>
 
 export const MODES = {
   connector: "Configured connector",
-  extension: "Extension adapter",
   file_feed: "File feeds",
 } as const;
 

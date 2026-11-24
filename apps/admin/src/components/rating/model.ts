@@ -230,10 +230,15 @@ export function coverageSelections(
   });
 }
 
-export function ratedCoverages(rating: RatingConfig | null): Set<string> {
+export function ratedCoverages(
+  rating: RatingConfig | null,
+  coverageCodes: readonly string[] = [],
+): Set<string> {
   if (!rating) return new Set();
 
   if (rating.engine === "plan") return new Set(rating.plan.algorithms.map((a) => a.coverage));
+
+  if (rating.engine === "extension") return new Set(coverageCodes);
 
   return new Set(
     rating.manifest.outputs.flatMap((o) => (o.kind === "premium" ? [o.coverage] : [])),
@@ -242,6 +247,8 @@ export function ratedCoverages(rating: RatingConfig | null): Set<string> {
 
 export function currencyOf(rating: RatingConfig | null): string {
   if (!rating) return "USD";
+
+  if (rating.engine === "extension") return rating.currency;
 
   return rating.engine === "plan" ? rating.plan.currency : rating.manifest.currency;
 }
@@ -252,7 +259,11 @@ export function sampleInput(contents: Contents, risk?: Record<string, unknown>):
   const effective = window?.newBusiness.from ?? today();
   const data = risk ?? sampleRisk(contents.riskSchema, jurisdiction, effective);
 
-  const rated = ratedCoverages(contents.rating);
+  const rated = ratedCoverages(
+    contents.rating,
+    contents.coverages.map((c) => c.code),
+  );
+
   const offered = contents.coverages.filter((c) => c.required || rated.has(c.code));
 
   return {

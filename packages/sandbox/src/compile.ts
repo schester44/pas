@@ -38,7 +38,7 @@ const virtualFiles = (files: Record<string, string>): Plugin => ({
 export async function compileExtension(
   files: Record<string, string>,
   entry = "index.ts",
-): Promise<{ code: string; warnings: string[] }> {
+): Promise<{ code: string; exports: string[]; warnings: string[] }> {
   if (!(entry in files)) throw new ExtensionCompileError([`Missing entry file ${entry}`]);
 
   try {
@@ -46,6 +46,8 @@ export async function compileExtension(
       entryPoints: [entry],
       bundle: true,
       write: false,
+      metafile: true,
+      outfile: "extension.js",
       format: "esm",
       platform: "neutral",
       target: "es2023",
@@ -53,13 +55,24 @@ export async function compileExtension(
       plugins: [virtualFiles(files)],
     });
 
+    const output = Object.values(result.metafile.outputs)[0];
+
     return {
       code: result.outputFiles[0]?.text ?? "",
+      exports: output?.exports ?? [],
       warnings: result.warnings.map((w) => w.text),
     };
   } catch (error) {
-    const errors = (error as { errors?: { text: string }[] }).errors;
+    const errors = (
+      error as { errors?: { text: string; location?: { file: string; line: number } | null }[] }
+    ).errors;
 
-    throw new ExtensionCompileError(errors?.map((e) => e.text) ?? [String(error)]);
+    throw new ExtensionCompileError(
+      errors?.map((e) =>
+        e.location
+          ? `${e.location.file.replace(/^extension:/, "")}:${e.location.line} ${e.text}`
+          : e.text,
+      ) ?? [String(error)],
+    );
   }
 }

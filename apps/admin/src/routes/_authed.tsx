@@ -32,6 +32,7 @@ import {
   Layers,
   LogOut,
   Percent,
+  Puzzle,
   Plus,
   ReceiptText,
   Scale,
@@ -218,7 +219,7 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             )}
           </NavSection>
         )}
-        {(access.products.read || access.documents.read) && (
+        {(access.products.read || access.documents.read || access.extensions.read) && (
           <NavSection label="Configure">
             {access.products.read && (
               <Link to="/products" className={navItemClassName}>
@@ -233,6 +234,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             {access.documents.read && (
               <Link to="/documents/forms" className={navItemClassName}>
                 <FileStack /> Forms library
+              </Link>
+            )}
+            {access.extensions.read && (
+              <Link to="/extensions" className={navItemClassName}>
+                <Puzzle /> Extensions
               </Link>
             )}
           </NavSection>

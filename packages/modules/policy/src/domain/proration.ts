@@ -121,6 +121,8 @@ export interface MinimumEarned {
 export interface RetainedLine {
   coverage?: string;
   exposure?: string;
+  /** Financial line code; minimum earned premium when absent. */
+  code?: string;
   name: string;
   minimum: Money;
   amount: Money;

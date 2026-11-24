@@ -31,7 +31,8 @@ import {
   type PolicyRepository,
 } from "@pas/policy";
 import { PortNoticeDelivery, ReactPdfNoticeDocuments } from "@pas/policy/infrastructure";
-import { makeRateRisk, makeWorkbookModels } from "@pas/rating";
+import { type ExtensionRaterRunner, makeRateRisk, makeWorkbookModels } from "@pas/rating";
+import type { BindingInvoker } from "@pas/extension-points";
 import { PrismaRaterWorkbookRepository } from "@pas/rating/infrastructure";
 import type { ObjectStorage } from "@pas/storage";
 import { makeRateTerm } from "@pas/submissions";
@@ -63,6 +64,7 @@ export function composePolicyServices(deps: {
     message: { to: string; subject: string; text: string; tag: string },
   ) => Promise<void>;
   sendLetter: ConstructorParameters<typeof PortNoticeDelivery>[0]["sendLetter"];
+  extensions: { invoker: BindingInvoker; rater: ExtensionRaterRunner };
 }) {
   const { uow, clocks } = deps;
   const products = new PrismaProductRepository();
@@ -82,10 +84,13 @@ export function composePolicyServices(deps: {
   });
 
   const rater = makeRateTerm({
-    rater: new RatingModuleQuoteRater(makeRateRisk({ models: workbookModels })),
+    rater: new RatingModuleQuoteRater(
+      makeRateRisk({ models: workbookModels, extensions: deps.extensions.rater }),
+    ),
     enricher: new PassThroughRiskEnricher(),
     clocks,
     catalog,
+    extensions: deps.extensions.invoker,
   });
 
   const release = async (ctx: TenantContext, id: string): Promise<PolicyRelease> => {
@@ -101,6 +106,7 @@ export function composePolicyServices(deps: {
       rules: r.rules,
       documents: r.documents,
       lifecycle: r.lifecycle,
+      extensions: r.extensions,
     };
   };
 
@@ -155,6 +161,7 @@ export function composePolicyServices(deps: {
       storage: deps.storage,
       notices: new ReactPdfNoticeDocuments({ branding, jurisdictionName }),
       billing: deps.billing,
+      extensions: deps.extensions.invoker,
       delivery: new PortNoticeDelivery({
         emails,
         sendEmail: deps.sendEmail,

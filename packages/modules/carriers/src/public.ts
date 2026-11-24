@@ -52,15 +52,7 @@ export {
   TRANSACTION_KINDS,
   type TransactionKind,
 } from "./domain/ownership";
-export type {
-  CarrierExtension,
-  CarrierExtensionRegistry,
-  CarrierExtensionTools,
-  FeedChannels,
-  FeedSource,
-  HttpTransport,
-  SecretBox,
-} from "./ports/services";
+export type { FeedChannels, FeedSource, HttpTransport, SecretBox } from "./ports/services";
 export type { CarrierDeps } from "./application/deps";
 export type {
   CarrierDto,

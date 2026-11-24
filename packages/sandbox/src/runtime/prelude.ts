@@ -115,6 +115,17 @@ export const prelude = String.raw`
     };
   }
 
+  for (const name of offered) {
+    if (!name.startsWith("pas.")) continue;
+
+    const parts = name.split(".").slice(1);
+    let node = (ctx.pas ??= {});
+
+    for (const part of parts.slice(0, -1)) node = node[part] ??= {};
+
+    node[parts[parts.length - 1]] = (args) => call(name, args);
+  }
+
   Object.freeze(ctx);
 
   globalThis.__pas_invoke = async (fn, inputJson) => {

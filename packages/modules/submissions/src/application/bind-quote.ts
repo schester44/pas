@@ -1,3 +1,4 @@
+import { planOf } from "../domain/pay-plan-offers";
 import {
   conflict,
   DomainError,
@@ -179,7 +180,7 @@ export function makeBindQuote(deps: Deps) {
     const method = input.method;
 
     const offer = quote.selectedPayPlan();
-    const plan = offer ? (release.billing.payPlans.find((p) => p.key === offer.key) ?? null) : null;
+    const plan = offer ? planOf(release.billing.payPlans, offer) : null;
 
     const amount = offer
       ? Money.of(offer.dueToday.amount, offer.dueToday.currency)
@@ -414,7 +415,12 @@ async function bindBilledTo(
     );
   }
 
-  const plan = release.billing.payPlans.find((p) => p.key === option.payPlan)!;
+  const offered = quote.toSnapshot().evaluation.payPlans.find((o) => o.key === option.payPlan);
+
+  const plan = offered
+    ? planOf(release.billing.payPlans, offered)!
+    : release.billing.payPlans.find((p) => p.key === option.payPlan)!;
+
   const mortgagee = mortgageeOf(quote.toSnapshot().details);
   const history = await deps.uow.run(ctx, (tx) => deps.quotes.listActivity(tx, ctx, quote.id));
   const agency = submission.toSnapshot().producer.agencyId;

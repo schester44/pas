@@ -1,4 +1,5 @@
 import { type DocumentSet, emptyDocumentSet } from "@pas/documents";
+import type { ExtensionBinding } from "@pas/extension-points";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import { type BillingConfig, billingConfigOf } from "@pas/pay-plans";
 import {
@@ -44,6 +45,7 @@ export interface ReleaseManifest {
   rules: VersionDecision[];
   rating: RatingConfig | null;
   billing: BillingConfig;
+  extensions: ExtensionBinding[];
 }
 
 export function completeManifest(
@@ -69,6 +71,7 @@ export function completeManifest(
     rules: stored.rules ?? [],
     rating: stored.rating ?? null,
     billing: billingConfigOf(stored.billing),
+    extensions: stored.extensions ?? [],
   };
 }
 
@@ -109,6 +112,7 @@ export class ProductRelease {
       rules: v.contents.rules,
       rating: v.contents.rating,
       billing: v.contents.billing,
+      extensions: v.contents.extensions,
     };
   }
 

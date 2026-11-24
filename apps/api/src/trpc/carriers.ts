@@ -100,8 +100,7 @@ const carrierInput = z.object({
   amBest: z.string().max(20).nullish(),
   admitted: z.array(z.string().max(6)).max(60),
   lines: z.array(z.string().max(80)).max(30),
-  mode: z.enum(["connector", "extension", "file_feed"]),
-  extensionKey: z.string().max(80).nullish(),
+  mode: z.enum(["connector", "file_feed"]),
   activeEnvironment: z.enum(["test", "live"]),
   status: z.enum(["active", "inactive"]).optional(),
 });

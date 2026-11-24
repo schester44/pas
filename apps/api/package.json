@@ -29,6 +29,8 @@
     "@pas/distribution": "workspace:*",
     "@pas/documents": "workspace:*",
     "@pas/events": "workspace:*",
+    "@pas/extension-points": "workspace:*",
+    "@pas/extensions": "workspace:*",
     "@pas/form-library": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/integrations": "workspace:*",

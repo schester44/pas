@@ -1,7 +1,7 @@
 import { type Id, type Instant, invalid, type TenantId } from "@pas/kernel";
 
 export type CarrierId = Id<"Carrier">;
-export type ConnectionMode = "connector" | "extension" | "file_feed";
+export type ConnectionMode = "connector" | "file_feed";
 export type CarrierEnvironment = "test" | "live";
 export type CarrierStatus = "active" | "inactive";
 
@@ -16,7 +16,6 @@ export interface Carrier {
   admitted: string[];
   lines: string[];
   mode: ConnectionMode;
-  extensionKey: string | null;
   activeEnvironment: CarrierEnvironment;
   status: CarrierStatus;
   createdAt: Instant;

@@ -17,6 +17,7 @@ export const statements = {
   decision: ["read", "write", "publish"],
   rating: ["read", "write", "publish"],
   document: ["read", "write", "publish"],
+  extension: ["read", "write", "publish"],
   submission: ["read", "create", "update"],
   quote: ["read", "bind"],
   uw: ["read", "refer", "approve", "override"],
@@ -34,6 +35,7 @@ const allConfig = {
   decision: ["read", "write", "publish"],
   rating: ["read", "write", "publish"],
   document: ["read", "write", "publish"],
+  extension: ["read", "write", "publish"],
 } as const;
 
 const allOps = {

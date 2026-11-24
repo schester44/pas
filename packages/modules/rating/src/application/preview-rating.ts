@@ -1,5 +1,6 @@
 import { isRecord, type MessageParams, toPlainJson, type TenantContext } from "@pas/kernel";
 import type { RaterSource, RatingInput, RatingResultJson } from "@pas/rating-engine";
+import type { ExtensionRaterRunner } from "../ports/extension-rater";
 import { buildRater, workbookFor } from "./build-rater";
 import type { WorkbookModels } from "./workbook-models";
 
@@ -28,13 +29,20 @@ function failure(error: unknown): Extract<RatingPreviewDto, { status: "error" }>
   return { status: "error", message, ...(details !== undefined && { details }) };
 }
 
-export function makePreviewRating(deps: { models: WorkbookModels }) {
+export function makePreviewRating(deps: {
+  models: WorkbookModels;
+  extensions?: ExtensionRaterRunner;
+}) {
   return async function previewRating(
     ctx: TenantContext,
     input: { rating: RaterSource; input: RatingInput },
   ): Promise<RatingPreviewDto> {
     try {
-      const rater = buildRater(input.rating, await workbookFor(deps.models, ctx, input.rating));
+      const rater = buildRater(input.rating, await workbookFor(deps.models, ctx, input.rating), {
+        ctx,
+        ...(deps.extensions && { extensions: deps.extensions }),
+      });
+
       const result = await rater.rate(input.input);
 
       return { status: "ok", result: toPlainJson(result) as unknown as RatingResultJson };

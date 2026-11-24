@@ -117,14 +117,12 @@ export function makeStartFlow(deps: CarrierDeps) {
           ? await connectorFor(deps, tx, ctx, carrier, input.connectorVersionId)
           : null;
 
-      const supported = version
-        ? capabilitiesOf(version.definition)
-        : (deps.extensions.get(ctx.tenantId, carrier.extensionKey ?? "")?.capabilities ?? []);
+      const supported = version ? capabilitiesOf(version.definition) : [];
 
       if (!supported.includes(input.capability)) {
         throw new DomainError(
           "precondition_failed",
-          `${carrier.name}'s ${version ? "connector" : "extension"} doesn't support ${CAPABILITY_LABELS[input.capability].toLowerCase()}`,
+          `${carrier.name}'s connector doesn't support ${CAPABILITY_LABELS[input.capability].toLowerCase()}`,
           { reason: "capability_missing", capability: input.capability },
         );
       }

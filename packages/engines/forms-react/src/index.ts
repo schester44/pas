@@ -12,3 +12,4 @@ export {
   type AddressSuggestion,
 } from "./address-field";
 export { endorsedExposures, laterChanges } from "./endorsement";
+export { applyPrefill, prefillTarget, type FieldOption, type FormExtensions } from "./extensions";

@@ -62,8 +62,14 @@ function planIssue(issue: PlanIssue): RatingIssue {
   );
 }
 
-export function rateableCoverages(rating: RatingConfig): Set<string> {
+export function rateableCoverages(
+  rating: RatingConfig,
+  coverageCodes: readonly string[] = [],
+): Set<string> {
   if (rating.engine === "plan") return new Set(rating.plan.algorithms.map((a) => a.coverage));
+
+  // An extension prices whatever is selected; its golden cases are what prove it.
+  if (rating.engine === "extension") return new Set(coverageCodes);
 
   return new Set(
     rating.manifest.outputs.flatMap((output) =>
@@ -90,6 +96,10 @@ export function staticIssues(
 
   if (rating.engine === "plan") {
     issues.push(...checkRatingPlan(rating.plan, paths, coverageCodes).map(planIssue));
+  } else if (rating.engine === "extension") {
+    if (!rating.extensionVersionId) {
+      issues.push(error({ section: "engine" }, "Choose an extension version to rate with"));
+    }
   } else if (!rating.workbookId) {
     issues.push(error({ section: "workbook" }, "Upload or choose a rater workbook"));
   } else if (!workbook) {
@@ -106,7 +116,7 @@ export function staticIssues(
     }
   }
 
-  const rated = rateableCoverages(rating);
+  const rated = rateableCoverages(rating, coverageCodes);
 
   for (const code of coverageCodes) {
     if (rated.has(code)) continue;

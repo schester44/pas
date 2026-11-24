@@ -1,3 +1,4 @@
+import type { ExtensionBinding } from "@pas/extension-points";
 import type { JdmDecision } from "@pas/decisions-engine";
 import type { DocumentSet } from "@pas/documents";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
@@ -20,6 +21,7 @@ export interface PolicyRelease {
   rules: PolicyReleaseDecision[];
   documents: DocumentSet;
   lifecycle: Record<string, unknown>;
+  extensions: ExtensionBinding[];
 }
 
 /** The catalog, seen from policy administration. Releases are immutable. */

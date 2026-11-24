@@ -23,10 +23,18 @@ import type * as React from "react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type Copy, defaultCopy } from "./copy";
 import { Field } from "./field";
+import {
+  applyPrefill,
+  FormExtensionsContext,
+  type FormExtensions,
+  useFormExtensions,
+} from "./extensions";
 import { StepIndicator } from "./step-indicator";
 import { useExpressionsReady } from "./use-expressions-ready";
 
 export type FormData = Record<string, unknown>;
+
+const PREFILL_DEBOUNCE_MS = 500;
 
 /** What an endorsement may change: a read-only field's reason, and whether rows come and go. */
 export interface Editability {
@@ -49,6 +57,8 @@ export interface IntakeFormProps {
   copy?: Partial<Copy>;
   uploadFile?: (file: File) => Promise<FileValue>;
   editable?: Editability;
+  /** Options and prefills served by the product's field extensions. */
+  extensions?: FormExtensions;
 }
 
 export function IntakeForm(props: IntakeFormProps) {
@@ -56,7 +66,11 @@ export function IntakeForm(props: IntakeFormProps) {
 
   if (!ready) return <FormSkeleton />;
 
-  return <ReadyIntakeForm {...props} />;
+  return (
+    <FormExtensionsContext.Provider value={props.extensions ?? null}>
+      <ReadyIntakeForm {...props} />
+    </FormExtensionsContext.Provider>
+  );
 }
 
 function ReadyIntakeForm({
@@ -74,6 +88,31 @@ function ReadyIntakeForm({
   editable,
 }: IntakeFormProps) {
   const copy = useMemo(() => ({ ...defaultCopy, ...copyOverrides }), [copyOverrides]);
+  const extensions = useFormExtensions();
+  const latest = useRef(value);
+  const prefillTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
+
+  const onPrefill = (path: string, canonical: string, data: FormData) => {
+    if (!extensions?.prefillFields.includes(canonical)) return;
+
+    clearTimeout(prefillTimer.current);
+
+    prefillTimer.current = setTimeout(() => {
+      extensions
+        .prefill(canonical, data, path)
+        .then((filled) => {
+          if (Object.keys(filled).length > 0) {
+            onChange(applyPrefill(latest.current, filled, path, canonical));
+          }
+        })
+        .catch(() => undefined);
+    }, PREFILL_DEBOUNCE_MS);
+  };
+
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [seenServerErrors, setSeenServerErrors] = useState(serverErrors);
   const [current, setCurrent] = useState(form.steps[0]?.id);
@@ -205,6 +244,7 @@ function ReadyIntakeForm({
                 value={value}
                 onChange={onChange}
                 onEdit={dismiss}
+                onPrefill={onPrefill}
                 showErrors={false}
                 copy={copy}
                 uploadFile={uploadFile}
@@ -249,6 +289,7 @@ function ReadyIntakeForm({
             value={value}
             onChange={onChange}
             onEdit={dismiss}
+            onPrefill={onPrefill}
             showErrors={showErrors}
             copy={copy}
             uploadFile={uploadFile}
@@ -278,6 +319,7 @@ function ReadyIntakeForm({
 
 interface SectionProps {
   schema: RiskSchema;
+  onPrefill?: (path: string, canonical: string, data: FormData) => void;
   section: FormSection;
   state: SectionState;
   value: FormData;
@@ -319,6 +361,7 @@ function CompactSection({
 
 function Section({
   schema,
+  onPrefill,
   section,
   state,
   value,
@@ -351,9 +394,14 @@ function Section({
               state={itemState}
               value={getAt(value, itemState.path)}
               onChange={(next) => {
+                const data = setAt(value, itemState.path, next);
+
                 onEdit(itemState.path);
-                onChange(setAt(value, itemState.path, next));
+                onChange(data);
+                onPrefill?.(itemState.path, canonical, data);
               }}
+              canonical={canonical}
+              values={value}
               showErrors={showErrors}
               copy={copy}
               uploadFile={uploadFile}

@@ -214,6 +214,9 @@ importers:
       '@pas/expressions':
         specifier: workspace:*
         version: link:../../packages/engines/expressions
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../packages/engines/extension-points
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../../packages/engines/forms-core
@@ -320,6 +323,12 @@ importers:
       '@pas/events':
         specifier: workspace:*
         version: link:../../packages/modules/events
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../packages/engines/extension-points
+      '@pas/extensions':
+        specifier: workspace:*
+        version: link:../../packages/modules/extensions
       '@pas/form-library':
         specifier: workspace:*
         version: link:../../packages/modules/form-library
@@ -405,6 +414,9 @@ importers:
       '@pas/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../packages/engines/extension-points
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../../packages/engines/forms-core
@@ -518,6 +530,12 @@ importers:
       '@pas/events':
         specifier: workspace:*
         version: link:../../packages/modules/events
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../packages/engines/extension-points
+      '@pas/extensions':
+        specifier: workspace:*
+        version: link:../../packages/modules/extensions
       '@pas/form-library':
         specifier: workspace:*
         version: link:../../packages/modules/form-library
@@ -707,6 +725,12 @@ importers:
         specifier: 0.23.1
         version: 0.23.1
 
+  packages/engines/extension-points:
+    dependencies:
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+
   packages/engines/forms-core:
     dependencies:
       '@pas/expressions':
@@ -875,6 +899,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../engines/documents
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../engines/extension-points
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../../engines/forms-core
@@ -929,6 +956,24 @@ importers:
       zod:
         specifier: ^4.6.7
         version: 4.6.7
+
+  packages/modules/extensions:
+    dependencies:
+      '@pas/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@pas/expressions':
+        specifier: workspace:*
+        version: link:../../engines/expressions
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../engines/extension-points
+      '@pas/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@pas/sandbox':
+        specifier: workspace:*
+        version: link:../../sandbox
 
   packages/modules/form-library:
     dependencies:
@@ -1022,6 +1067,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../engines/documents
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../engines/extension-points
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../../engines/forms-core
@@ -1040,6 +1088,9 @@ importers:
       '@pas/db':
         specifier: workspace:*
         version: link:../../db
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../engines/extension-points
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../../engines/forms-core
@@ -1085,6 +1136,9 @@ importers:
       '@pas/expressions':
         specifier: workspace:*
         version: link:../../engines/expressions
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../../engines/extension-points
       '@pas/form-library':
         specifier: workspace:*
         version: link:../form-library
@@ -1204,6 +1258,9 @@ importers:
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.3.0
+      '@pas/extension-points':
+        specifier: workspace:*
+        version: link:../engines/extension-points
       '@pas/kernel':
         specifier: workspace:*
         version: link:../kernel

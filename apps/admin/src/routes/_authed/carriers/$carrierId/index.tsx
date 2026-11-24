@@ -113,7 +113,7 @@ function CarrierOverview() {
                     {subjectLabel(run.subject)} · {run.environment === "live" ? "Live" : "Test"}
                   </TableCell>
                   <TableCell className="text-muted-foreground tabular-nums">
-                    {run.connectorVersion ? `v${run.connectorVersion}` : "Extension"}
+                    {run.connectorVersion ? `v${run.connectorVersion}` : "—"}
                   </TableCell>
                   <TableCell>
                     <StatusChip tone={RUN_TONES[run.status] ?? "neutral"}>

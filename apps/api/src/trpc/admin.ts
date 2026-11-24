@@ -37,6 +37,12 @@ import { underwritingRouter } from "./underwriting";
 import { eventsRouter, notificationsRouter } from "./events";
 import { integrationsRouter } from "./integrations";
 import { carriersRouter } from "./carriers";
+import {
+  extensionsRouter,
+  fieldExtensionInput,
+  recordActionInput,
+  recordPanelInput,
+} from "./extensions";
 import { adminRecent, adminSearch } from "./search";
 import { bookScopeOf } from "./book-scope";
 import { billingRouter } from "./billing";
@@ -223,6 +229,31 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.submissions.clearance(ctx.tenant, ctx.scope, input),
       ),
+    fieldOptions: submissionRead
+      .input(fieldExtensionInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.fieldOptions(ctx.tenant, ctx.scope, input),
+      ),
+    fieldPrefill: submissionRead
+      .input(fieldExtensionInput)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.fieldPrefill(ctx.tenant, ctx.scope, input),
+      ),
+    extensionPanel: submissionRead
+      .input(recordPanelInput.extend({ submissionId: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.submissions.panel(ctx.tenant, ctx.scope, input),
+      ),
+    extensionAction: submissionRead
+      .use(async ({ ctx, next }) => {
+        await assertPermission(ctx, { submission: ["update"] });
+
+        return next();
+      })
+      .input(recordActionInput.extend({ submissionId: z.uuid() }))
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.submissions.action(ctx.tenant, ctx.scope, input),
+      ),
     quote: submissionRead
       .input(bySubmission)
       .query(({ ctx, input }) =>
@@ -253,6 +284,26 @@ export const adminRouter = router({
       .input(policyById)
       .query(({ ctx, input }) =>
         ctx.container.useCases.policies.get.detail(ctx.tenant, ctx.scope, input),
+      ),
+    extensionSurfaces: policyRead
+      .input(z.object({ policyId: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.extensions.surfaces(ctx.tenant, ctx.scope, input),
+      ),
+    extensionPanel: policyRead
+      .input(recordPanelInput.extend({ policyId: z.uuid() }))
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.policies.extensions.panel(ctx.tenant, ctx.scope, input),
+      ),
+    extensionAction: policyRead
+      .use(async ({ ctx, next }) => {
+        await assertPermission(ctx, { policy: ["update"] });
+
+        return next();
+      })
+      .input(recordActionInput.extend({ policyId: z.uuid() }))
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.policies.extensions.action(ctx.tenant, ctx.scope, input),
       ),
     risk: policyRead
       .input(policyById)
@@ -321,6 +372,7 @@ export const adminRouter = router({
 
   integrations: integrationsRouter,
   carriers: carriersRouter(staffScope),
+  extensions: extensionsRouter,
   events: eventsRouter,
   workflows: workflowsRouter,
   notifications: notificationsRouter(tenantProcedure),

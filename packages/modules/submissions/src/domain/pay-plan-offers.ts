@@ -5,6 +5,7 @@ import {
   buildSchedule,
   defaultPlanOf,
   eligiblePlans,
+  type InstallmentSplit,
   type PayPlan,
 } from "@pas/pay-plans";
 import type { TaxFeeLine } from "./taxes-fees";
@@ -23,6 +24,8 @@ export interface PayPlanOffer {
   total: MoneyJson;
   installmentFee: MoneyJson | null;
   schedule: { number: number; dueOn: string; amount: MoneyJson }[];
+  /** An installments extension's split; bind passes it on so billing bills what was offered. */
+  split?: InstallmentSplit[];
 }
 
 const whenTrue = (expression: string, context: Record<string, unknown>) => {
@@ -43,6 +46,7 @@ export function payPlanOffers(
     termStart: PlainDate;
     today: PlainDate;
   },
+  splits: ReadonlyMap<string, InstallmentSplit[]> = new Map(),
 ): PayPlanOffer[] {
   const eligible = eligiblePlans(
     config,
@@ -57,7 +61,11 @@ export function payPlanOffers(
 
   const fallback = defaultPlanOf(config, eligible);
 
-  return eligible.map((plan) => offerOf(plan, plan.key === fallback?.key, input));
+  return eligible.map((plan) => {
+    const split = splits.get(plan.key);
+
+    return offerOf(split ? { ...plan, split } : plan, plan.key === fallback?.key, input);
+  });
 }
 
 function offerOf(
@@ -90,5 +98,13 @@ function offerOf(
       dueOn: i.dueOn.toString(),
       amount: i.total.toJSON(),
     })),
+    ...(plan.split && { split: plan.split }),
   };
+}
+
+/** The configured plan behind an offer, carrying the offer's installment split when it has one. */
+export function planOf(plans: readonly PayPlan[], offer: Pick<PayPlanOffer, "key" | "split">) {
+  const plan = plans.find((p) => p.key === offer.key);
+
+  return plan && offer.split ? { ...plan, split: offer.split } : (plan ?? null);
 }

@@ -18,6 +18,7 @@
     "@pas/decisions-engine": "workspace:*",
     "@pas/documents": "workspace:*",
     "@pas/expressions": "workspace:*",
+    "@pas/extension-points": "workspace:*",
     "@pas/form-library": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/kernel": "workspace:*",

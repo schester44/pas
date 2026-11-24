@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pas/db": "workspace:*",
+    "@pas/extension-points": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/rating-engine": "workspace:*",

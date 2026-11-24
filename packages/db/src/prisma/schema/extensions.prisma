@@ -1,0 +1,96 @@
+/// A tenant-authored TypeScript extension (PLAN §15.1). Holds the editable draft; published
+/// code lives in immutable ExtensionVersion rows.
+model Extension {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id")
+  key           String
+  name          String
+  description   String?
+  status        String
+  draft         Json
+  latestVersion Int      @default(0) @map("latest_version")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("extensions")
+}
+
+/// A published, compiled extension. Insert-only (trigger in the migration); releases pin the id.
+model ExtensionVersion {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  extensionId String   @map("extension_id") @db.Uuid
+  version     Int
+  code        String
+  source      Json
+  manifest    Json
+  tests       Json
+  contentHash String   @map("content_hash") @db.Char(64)
+  testReport  Json     @map("test_report")
+  note        String?
+  publishedAt DateTime @map("published_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, extensionId, version])
+  @@index([tenantId, extensionId])
+  @@map("extension_versions")
+}
+
+/// Secrets an extension's credential rules reference. AES-256-GCM sealed; never returned.
+model ExtensionSecret {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id")
+  extensionId String   @map("extension_id") @db.Uuid
+  name        String
+  sealed      Json
+  hint        String
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, extensionId, name])
+  @@map("extension_secrets")
+}
+
+/// Runs an automation extension version when matching domain events happen.
+model ExtensionSubscription {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id")
+  extensionId        String   @map("extension_id") @db.Uuid
+  extensionVersionId String   @map("extension_version_id") @db.Uuid
+  eventTypes         Json     @map("event_types")
+  condition          String?
+  enabled            Boolean
+  createdAt          DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, enabled])
+  @@index([tenantId, extensionId])
+  @@map("extension_subscriptions")
+}
+
+/// One invocation: inputs, outputs, network exchanges, logs. Purged after the retention period.
+model ExtensionRun {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id")
+  extensionId        String   @map("extension_id") @db.Uuid
+  extensionVersionId String?  @map("extension_version_id") @db.Uuid
+  version            Int?
+  point              String
+  trigger            String
+  subjectType        String?  @map("subject_type")
+  subjectId          String?  @map("subject_id")
+  status             String
+  errorCode          String?  @map("error_code")
+  errorMessage       String?  @map("error_message")
+  input              Json
+  output             Json?
+  network            Json
+  logs               Json
+  stats              Json
+  createdAt          DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, extensionId, createdAt])
+  @@index([tenantId, subjectType, subjectId])
+  @@map("extension_runs")
+}

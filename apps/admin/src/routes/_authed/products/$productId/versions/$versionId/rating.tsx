@@ -13,11 +13,12 @@ import {
 } from "@pas/ui/components/select";
 import { cn } from "@pas/ui/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileSpreadsheet, Workflow } from "lucide-react";
+import { FileSpreadsheet, Puzzle, Workflow } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/catalog/confirm-dialog";
 import type { RatingSearch } from "@/components/catalog/issues";
 import { type RatingConfig, useVersionEditor } from "@/components/catalog/version-editor";
+import { ExtensionRaterEditor } from "@/components/rating/extension-rater-editor";
 import { GoldenCases } from "@/components/rating/golden-cases";
 import { currencyOf, newManifest, newPlan, sampleInput } from "@/components/rating/model";
 import { PlanEditor } from "@/components/rating/plan-editor";
@@ -52,6 +53,11 @@ const ENGINES: Record<
     label: "Spreadsheet",
     description: "The actuary's .xlsx rater, bound to the risk data.",
     icon: FileSpreadsheet,
+  },
+  extension: {
+    label: "Extension",
+    description: "A published extension prices it, for raters neither engine can express.",
+    icon: Puzzle,
   },
 };
 
@@ -88,12 +94,14 @@ function RatingTab() {
       "rating",
       engine === "plan"
         ? { engine, plan: newPlan(version.version, currency), goldenCases }
-        : {
-            engine,
-            workbookId: null,
-            manifest: newManifest(version.version, currency),
-            goldenCases,
-          },
+        : engine === "extension"
+          ? { engine, extensionVersionId: "", currency, goldenCases }
+          : {
+              engine,
+              workbookId: null,
+              manifest: newManifest(version.version, currency),
+              goldenCases,
+            },
       true,
     );
   };
@@ -103,9 +111,9 @@ function RatingTab() {
       <PageBody className="max-w-4xl">
         <Panel
           title="Choose how this version is rated"
-          description="Both engines return the same premiums, worksheet and golden case results."
+          description="Every engine returns the same premiums, worksheet and golden case results."
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             {(Object.keys(ENGINES) as RatingEngineKind[]).map((engine) => {
               const { label, description, icon: Icon } = ENGINES[engine];
 
@@ -133,7 +141,7 @@ function RatingTab() {
     );
   }
 
-  const other: RatingEngineKind = rating.engine === "plan" ? "spreadsheet" : "plan";
+  const others = (Object.keys(ENGINES) as RatingEngineKind[]).filter((e) => e !== rating.engine);
 
   const sampleControl = (
     <Select value={sampleCase ? sampleId : GENERATED} onValueChange={setSampleId}>
@@ -195,9 +203,13 @@ function RatingTab() {
           ]}
         />
         {!readOnly && section === "rater" && (
-          <Button size="sm" variant="ghost" onClick={() => setSwitching(other)}>
-            Switch to {ENGINES[other].label.toLowerCase()}
-          </Button>
+          <div className="flex gap-1">
+            {others.map((engine) => (
+              <Button key={engine} size="sm" variant="ghost" onClick={() => setSwitching(engine)}>
+                Switch to {ENGINES[engine].label.toLowerCase()}
+              </Button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -226,6 +238,15 @@ function RatingTab() {
           onNavigate={go}
           onChange={(plan) => save({ ...rating, plan })}
           worksheet={worksheet}
+        />
+      ) : rating.engine === "extension" ? (
+        <ExtensionRaterEditor
+          rating={rating}
+          readOnly={readOnly}
+          onChange={(next) =>
+            set("rating", next, next.extensionVersionId !== rating.extensionVersionId)
+          }
+          worksheet={worksheet(undefined)}
         />
       ) : (
         <SpreadsheetEditor

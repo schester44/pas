@@ -11,12 +11,14 @@ import type { FormEditionDirectory } from "../ports/form-edition-directory";
 import type { ProductVersionRepository } from "../ports/product-version-repository";
 import type { RatingVerifier } from "../ports/rating-verifier";
 import type { CarrierVerifier } from "../ports/carrier-verifier";
+import type { ExtensionVerifier } from "../ports/extension-verifier";
 import { loadVersion } from "./load";
 
 export interface ReferenceDeps {
   formEditions: FormEditionDirectory;
   rating: RatingVerifier;
   carriers?: CarrierVerifier;
+  extensions?: ExtensionVerifier;
 }
 
 export function makeCheckProductVersion(
@@ -46,7 +48,18 @@ export async function resolveReferences(
 ): Promise<ResolvedReferences> {
   const { contents } = version;
 
-  const [formEditions, rating, carrier] = await Promise.all([
+  const references = [
+    ...contents.extensions.map((b) => ({
+      bindingId: b.id,
+      point: b.point,
+      extensionVersionId: b.extensionVersionId,
+    })),
+    ...(contents.rating?.engine === "extension" && contents.rating.extensionVersionId
+      ? [{ point: "rate" as const, extensionVersionId: contents.rating.extensionVersionId }]
+      : []),
+  ];
+
+  const [formEditions, rating, carrier, extensions] = await Promise.all([
     deps.formEditions.existing(ctx, scheduledEditionIds(contents.documents)),
     deps.rating.verify(ctx, {
       rating: contents.rating,
@@ -54,9 +67,10 @@ export async function resolveReferences(
       coverageCodes: contents.coverages.map((coverage) => coverage.code),
     }),
     deps.carriers ? deps.carriers.verify(ctx, contents.lifecycle) : [],
+    deps.extensions && references.length > 0 ? deps.extensions.verify(ctx, references) : [],
   ]);
 
-  return { formEditions, rating, carrier };
+  return { formEditions, rating, carrier, extensions };
 }
 
 export async function publishedSiblings(

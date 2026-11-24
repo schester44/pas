@@ -72,7 +72,7 @@ export interface WorksheetStep {
 }
 
 export interface RaterArtifact {
-  kind: "rating_plan" | "spreadsheet";
+  kind: "rating_plan" | "spreadsheet" | "extension";
   key: string;
   version: string;
   hash?: string;

@@ -1,5 +1,5 @@
-/// A carrier the tenant writes business with (PLAN §12). Connected by a configured connector,
-/// a tenant extension or file feeds.
+/// A carrier the tenant writes business with (PLAN §12). Connected by a configured connector
+/// or file feeds.
 model Carrier {
   id                String   @id @db.Uuid
   tenantId          String   @map("tenant_id")
@@ -10,7 +10,6 @@ model Carrier {
   admitted          Json
   lines             Json
   mode              String
-  extensionKey      String?  @map("extension_key")
   activeEnvironment String   @map("active_environment")
   status            String
   createdAt         DateTime @map("created_at") @db.Timestamptz(6)

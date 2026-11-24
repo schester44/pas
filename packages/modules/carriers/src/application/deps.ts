@@ -11,7 +11,6 @@ import type {
 } from "../ports/repositories";
 import type {
   CarrierEnvironments,
-  CarrierExtensionRegistry,
   FeedChannels,
   FeedSource,
   HttpTransport,
@@ -33,7 +32,6 @@ export interface CarrierDeps {
   http: HttpTransport;
   tokens: TokenCache;
   environments: CarrierEnvironments;
-  extensions: CarrierExtensionRegistry;
   storage: ObjectStorage;
   feedSource: FeedSource;
   feedChannels: FeedChannels;

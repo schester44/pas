@@ -64,6 +64,7 @@ const release: PolicyRelease = {
   rules: [],
   documents: { templates: [], clauses: [], schedule: [] },
   lifecycle: { transactions: { endorsement: { outOfSequence: "reroll" } } },
+  extensions: [],
 };
 
 const usd = (amount: string | number) => Money.of(String(amount), "USD");

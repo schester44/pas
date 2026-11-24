@@ -1,11 +1,9 @@
-import type { TenantContext, WorkflowStep } from "@pas/kernel";
-import type { CanonicalInput } from "../domain/canonical";
+import type { TenantContext } from "@pas/kernel";
 import type { SealedSecret } from "../domain/connection";
-import type { Capability, HttpMethod } from "../domain/connector";
+import type { HttpMethod } from "../domain/connector";
 import type { FeedChannel, FeedDestination } from "../domain/feed";
 import type { FeedRecord } from "../domain/feed-files";
-import type { CarrierOutcome } from "../domain/outcome";
-import type { HttpResponse, HttpResult } from "./flow-io";
+import type { HttpResult } from "./flow-io";
 
 export interface SecretBox {
   seal(plaintext: string, context: string): SealedSecret;
@@ -38,41 +36,6 @@ export interface TokenCache {
 
 export interface CarrierEnvironments {
   isSandbox(ctx: TenantContext): Promise<boolean>;
-}
-
-/**
- * What a tenant extension adapter gets (PLAN §12, §15.1): HTTP through the connection's
- * credentials and durable steps, so long carrier conversations survive restarts.
- */
-export interface CarrierExtensionTools {
-  http(request: {
-    method: HttpMethod;
-    path: string;
-    headers?: Record<string, string>;
-    body?: unknown;
-    timeoutMs?: number;
-  }): Promise<HttpResponse>;
-  step: WorkflowStep;
-  connection: { environment: string; baseUrl: string };
-  callbackUrl: string;
-}
-
-/** The interface a tenant-authored carrier extension implements. */
-export interface CarrierExtension {
-  key: string;
-  name: string;
-  capabilities: Capability[];
-  invoke(
-    capability: Capability,
-    input: CanonicalInput,
-    tools: CarrierExtensionTools,
-  ): Promise<CarrierOutcome>;
-}
-
-/** Where extension adapters are registered; the sandboxed runtime will load them here. */
-export interface CarrierExtensionRegistry {
-  get(tenantId: string, key: string): CarrierExtension | undefined;
-  list(tenantId: string): CarrierExtension[];
 }
 
 /** Issued transactions for the products a carrier writes, read through policy's public API. */

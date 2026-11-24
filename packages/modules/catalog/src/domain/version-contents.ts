@@ -1,5 +1,6 @@
 import type { DecisionKind, JdmDecision } from "@pas/decisions-engine";
 import { type DocumentSet, emptyDocumentSet } from "@pas/documents";
+import type { ExtensionBinding } from "@pas/extension-points";
 import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import { type BillingConfig, emptyBillingConfig } from "@pas/pay-plans";
 import type { RatingConfig } from "@pas/rating-engine";
@@ -47,6 +48,7 @@ export interface VersionContents {
   rules: VersionDecision[];
   rating: RatingConfig | null;
   billing: BillingConfig;
+  extensions: ExtensionBinding[];
 }
 
 export function emptyContents(): VersionContents {
@@ -60,5 +62,6 @@ export function emptyContents(): VersionContents {
     rules: [],
     rating: null,
     billing: emptyBillingConfig(),
+    extensions: [],
   };
 }

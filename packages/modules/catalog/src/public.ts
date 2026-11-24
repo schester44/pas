@@ -103,3 +103,4 @@ export type {
   RatingVerifier,
 } from "./ports/rating-verifier";
 export type { CarrierVerifier } from "./ports/carrier-verifier";
+export type { ExtensionVerifier } from "./ports/extension-verifier";

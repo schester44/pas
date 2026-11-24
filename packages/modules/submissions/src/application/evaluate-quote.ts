@@ -1,5 +1,6 @@
 import { carrierAssignmentOf } from "@pas/carriers";
 import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
+import { type BindingInvoker, noExtensions, type RunSubject } from "@pas/extension-points";
 import { currencyDecimals } from "@pas/forms-core";
 import {
   type ClockProvider,
@@ -33,11 +34,13 @@ import {
 import type { CatalogRelease, ReleaseDecision } from "../ports/product-catalog";
 import type { QuoteRater } from "../ports/quote-rater";
 import type { RiskEnricher } from "../ports/risk-enricher";
+import { installmentSplits, underwriteRisk } from "./extension-hooks";
 
 export interface EvaluationDeps {
   rater: QuoteRater;
   enricher: RiskEnricher;
   clocks: ClockProvider;
+  extensions?: BindingInvoker;
 }
 
 export interface EvaluationInput {
@@ -50,6 +53,7 @@ export interface EvaluationInput {
   channel?: string;
   transaction?: { type: RatingInput["transaction"]["type"]; effective: PlainDate };
   modifications?: ReferralModifications;
+  subject?: RunSubject;
 }
 
 export interface EvaluationOutput {
@@ -161,21 +165,57 @@ export async function evaluateQuote(
     run("inspection_requirements", quoted);
   }
 
+  reasons.push(
+    ...(await underwriteRisk(deps.extensions ?? noExtensions, ctx, {
+      release,
+      risk,
+      jurisdiction: input.jurisdiction,
+      effectiveDate: (input.transaction?.effective ?? input.termStart).toString(),
+      transaction: input.transaction?.type ?? "NEW_BUSINESS",
+      quote: { ...quoted.quote, selection },
+      ...(input.subject && { subject: input.subject }),
+    })),
+  );
+
   const outcome = outcomeOf(reasons);
   const clock = deps.clocks.forTenant(ctx.tenantId);
   const carrier = priced && !input.transaction ? carrierQuoteFor(release) : undefined;
 
-  const payPlans =
-    priced && input.channel
-      ? payPlanOffers(release.billing, {
-          premium: priced.writtenPremium,
-          taxesFees: priced.taxesFees,
-          jurisdiction: jurisdictionCode(input.jurisdiction),
-          channel: input.channel,
+  const offerInput = priced && {
+    premium: priced.writtenPremium,
+    taxesFees: priced.taxesFees,
+    jurisdiction: jurisdictionCode(input.jurisdiction),
+    channel: input.channel ?? "",
+    termStart: input.termStart,
+    today: clock.today("UTC"),
+  };
+
+  const standardPlans =
+    offerInput && input.channel ? payPlanOffers(release.billing, offerInput) : [];
+
+  const splits =
+    offerInput && standardPlans.length > 0
+      ? await installmentSplits(deps.extensions ?? noExtensions, ctx, {
+          release,
+          risk,
+          jurisdiction: input.jurisdiction,
+          effectiveDate: input.termStart.toString(),
+          transaction: input.transaction?.type ?? "NEW_BUSINESS",
+          offers: standardPlans,
+          plans: release.billing.payPlans,
+          premium: offerInput.premium,
+          taxesFees: offerInput.taxesFees,
           termStart: input.termStart,
-          today: clock.today("UTC"),
+          termEnd: input.termEnd,
+          today: offerInput.today,
+          ...(input.subject && { subject: input.subject }),
         })
-      : [];
+      : new Map();
+
+  const payPlans =
+    offerInput && splits.size > 0
+      ? payPlanOffers(release.billing, offerInput, splits)
+      : standardPlans;
 
   return {
     selection,
@@ -308,6 +348,8 @@ function currencyOf(release: CatalogRelease): string {
   if (rating?.engine === "plan") return rating.plan.currency;
 
   if (rating?.engine === "spreadsheet") return rating.manifest.currency;
+
+  if (rating?.engine === "extension") return rating.currency;
 
   const money = release.coverages
     .flatMap((coverage) => coverage.limitOptions?.options ?? [])

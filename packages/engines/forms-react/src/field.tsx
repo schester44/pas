@@ -1,3 +1,4 @@
+import { ExtensionOptions, useFormExtensions } from "./extensions";
 import type { FieldNode, FileValue, FormItem, ItemState } from "@pas/forms-core";
 import { Label } from "@pas/ui/components/label";
 import { cn } from "@pas/ui/lib/utils";
@@ -16,6 +17,9 @@ interface FieldProps {
   compact?: boolean;
   /** Why the field can't change here; it shows its value without editing. */
   readOnly?: string | null;
+  /** The schema path without row ids, for matching field extensions. */
+  canonical: string;
+  values: Record<string, unknown>;
 }
 
 const domId = (path: string) => `field-${path.replace(/[^A-Za-z0-9_-]/g, "-")}`;
@@ -31,7 +35,15 @@ export function Field({
   uploadFile,
   compact,
   readOnly,
+  canonical,
+  values,
 }: FieldProps) {
+  const extensions = useFormExtensions();
+
+  const extensionOptions =
+    !!extensions?.optionFields.includes(canonical) &&
+    (field.kind === "text" || field.kind === "enum");
+
   const id = domId(state.path);
   const errors = showErrors ? state.errors : [];
   const help = readOnly ?? (compact ? undefined : (item.help ?? field.description));
@@ -59,17 +71,31 @@ export function Field({
         )}
       </div>
       <fieldset disabled={!!readOnly} className="m-0 min-w-0 border-0 p-0">
-        <Control
-          id={id}
-          field={field}
-          item={item}
-          value={value}
-          onChange={onChange}
-          invalid={errors.length > 0}
-          describedBy={describedBy}
-          copy={copy}
-          uploadFile={uploadFile}
-        />
+        {extensionOptions ? (
+          <ExtensionOptions
+            id={id}
+            canonical={canonical}
+            values={values}
+            value={value}
+            onChange={onChange}
+            invalid={errors.length > 0}
+            describedBy={describedBy}
+            {...(item.placeholder && { placeholder: item.placeholder })}
+            copy={copy}
+          />
+        ) : (
+          <Control
+            id={id}
+            field={field}
+            item={item}
+            value={value}
+            onChange={onChange}
+            invalid={errors.length > 0}
+            describedBy={describedBy}
+            copy={copy}
+            uploadFile={uploadFile}
+          />
+        )}
       </fieldset>
       {help && (
         <p id={`${id}-help`} className="m-0 text-xs text-muted-foreground">

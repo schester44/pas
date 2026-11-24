@@ -245,7 +245,7 @@ function RunView({ runId }: { runId: string }) {
       <Panel
         flush
         title={`${capabilityLabel(r.capability)} · ${r.environment === "live" ? "live" : "test"} environment`}
-        description={`${r.exchanges.length} exchange${r.exchanges.length === 1 ? "" : "s"} · ${total} ms on the wire · connector ${r.connectorVersion ? `v${r.connectorVersion}` : "extension"}`}
+        description={`${r.exchanges.length} exchange${r.exchanges.length === 1 ? "" : "s"} · ${total} ms on the wire · connector ${r.connectorVersion ? `v${r.connectorVersion}` : "draft"}`}
         action={
           <StatusChip tone={RUN_TONES[r.status] ?? "neutral"}>{runLabel(r.status)}</StatusChip>
         }

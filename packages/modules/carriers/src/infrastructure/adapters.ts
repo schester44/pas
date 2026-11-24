@@ -1,30 +1,13 @@
 import type { TenantContext } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
 import { PDFDocument } from "pdf-lib";
-import type {
-  CarrierExtension,
-  CarrierExtensionRegistry,
-  FeedChannels,
-  FeedFile,
-} from "../ports/services";
+import type { FeedChannels, FeedFile } from "../ports/services";
 import type { FeedChannel, FeedDestination } from "../domain/feed";
 
 /**
  * Extension adapters (PLAN §12 option 2) register here. The sandboxed extension runtime
  * (§15.1) isn't built yet, so only adapters passed in by a composition root are listed.
  */
-export class StaticExtensionRegistry implements CarrierExtensionRegistry {
-  constructor(private readonly extensions: readonly CarrierExtension[] = []) {}
-
-  get(_tenantId: string, key: string) {
-    return this.extensions.find((e) => e.key === key);
-  }
-
-  list() {
-    return [...this.extensions];
-  }
-}
-
 const MAX_INLINE = 200_000;
 
 /**

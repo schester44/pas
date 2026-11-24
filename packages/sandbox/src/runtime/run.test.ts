@@ -130,3 +130,19 @@ describe("runInvocation", () => {
     expect(result).toMatchObject({ ok: true, output: "undefined" });
   });
 });
+
+describe("PAS SDK host functions", () => {
+  it("nests offered pas.* functions under ctx.pas", async () => {
+    const result = await runInvocation(
+      invocation("export default (_i, ctx) => ctx.pas.policy.addNote({ policyId: 'p1' });", {
+        hostFunctions: ["pas.policy.addNote"],
+      }),
+      { host: async (name, args) => ({ name, args }) },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      output: { name: "pas.policy.addNote", args: { policyId: "p1" } },
+    });
+  });
+});

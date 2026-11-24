@@ -9,9 +9,8 @@ import {
 import type { CarrierConnection } from "../domain/connection";
 import type { ConnectorDefinition } from "../domain/connector";
 import type { FlowRun, FlowRunOutput } from "../domain/flow-run";
-import { type CarrierOutcome, outcomeFrom } from "../domain/outcome";
+import type { CarrierOutcome } from "../domain/outcome";
 import type { ExchangeRecord, FlowIO } from "../ports/flow-io";
-import type { CarrierExtensionTools } from "../ports/services";
 import { connectionClient } from "./connection-client";
 import type { CarrierDeps } from "./deps";
 import { toRunDto } from "./dto";
@@ -36,18 +35,17 @@ interface Plan {
   environment: string;
   baseUrl: string;
   definition: ConnectorDefinition | null;
-  extensionKey: string | null;
 }
 
 export function callbackUrlFor(publicUrl: string, connectionId: string) {
   return `${publicUrl.replace(/\/+$/, "")}/api/carriers/callbacks/${connectionId}`;
 }
 
-const failedExtension = (message: string): FlowResult => ({
+const failedFlow = (message: string): FlowResult => ({
   status: "failed",
   outcome: { status: "failed", documents: [], messages: [{ text: message }] },
   error: message,
-  failedStep: "extension",
+  failedStep: "connector",
   compensated: [],
   steps: {},
 });
@@ -129,62 +127,6 @@ export function makeExecuteFlow(deps: CarrierDeps, complete: FlowCompletion) {
     };
   };
 
-  const viaExtension = async (
-    ctx: TenantContext,
-    step: WorkflowStep,
-    io: FlowIO,
-    run: FlowRun,
-    plan: Plan,
-  ): Promise<FlowResult> => {
-    const extension = deps.extensions.get(ctx.tenantId, plan.extensionKey ?? "");
-
-    if (!extension) return failedExtension(`Extension ${plan.extensionKey} isn't installed`);
-
-    const tools: CarrierExtensionTools = {
-      step,
-      connection: { environment: plan.environment, baseUrl: plan.baseUrl },
-      callbackUrl: callbackUrlFor(deps.publicUrl, plan.connectionId),
-      http: async (request) => {
-        const sent = await io.send({
-          method: request.method,
-          url: `${plan.baseUrl.replace(/\/+$/, "")}/${request.path.replace(/^\/+/, "")}`,
-          headers: {
-            "content-type": "application/json",
-            accept: "application/json",
-            ...request.headers,
-          },
-          body: request.body,
-          timeoutMs: request.timeoutMs ?? 15_000,
-          anonymous: false,
-        });
-
-        if (!sent.ok) throw new Error(sent.error);
-
-        return sent.response;
-      },
-    };
-
-    try {
-      const { outcome, issues } = outcomeFrom(
-        await extension.invoke(run.capability, run.input, tools),
-      );
-
-      if (issues.length > 0)
-        return failedExtension(`The extension's outcome: ${issues.join("; ")}`);
-
-      return {
-        status: "succeeded",
-        outcome,
-        error: null,
-        failedStep: null,
-        compensated: [],
-        steps: {},
-      };
-    } catch (error) {
-      return failedExtension(error instanceof Error ? error.message : String(error));
-    }
-  };
-
   return async function executeFlow(input: {
     flowRunId: string;
     tenantId: TenantId;
@@ -224,7 +166,6 @@ export function makeExecuteFlow(deps: CarrierDeps, complete: FlowCompletion) {
           environment: connection.environment,
           baseUrl: connection.baseUrl,
           definition: version?.definition ?? null,
-          extensionKey: carrier.extensionKey,
         };
       }),
     );
@@ -248,7 +189,7 @@ export function makeExecuteFlow(deps: CarrierDeps, complete: FlowCompletion) {
             runId: run.id,
             inlineWaitSeconds: INLINE_WAIT_SECONDS,
           })
-        : await viaExtension(ctx, step, io, run, plan);
+        : failedFlow(`The connector has no ${run.capability} flow`);
 
     const finished = await step.run("finish", async () => {
       const connection = await deps.uow.run(ctx, (tx) =>

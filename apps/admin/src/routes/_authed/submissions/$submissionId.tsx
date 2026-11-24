@@ -1,3 +1,4 @@
+import { SubmissionExtensions } from "@/components/extensions/submission-extensions";
 import type { AdminOutputs } from "@pas/api-client";
 import { Notice } from "@pas/ui/components/notice";
 import { PageBody, PageHeader } from "@pas/ui/components/page";
@@ -109,6 +110,11 @@ function SubmissionPage() {
                   <QuoteWorksheet quote={quote.data} schema={submission.data.riskSchema} />
                 </>
               )}
+              <SubmissionExtensions
+                submissionId={submissionId}
+                surfaces={submission.data.surfaces}
+                canAct={access.submissions.update}
+              />
               <CapturedData
                 schema={submission.data.riskSchema}
                 form={submission.data.form}

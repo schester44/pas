@@ -10,6 +10,8 @@ import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
 import { type SubmissionSummaryDto, toSummaryDto } from "./dto";
 import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
+import { prepareRisk, validateRisk } from "./extension-hooks";
+import { noExtensions } from "@pas/extension-points";
 import { loadSubmission, pinnedIntake } from "./intake";
 import type { QuoteJourney } from "./quote-journey";
 import { termOf } from "./quoting";
@@ -60,10 +62,47 @@ export function makeSubmitSubmission(
       return { ok: false, errors: result.errors };
     }
 
+    const invoker = deps.extensions ?? noExtensions;
+
+    const hook = {
+      release,
+      jurisdiction: d.jurisdiction,
+      effectiveDate: d.effectiveDate.toString(),
+      transaction: "NEW_BUSINESS",
+      subject: { type: "submission", id: d.id },
+    };
+
+    const prepared = await prepareRisk(invoker, ctx, { ...hook, risk: result.data });
+    const revalidated = validateSubmission(intake.riskSchema, intake.form, prepared);
+
+    if (!revalidated.ok) {
+      return {
+        ok: false,
+        errors: Object.fromEntries(
+          Object.entries(revalidated.errors).map(([path, messages]) => [
+            path,
+            messages.map((m) => `After the prepare-risk extension: ${m}`),
+          ]),
+        ),
+      };
+    }
+
+    const extensionErrors = await validateRisk(invoker, ctx, { ...hook, risk: revalidated.data });
+
+    if (Object.keys(extensionErrors).length > 0) {
+      await deps.uow.run(ctx, async (tx) => {
+        const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
+        submission.saveDraft(input.riskData, deps.clocks.forTenant(ctx.tenantId));
+        await deps.submissions.save(tx, submission);
+      });
+
+      return { ok: false, errors: extensionErrors };
+    }
+
     const stamped = await deps.addresses.stamp(
       ctx,
       intake.riskSchema,
-      withRowIds(intake.riskSchema, result.data),
+      withRowIds(intake.riskSchema, revalidated.data),
     );
 
     const locations = stamped.addresses.filter((a) => a.role === "location");
@@ -107,6 +146,7 @@ export function makeSubmitSubmission(
       termEnd,
       selection: null,
       channel: d.channel,
+      subject: { type: "submission", id: d.id },
     });
 
     const quote = await deps.uow.run(ctx, async (tx) => {

@@ -1,6 +1,13 @@
 import { Money } from "@pas/kernel";
 import { describe, expect, it } from "vitest";
-import { buildSchedule, mortgageeFollowUps, netCredit, type PayPlan, spreadCharge } from "./index";
+import {
+  buildSchedule,
+  checkSplit,
+  mortgageeFollowUps,
+  netCredit,
+  type PayPlan,
+  spreadCharge,
+} from "./index";
 
 const rounding = { places: 2, mode: "half_up" as const };
 const usd = (amount: string) => Money.of(amount, "USD");
@@ -189,5 +196,53 @@ describe("mortgagee follow-ups", () => {
     );
 
     expect(steps.map((s) => s.id)).toEqual(["offer-direct", "remind-10", "nonpayment"]);
+  });
+});
+
+describe("custom installment splits", () => {
+  const split = [
+    { dueOn: "2027-12-01", premium: "400.00" },
+    { dueOn: "2028-06-01", premium: "600.01" },
+  ];
+
+  it("bills the split's amounts and due dates, with taxes spread over its count", () => {
+    const schedule = buildSchedule(plan({ split, taxesFees: "spread" }), input("1000.01", "20"));
+
+    expect(amounts(schedule.map((i) => i.premium))).toEqual(["400", "600.01"]);
+    expect(schedule.map((i) => i.dueOn.toString())).toEqual(["2027-11-20", "2028-06-01"]);
+    expect(schedule[1]!.issueOn.toString()).toBe("2028-05-18");
+    expect(amounts(schedule.map((i) => i.taxesFees[0]!.amount))).toEqual(["10", "10"]);
+  });
+
+  it("refuses a split that doesn't add up to the premium", () => {
+    expect(() => buildSchedule(plan({ split }), input("1000"))).toThrow(/add up/);
+  });
+
+  it("checks amounts, order, term and total", () => {
+    const term = {
+      premium: usd("1000.01"),
+      termStart: date("2027-12-01"),
+      termEnd: date("2028-12-01"),
+    };
+
+    expect(checkSplit(split, term)).toEqual([]);
+    expect(checkSplit([], term)).toEqual(["Return at least one installment"]);
+    expect(checkSplit([{ dueOn: "2027-12-01", premium: "1000.001" }], term)[0]).toMatch(/cents/);
+
+    expect(checkSplit([{ dueOn: "2029-01-01", premium: "1000.01" }], term)[0]).toMatch(
+      /after the term/,
+    );
+
+    expect(
+      checkSplit(
+        [
+          { dueOn: "2028-06-01", premium: "500" },
+          { dueOn: "2028-01-01", premium: "500.01" },
+        ],
+        term,
+      )[0],
+    ).toMatch(/before installment 1/);
+
+    expect(checkSplit([{ dueOn: "2027-12-01", premium: "999" }], term)[0]).toMatch(/add up to 999/);
   });
 });

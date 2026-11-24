@@ -71,6 +71,8 @@ export interface DocumentContext {
   coverages: SelectedCoverage[];
   premium?: { total: MoneyValue };
   forms: FormsScheduleRow[];
+  /** Whatever the product's document_data extension returned (PLAN §15.1). */
+  extension?: Record<string, unknown>;
   /** Set when rendering a notice (cancellation, rescission, reinstatement). */
   notice?: {
     title: string;

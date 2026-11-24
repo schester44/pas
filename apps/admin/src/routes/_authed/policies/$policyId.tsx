@@ -1,3 +1,4 @@
+import { PolicyExtensions } from "@/components/extensions/policy-extensions";
 import { Notice } from "@pas/ui/components/notice";
 import { PageBody, PageHeader } from "@pas/ui/components/page";
 import { useQuery } from "@tanstack/react-query";
@@ -73,6 +74,7 @@ function PolicyPage() {
         ) : (
           <>
             <PolicySummary policy={policy.data} billing={billing.data} />
+            {tab === "overview" && <PolicyExtensions policyId={policy.data.id} />}
             <div className="grid gap-6">
               <PolicyTabs
                 policyId={policy.data.id}

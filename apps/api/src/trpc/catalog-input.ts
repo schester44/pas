@@ -4,6 +4,12 @@ import { documentSetSchema } from "@pas/documents";
 import { formDefinitionSchema, riskSchemaSchema } from "@pas/forms-core";
 import { BILLING_METHODS, emptyBillingConfig } from "@pas/pay-plans";
 import type { BindingManifest, RatingPlan } from "@pas/rating-engine";
+import {
+  ACTION_FIELD_KINDS,
+  EXTENSION_POINTS,
+  POINT_SPECS,
+  RECORD_KINDS,
+} from "@pas/extension-points";
 import { z } from "zod";
 
 const id = z.uuid();
@@ -139,9 +145,44 @@ const goldenCase = z.object({
   tolerance: z.object({ absolute: decimal.optional(), relative: decimal.optional() }).optional(),
 });
 
+const extensionRater = {
+  engine: z.literal("extension"),
+  // Empty while a draft hasn't picked a version yet; the publish check refuses it.
+  extensionVersionId: z.union([z.uuid(), z.literal("")]),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  timeoutMs: z.number().int().min(100).max(POINT_SPECS.rate.maxTimeoutMs).optional(),
+};
+
+const extensionBindingInput = z.object({
+  id: z.string().min(1).max(64),
+  point: z.enum(EXTENSION_POINTS),
+  extensionVersionId: z.uuid(),
+  timeoutMs: z.number().int().min(100).max(120_000).optional(),
+  onFailure: z.enum(["block", "skip"]).optional(),
+  field: z.string().min(1).max(300).optional(),
+  record: z.enum(RECORD_KINDS).optional(),
+  label: z.string().max(80).optional(),
+  inputFields: z
+    .array(
+      z.object({
+        key: z.string().min(1).max(64),
+        label: z.string().min(1).max(80),
+        kind: z.enum(ACTION_FIELD_KINDS),
+        required: z.boolean().optional(),
+        options: z
+          .array(z.object({ value: z.string().min(1).max(200), label: z.string().min(1).max(200) }))
+          .max(100)
+          .optional(),
+      }),
+    )
+    .max(20)
+    .optional(),
+});
+
 export const raterSourceInput = z.discriminatedUnion("engine", [
   z.object({ engine: z.literal("plan"), plan }),
   z.object({ engine: z.literal("spreadsheet"), workbookId: z.uuid().nullable(), manifest }),
+  z.object(extensionRater),
 ]);
 
 export const ratingConfigInput = z.discriminatedUnion("engine", [
@@ -156,6 +197,7 @@ export const ratingConfigInput = z.discriminatedUnion("engine", [
     manifest,
     goldenCases: z.array(goldenCase).max(500),
   }),
+  z.object({ ...extensionRater, goldenCases: z.array(goldenCase).max(500) }),
 ]);
 
 const decimalText = z.string().regex(/^\d+(\.\d+)?$/);
@@ -234,6 +276,7 @@ export const versionContentsInput = z.object({
   rules: z.array(decision).max(100),
   rating: ratingConfigInput.nullable(),
   billing: billingConfig,
+  extensions: z.array(extensionBindingInput).max(100),
 });
 
 export const byId = z.object({ id });

@@ -16,7 +16,6 @@ export function toCarrierDto(carrier: Carrier) {
     admitted: carrier.admitted,
     lines: carrier.lines,
     mode: carrier.mode,
-    extensionKey: carrier.extensionKey,
     activeEnvironment: carrier.activeEnvironment,
     status: carrier.status,
     createdAt: carrier.createdAt.toString(),

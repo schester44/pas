@@ -43,6 +43,12 @@ export function useRatingCheck(contents: Contents) {
 export function sourceOf(rating: Contents["rating"]): RaterSource | null {
   if (!rating) return null;
 
+  if (rating.engine === "extension") {
+    const { goldenCases: _golden, ...source } = rating;
+
+    return source.extensionVersionId ? source : null;
+  }
+
   return rating.engine === "plan"
     ? { engine: "plan", plan: rating.plan }
     : { engine: "spreadsheet", workbookId: rating.workbookId, manifest: rating.manifest };

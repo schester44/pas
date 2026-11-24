@@ -126,3 +126,4 @@ export {
 } from "./application/complete-carrier-transaction";
 export type { CarrierTransactions } from "./ports/carrier-transactions";
 export { withCarrierCharges, type CarrierCharges } from "./domain/carrier-charges";
+export { makePolicyExtensions, type PolicyExtensions } from "./application/run-record-extension";

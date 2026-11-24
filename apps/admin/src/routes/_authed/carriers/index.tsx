@@ -139,7 +139,7 @@ function CarriersPage() {
           <DialogHeader>
             <DialogTitle>New carrier</DialogTitle>
             <DialogDescription>
-              Connect it next: a configured connector, an extension or file feeds.
+              Connect it next: a configured connector or file feeds.
             </DialogDescription>
           </DialogHeader>
           <CarrierForm
