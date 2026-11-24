@@ -1,5 +1,6 @@
 import {
   type BindingInvoker,
+  checkActionInput,
   type DisplayBlock,
   type ExtensionBinding,
   type ExtensionSurface,
@@ -98,17 +99,7 @@ export function makePolicyExtensions(deps: Deps) {
     ): Promise<{ message: string | null; blocks: DisplayBlock[] }> {
       const { release, record } = await load(deps, ctx, scope, input.policyId);
       const binding = bindingOf(release.extensions, input.bindingId, "action");
-      const known = new Set((binding.inputFields ?? []).map((f) => f.key));
-
-      for (const field of binding.inputFields ?? []) {
-        const value = input.values[field.key];
-
-        if (field.required && (value === undefined || value === null || value === "")) {
-          throw invalid(`${field.label} is required`, { field: field.key });
-        }
-      }
-
-      const values = Object.fromEntries(Object.entries(input.values).filter(([k]) => known.has(k)));
+      const values = checkActionInput(binding.inputFields ?? [], input.values);
 
       const output = await invoker().invoke(
         ctx,

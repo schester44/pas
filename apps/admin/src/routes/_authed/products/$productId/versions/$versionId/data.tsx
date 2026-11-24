@@ -1065,6 +1065,14 @@ function TransformEditor({
   onRemove: () => void;
 }) {
   const reads = new Set(transform.reads);
+  const trpc = useTRPC();
+
+  const choices = useQuery(
+    trpc.extensions.versionChoices.queryOptions({ point: "enrichment_transform" }),
+  );
+
+  const keys = [...new Map((choices.data ?? []).map((c) => [c.key, c.name])).entries()];
+  const current = transform.extension.key;
 
   return (
     <EditorPanel title={transform.id} readOnly={readOnly} onRemove={onRemove}>
@@ -1078,13 +1086,29 @@ function TransformEditor({
       </Field>
       <Field
         label="Extension"
-        hint="An installed enrichment transform. Its version is pinned when you publish."
+        hint="A published extension with the enrichment transform point. Its latest version is pinned when you publish."
       >
-        <Input
-          className="font-mono"
-          value={transform.extension.key}
-          onChange={(e) => onChange({ ...transform, extension: { key: e.target.value } })}
-        />
+        <Select
+          value={current}
+          onValueChange={(key) => onChange({ ...transform, extension: { key } })}
+          disabled={readOnly}
+        >
+          <SelectTrigger aria-label="Extension">
+            <SelectValue placeholder="Choose an extension" />
+          </SelectTrigger>
+          <SelectContent>
+            {current && !keys.some(([key]) => key === current) && (
+              <SelectItem value={current} description="Not published">
+                {current}
+              </SelectItem>
+            )}
+            {keys.map(([key, name]) => (
+              <SelectItem key={key} value={key} description={key}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Field>
       <Field label="When">
         <Choice

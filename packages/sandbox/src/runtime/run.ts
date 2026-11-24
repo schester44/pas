@@ -274,7 +274,7 @@ export async function runInvocation(
       if (state.type === "fulfilled") {
         const json = ctx.getString(state.value);
 
-        if (json.length > limits.maxOutputBytes) {
+        if (new TextEncoder().encode(json).byteLength > limits.maxOutputBytes) {
           throw new Failure(
             "output_too_large",
             `The output is larger than ${limits.maxOutputBytes} bytes`,

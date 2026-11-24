@@ -1,6 +1,7 @@
+import { automationWorkflow } from "@pas/extensions";
 // Worker composition root: registers queue handlers, scheduled jobs and timers.
 import { getPrismaClient, PrismaUnitOfWork } from "@pas/db";
-import { asId } from "@pas/kernel";
+import { asId, defineWorkflow } from "@pas/kernel";
 import { createLogger } from "@pas/observability";
 import {
   billingEventFrom,
@@ -46,7 +47,7 @@ import {
   QueueClient,
   queueConnectionFromEnv,
   reconciliationQueue,
-  shouldManageQueueSchema,
+  shouldManageQueueSchema,KNOWN_DOMAIN_EVENTS
 } from "@pas/queues";
 import { filingWorkflow, obligationWorkflow } from "@pas/compliance";
 import { composeCompliance } from "@pas/compliance/infrastructure";
@@ -66,15 +67,17 @@ import {
   HmacClientLinks,
 } from "@pas/submissions/infrastructure";
 import { AppHosts, makeGetProfile } from "@pas/tenants";
-import { PrismaTenantProfileRepository, TenantClocks } from "@pas/tenants/infrastructure";
+import {
+  PrismaTenantDirectory,
+  PrismaTenantProfileRepository,
+  TenantClocks,
+} from "@pas/tenants/infrastructure";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import { composeWorkerAgencyDownloads } from "./agency-downloads";
 import { composeWorkerBillingMethods, withHandlers } from "./billing-methods";
 import { composeWorkerEvents } from "./events";
 import { createDomainEventDispatcher } from "./handlers/domain-events";
-import { KNOWN_DOMAIN_EVENTS } from "./handlers/known-events";
 import { composeWorkerExtensions } from "./extensions";
-import { purgeExtensionRuns } from "@pas/extensions/infrastructure";
 import { composePolicyServices } from "./policy-services";
 import { makeApprovalDemoWorkflow } from "./workflows/approval-demo";
 import { makeFilingWorkflow, makeObligationWorkflow } from "./workflows/compliance";
@@ -233,6 +236,7 @@ const extensions = composeWorkerExtensions({
   sendEmail: async (ctx, message) => {
     await (await mailers.for(ctx)).send(message);
   },
+  workflows: () => workflows,
 });
 
 const clientLinks = new HmacClientLinks(process.env.BETTER_AUTH_SECRET ?? "");
@@ -452,6 +456,16 @@ const workflows = new PostgresWorkflows({
     makeApprovalDemoWorkflow(logger),
     makeQuoteJourneyWorkflow({ timers: quoteTimers, logger }),
     makePolicyTermWorkflow({ timers: termTimers }),
+    defineWorkflow(
+      automationWorkflow,
+      ({ input, tenantId, step }) =>
+        extensions.runAutomation(
+          { tenantId, actor: { type: "system", process: "extensions.automation" } },
+          input,
+          step,
+        ),
+      { retries: 3 },
+    ),
     makePolicyCancellationWorkflow({ timers: termTimers }),
     makeInstallmentWorkflow({ timers: installmentTimers }),
     makeObligationWorkflow({ timers: compliance.timers }),
@@ -495,14 +509,12 @@ const dispatch = createDomainEventDispatcher(
             logger.info({ type: event.type, ...result }, "events published");
         },
         async (event) => {
-          const ran = await extensions.dispatchAutomations(workerContext(event.tenantId), event);
-          const failed = ran.filter((r) => r.status === "failed");
+          const started = await extensions.dispatchAutomations(
+            workerContext(event.tenantId),
+            event,
+          );
 
-          if (ran.length > 0) logger.info({ type: event.type, ran }, "automations dispatched");
-
-          // Rethrowing makes the queue redeliver; succeeded automations skip themselves on retry.
-          if (failed.length > 0)
-            throw new Error(`${failed.length} automation(s) failed for ${event.type}`);
+          if (started.length > 0) logger.info({ type: event.type, started }, "automations started");
         },
       ],
       "events.subscription_disabled": [
@@ -798,10 +810,14 @@ await queues.work(reconciliationQueue, async (job) => {
 await queues.schedule(reconciliationQueue, "17 3 * * *", { tenantId: null, days: 30 });
 
 await queues.work(extensionRunRetentionQueue, async (job) => {
-  const before = Temporal.Now.instant().subtract({ hours: job.days * 24 });
-  const deleted = await purgeExtensionRuns(prisma, before);
+  const tenants = await new PrismaTenantDirectory(prisma).list();
+  let deleted = 0;
 
-  logger.info({ days: job.days, deleted }, "extension runs purged");
+  for (const { organization } of tenants) {
+    deleted += await extensions.purgeRuns(workerContext(organization.id), { days: job.days });
+  }
+
+  logger.info({ days: job.days, tenants: tenants.length, deleted }, "extension runs purged");
 });
 
 await queues.schedule(extensionRunRetentionQueue, "41 3 * * *", {

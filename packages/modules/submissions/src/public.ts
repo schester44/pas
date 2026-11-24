@@ -131,8 +131,6 @@ export type {
   DataProviders,
   EnrichmentRecordRepository,
   EnrichmentReports,
-  TransformExtension,
-  TransformExtensions,
 } from "./ports/enrichment";
 export {
   enrichedRisk,

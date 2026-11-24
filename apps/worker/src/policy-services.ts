@@ -155,7 +155,11 @@ export function composePolicyServices(deps: {
       rater,
       clocks,
       storage: deps.storage,
-      notices: new ReactPdfNoticeDocuments({ branding, jurisdictionName }),
+      notices: new ReactPdfNoticeDocuments({
+        branding,
+        jurisdictionName,
+        extensions: deps.extensions.invoker,
+      }),
       billing: deps.billing,
       extensions: deps.extensions.invoker,
       delivery: new PortNoticeDelivery({

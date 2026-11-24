@@ -20,6 +20,7 @@ export interface RunExtensionInput<P extends ExtensionPoint> {
   subject?: RunSubject;
   step?: WorkflowStep;
   services?: HostServices;
+  signal?: AbortSignal;
 }
 
 /** Runs a published version; versions are immutable, so they're cached by id. */
@@ -83,6 +84,7 @@ export function makeRunExtension(
       ...(input.subject && { subject: input.subject }),
       ...(input.step && { step: input.step }),
       ...(input.services && { services: input.services }),
+      ...(input.signal && { signal: input.signal }),
     });
   };
 }

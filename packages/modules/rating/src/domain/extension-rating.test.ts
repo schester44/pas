@@ -65,5 +65,12 @@ describe("ratingResultFromExtension", () => {
     ).toThrow(/negative/);
 
     expect(run([], "EUR")).toThrow(/prices in USD/);
+
+    expect(
+      run([
+        { coverage: "dwelling", premium: "100.125" },
+        { coverage: "liability", premium: "1" },
+      ]),
+    ).toThrow(/more than 2 decimals/);
   });
 });

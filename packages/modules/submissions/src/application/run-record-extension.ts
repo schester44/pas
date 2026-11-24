@@ -1,6 +1,6 @@
 import {
-  type ActionField,
   type BindingInvoker,
+  checkActionInput,
   type DisplayBlock,
   type ExtensionBinding,
   noExtensions,
@@ -78,36 +78,6 @@ export function makeSubmissionPanel(deps: Deps) {
 
     return output?.blocks ?? null;
   };
-}
-
-function checkActionInput(fields: readonly ActionField[], values: Record<string, unknown>) {
-  for (const field of fields) {
-    const value = values[field.key];
-    const empty = value === undefined || value === null || value === "";
-
-    if (empty) {
-      if (field.required) throw invalid(`${field.label} is required`, { field: field.key });
-
-      continue;
-    }
-
-    const ok =
-      field.kind === "number"
-        ? typeof value === "number" && Number.isFinite(value)
-        : field.kind === "boolean"
-          ? typeof value === "boolean"
-          : field.kind === "enum"
-            ? (field.options ?? []).some((o) => o.value === value)
-            : field.kind === "date"
-              ? typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
-              : typeof value === "string" && value.length <= 2_000;
-
-    if (!ok) throw invalid(`${field.label} isn't valid`, { field: field.key });
-  }
-
-  const known = new Set(fields.map((f) => f.key));
-
-  return Object.fromEntries(Object.entries(values).filter(([key]) => known.has(key)));
 }
 
 /**

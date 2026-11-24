@@ -41,20 +41,26 @@ export function ExtensionEditorProvider({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const pending = useRef<Partial<Draft>>({});
 
-  // The server changes the draft too (recording fixtures); take it when nothing is unsaved here.
-  useEffect(() => {
-    if (Object.keys(pending.current).length === 0) setDraft(extension.draft);
-  }, [extension.draft]);
-
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inFlight = useRef<Promise<void> | null>(null);
+
+  // The server changes the draft too (recording fixtures); take it only when nothing local is
+  // unsaved or on its way, or a refetch mid-save would roll the editor back.
+  useEffect(() => {
+    if (Object.keys(pending.current).length === 0 && !inFlight.current) setDraft(extension.draft);
+  }, [extension.draft]);
+
   const { mutateAsync } = useMutation(trpc.extensions.update.mutationOptions());
 
   const save = useCallback(async (): Promise<void> => {
     clearTimeout(timer.current);
 
     for (;;) {
-      if (inFlight.current) await inFlight.current;
+      if (inFlight.current) {
+        await inFlight.current;
+
+        continue;
+      }
 
       const changes = pending.current;
 
@@ -67,6 +73,11 @@ export function ExtensionEditorProvider({
 
       const run = mutateAsync({ id: extension.id, draft: changes })
         .then(async () => {
+          // Keep the cached detail in step, or a remount within staleTime starts from the old draft.
+          queryClient.setQueryData(trpc.extensions.get.queryKey({ id: extension.id }), (old) =>
+            old ? { ...old, draft: { ...old.draft, ...changes } } : old,
+          );
+
           await queryClient.invalidateQueries({ queryKey: trpc.extensions.list.queryKey() });
           setSaveState(Object.keys(pending.current).length > 0 ? "saving" : "saved");
         })

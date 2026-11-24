@@ -1,5 +1,11 @@
-import { type BindingInvoker, bindingsAt, noExtensions } from "@pas/extension-points";
-import { withCancellationCharges } from "../domain/cancellation-charges";
+import {
+  type BindingInvoker,
+  bindingsAt,
+  type ExtensionBinding,
+  failurePolicyOf,
+  noExtensions,
+} from "@pas/extension-points";
+import { type ExtensionCharge, withCancellationCharges } from "../domain/cancellation-charges";
 import { type DecisionKind, type DecisionResult, evaluateDecision } from "@pas/decisions-engine";
 import {
   asId,
@@ -153,6 +159,32 @@ function minimumEarnedOf(
 }
 
 /**
+ * An extension's charges that don't fit (more than is left to return, not in cents) are its
+ * failure, so the binding's policy decides: block the cancellation or carry on without them.
+ */
+function cancellationRetained(
+  returned: Parameters<typeof withCancellationCharges>[0],
+  retained: Parameters<typeof withCancellationCharges>[1],
+  charges: readonly ExtensionCharge[],
+  currency: string,
+  binding: ExtensionBinding | null,
+) {
+  try {
+    return withCancellationCharges(returned, retained, charges, currency);
+  } catch (error) {
+    if (!binding) throw error;
+
+    if (failurePolicyOf(binding) === "skip") return [...retained];
+
+    throw new DomainError(
+      "precondition_failed",
+      `Cancellation charges extension failed: ${(error as Error).message}`,
+      { reason: "extension_failed", bindingId: binding.id },
+    );
+  }
+}
+
+/**
  * Earliest valid date from `notice_rules`, then the return premium: pro rata by coverage, with
  * the minimum earned premium and fully earned fees from `cancellation_terms` (PLAN §7.4, §17.3).
  */
@@ -160,7 +192,14 @@ export async function priceCancellation(
   deps: Pick<ChangeDeps, "config" | "rater" | "clocks" | "extensions">,
   ctx: TenantContext,
   policy: Policy,
-  input: { reason: string; effectiveDate?: PlainDate; note?: string; transactionId?: string },
+  input: {
+    reason: string;
+    effectiveDate?: PlainDate;
+    note?: string;
+    transactionId?: string;
+    /** Charges already on the pending transaction: issue keeps what was quoted and noticed. */
+    charges?: readonly ExtensionCharge[];
+  },
 ): Promise<CancellationPricing> {
   const term = policy.currentTerm;
   const snapshot = policy.latestVersion(term.id).snapshot;
@@ -221,42 +260,45 @@ export async function priceCancellation(
 
   const [chargesBinding] = bindingsAt(release.extensions, "cancellation_charges");
 
-  const charged = chargesBinding
-    ? await (deps.extensions ?? noExtensions).invoke(
-        ctx,
-        chargesBinding,
-        {
-          risk: snapshot.risk ?? {},
-          jurisdiction: term.jurisdiction,
-          product: { id: release.productId, version: release.version },
-          term: {
-            start: term.effectiveDate.toString(),
-            end: term.expirationDate.toString(),
-            writtenPremium: term.writtenPremium.toString(),
+  const charged = input.charges
+    ? { charges: [...input.charges] }
+    : chargesBinding
+      ? await (deps.extensions ?? noExtensions).invoke(
+          ctx,
+          chargesBinding,
+          {
+            risk: snapshot.risk ?? {},
+            jurisdiction: term.jurisdiction,
+            product: { id: release.productId, version: release.version },
+            term: {
+              start: term.effectiveDate.toString(),
+              end: term.expirationDate.toString(),
+              writtenPremium: term.writtenPremium.toString(),
+            },
+            cancellation: {
+              reason: reason.code,
+              initiator: reason.initiator,
+              effectiveDate: effectiveDate.toString(),
+              noticeDate: noticeDate.toString(),
+            },
+            returned: returned.lines.map((l) => ({
+              coverage: l.coverage,
+              ...(l.exposure !== undefined && { exposure: l.exposure }),
+              amount: l.amount.toString(),
+            })),
+            minimumEarned: (returned.minimumEarned?.retained ?? Money.zero(currency)).toString(),
+            currency,
           },
-          cancellation: {
-            reason: reason.code,
-            initiator: reason.initiator,
-            effectiveDate: effectiveDate.toString(),
-            noticeDate: noticeDate.toString(),
-          },
-          returned: returned.lines.map((l) => ({
-            coverage: l.coverage,
-            ...(l.exposure !== undefined && { exposure: l.exposure }),
-            amount: l.amount.toString(),
-          })),
-          minimumEarned: (returned.minimumEarned?.retained ?? Money.zero(currency)).toString(),
-          currency,
-        },
-        { type: "policy", id: policy.id },
-      )
-    : null;
+          { type: "policy", id: policy.id },
+        )
+      : null;
 
-  const retained = withCancellationCharges(
+  const retained = cancellationRetained(
     returned.lines,
     returned.minimumEarned?.lines ?? [],
     charged?.charges ?? [],
     currency,
+    input.charges ? null : (chargesBinding ?? null),
   );
 
   const net = sumOf([...returned.lines, ...retained], currency);

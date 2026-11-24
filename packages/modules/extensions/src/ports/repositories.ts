@@ -82,4 +82,6 @@ export interface ExtensionRunRepository {
   find(tx: Transaction, ctx: TenantContext, id: ExtensionRunId): Promise<ExtensionRun | null>;
   /** Newest first, without inputs, outputs or network. */
   list(tx: Transaction, ctx: TenantContext, filter: RunFilter): Promise<ExtensionRun[]>;
+  /** Deletes the tenant's runs recorded before the instant; returns how many. */
+  purgeBefore(tx: Transaction, ctx: TenantContext, before: Instant): Promise<number>;
 }

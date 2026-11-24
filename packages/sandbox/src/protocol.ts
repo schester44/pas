@@ -1,3 +1,4 @@
+import { StringDecoder } from "node:string_decoder";
 import { z } from "zod";
 
 export const sandboxLimitsSchema = z.object({
@@ -109,16 +110,25 @@ export type ServerFrame = z.infer<typeof serverFrameSchema>;
 
 export const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 
-/** Splits a byte stream into newline-delimited JSON frames. */
+/**
+ * Splits a byte stream into newline-delimited JSON frames. The decoder keeps a multi-byte UTF-8
+ * character that straddles two chunks whole instead of turning it into replacement characters.
+ */
 export function frameReader(onFrame: (frame: unknown) => void, onError: (error: Error) => void) {
+  const decoder = new StringDecoder("utf8");
   let buffer = "";
+  let bytes = 0;
 
   return (chunk: Buffer | string) => {
-    buffer += chunk.toString();
+    const raw = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
 
-    if (buffer.length > MAX_FRAME_BYTES) {
+    bytes += raw.byteLength;
+    buffer += decoder.write(raw);
+
+    if (bytes > MAX_FRAME_BYTES) {
       onError(new Error("Frame too large"));
       buffer = "";
+      bytes = 0;
 
       return;
     }
@@ -129,6 +139,7 @@ export function frameReader(onFrame: (frame: unknown) => void, onError: (error: 
       const line = buffer.slice(0, newline);
 
       buffer = buffer.slice(newline + 1);
+      bytes = Buffer.byteLength(buffer);
 
       if (line.trim().length > 0) {
         try {

@@ -18,6 +18,7 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { FileCode, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { CodeEditor } from "@/components/extensions/code-editor";
 import { useExtensionEditor } from "@/components/extensions/extension-editor";
 import {
   exportName,
@@ -27,6 +28,7 @@ import {
   SAMPLE_INPUTS,
 } from "@/components/extensions/labels";
 import { RunResult } from "@/components/extensions/run-result";
+import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/extensions/$extensionId/")({
@@ -35,20 +37,6 @@ export const Route = createFileRoute("/_authed/extensions/$extensionId/")({
 
 const ENTRY = "index.ts";
 const FILE_NAME = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*\.ts$/;
-
-/** Tab inserts two spaces instead of leaving the editor. */
-function indent(event: React.KeyboardEvent<HTMLTextAreaElement>, onChange: (text: string) => void) {
-  if (event.key !== "Tab") return;
-
-  event.preventDefault();
-
-  const el = event.currentTarget;
-  const { selectionStart: start, selectionEnd: end, value } = el;
-  const next = `${value.slice(0, start)}  ${value.slice(end)}`;
-
-  onChange(next);
-  requestAnimationFrame(() => el.setSelectionRange(start + 2, start + 2));
-}
 
 function CodeTab() {
   const { draft, set, readOnly } = useExtensionEditor();
@@ -149,14 +137,12 @@ function CodeTab() {
         </Panel>
         <div className="grid min-w-0 gap-6">
           <Panel flush title={<span className="font-mono text-sm">{file}</span>}>
-            <textarea
-              aria-label={file}
+            <CodeEditor
+              key={file}
+              label={file}
               value={draft.files[file] ?? ""}
               readOnly={readOnly}
-              spellCheck={false}
-              onKeyDown={(e) => !readOnly && indent(e, (text) => setFile(file, text))}
-              onChange={(e) => setFile(file, e.target.value)}
-              className="block min-h-[28rem] w-full resize-y border-0 bg-transparent p-(--card-p) font-mono text-xs leading-5 outline-none"
+              onChange={(text) => setFile(file, text)}
             />
           </Panel>
           <TryIt />
@@ -168,6 +154,7 @@ function CodeTab() {
 
 function TryIt() {
   const trpc = useTRPC();
+  const access = useAccess();
   const { extension, draft, flush } = useExtensionEditor();
   const points = draft.manifest.points;
   const [point, setPoint] = useState(points[0] ?? "validate");
@@ -199,10 +186,12 @@ function TryIt() {
               </SelectContent>
             </Select>
           </div>
-          <label className="flex h-9 items-center gap-2 text-sm">
-            <Checkbox checked={live} onCheckedChange={(v) => setLive(v === true)} />
-            Call the real hosts
-          </label>
+          {access.extensions.publish && (
+            <label className="flex h-9 items-center gap-2 text-sm">
+              <Checkbox checked={live} onCheckedChange={(v) => setLive(v === true)} />
+              Call the real hosts
+            </label>
+          )}
           <Button
             className="ml-auto"
             variant="outline"

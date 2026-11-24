@@ -1,7 +1,7 @@
 import type { AutomationServices, HostServices } from "@pas/extensions";
 import { composeExtensions, sandboxSettingsFromEnv } from "@pas/extensions/infrastructure";
 import { AesSecretBox } from "@pas/integrations/infrastructure";
-import type { Outbox, TenantContext, Transaction, UnitOfWork } from "@pas/kernel";
+import type { Outbox, TenantContext, Transaction, UnitOfWork, Workflows } from "@pas/kernel";
 import type { makeRecordPolicyEvent } from "@pas/policy";
 import type { TenantClocks } from "@pas/tenants/infrastructure";
 import { z } from "zod";
@@ -69,6 +69,7 @@ export function composeWorkerExtensions(deps: {
   clocks: TenantClocks;
   recordPolicyEvent: ReturnType<typeof makeRecordPolicyEvent>;
   sendEmail: Parameters<typeof automationServices>[0]["sendEmail"];
+  workflows: () => Workflows;
 }) {
   return composeExtensions({
     uow: deps.uow,
@@ -82,5 +83,6 @@ export function composeWorkerExtensions(deps: {
     },
     ...sandboxSettingsFromEnv(),
     automationServices: automationServices(deps),
+    workflows: deps.workflows,
   });
 }

@@ -4,7 +4,7 @@ import {
   type PointOutputs,
   type RunSubject,
 } from "@pas/extension-points";
-import { newId, type TenantContext, toPlainJson, type WorkflowStep } from "@pas/kernel";
+import { newId, type TenantContext, type WorkflowStep } from "@pas/kernel";
 import type { ExtensionId } from "../domain/extension";
 import { exportNameFor, type ExtensionManifest, renderCredential } from "../domain/manifest";
 import type { ExtensionRun, RunTrigger } from "../domain/run";
@@ -29,11 +29,18 @@ export interface Execution {
   subject?: RunSubject;
   step?: WorkflowStep;
   services?: HostServices;
+  signal?: AbortSignal;
 }
 
 export type ExecutionResult<P extends ExtensionPoint> =
   | { ok: true; output: PointOutputs[P]; run: ExtensionRun }
   | { ok: false; error: { code: string; message: string }; run: ExtensionRun };
+
+// Postgres jsonb rejects \u0000; drop the escape, keeping any escaped backslashes before it.
+const NUL = /(?<!\\)((?:\\\\)*)\\u0000/g;
+
+export const storable = <T>(value: T): T =>
+  JSON.parse(JSON.stringify(value ?? null).replace(NUL, "$1")) as T;
 
 /** Which network an invocation gets: sandbox tenants answer from fixtures unless the extension opts in. */
 export async function networkModeFor(
@@ -95,6 +102,7 @@ export async function execute<P extends ExtensionPoint>(
     clock,
     ...(execution.step && { step: execution.step }),
     ...(execution.services && { services: execution.services }),
+    ...(execution.signal && { signal: execution.signal }),
   });
 
   const parsed = result.ok ? parsePointOutput(execution.point, result.output) : null;
@@ -119,15 +127,16 @@ export async function execute<P extends ExtensionPoint>(
     subject: execution.subject ?? null,
     status: result.ok ? (error ? "invalid_output" : "succeeded") : "failed",
     error,
-    input: toPlainJson(execution.input),
-    output: result.ok ? toPlainJson(result.output) : null,
-    network: result.network,
-    logs: result.logs,
+    input: storable(execution.input),
+    output: result.ok ? storable(result.output) : null,
+    network: storable(result.network),
+    logs: storable(result.logs),
     stats: result.stats,
     createdAt: clock.now(),
   };
 
-  await deps.uow.run(ctx, (tx) => deps.runs.insert(tx, run));
+  // The log is for diagnosis; losing one row mustn't turn a good premium into a failed quote.
+  await deps.uow.run(ctx, (tx) => deps.runs.insert(tx, run)).catch(() => undefined);
 
   if (parsed?.ok) return { ok: true, output: parsed.value, run };
 

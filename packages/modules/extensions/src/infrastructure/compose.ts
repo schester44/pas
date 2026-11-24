@@ -1,9 +1,13 @@
-import type { ClockProvider, Outbox, TenantContext, UnitOfWork } from "@pas/kernel";
+import type { ClockProvider, Outbox, TenantContext, UnitOfWork, Workflows } from "@pas/kernel";
 import { HttpSandboxClient } from "@pas/sandbox/client";
 import { makeArchiveExtension } from "../application/archive-extension";
 import { makeCreateExtension } from "../application/create-extension";
 import type { ExtensionDeps } from "../application/deps";
-import { makeDispatchAutomations } from "../application/dispatch-automations";
+import { makeDispatchAutomations, makeRunAutomation } from "../application/dispatch-automations";
+import {
+  makeEnrichmentTransforms,
+  makeResolveTransform,
+} from "../application/enrichment-transforms";
 import { makeExtensionRater } from "../application/extension-rater";
 import { makeGetExtension, makeGetExtensionVersion } from "../application/get-extension";
 import { makeBindingInvoker } from "../application/invoke-binding";
@@ -13,6 +17,7 @@ import { makeListVersionChoices } from "../application/list-version-choices";
 import { makeRemoveExtensionSecret, makeSetExtensionSecret } from "../application/manage-secrets";
 import { makeDeleteSubscription, makeSaveSubscription } from "../application/manage-subscriptions";
 import { makePublishExtensionVersion } from "../application/publish-extension-version";
+import { makePurgeExtensionRuns } from "../application/purge-extension-runs";
 import { makeRunExtension } from "../application/run-extension";
 import { makeTestExtension, makeTryExtension } from "../application/test-extension";
 import { makeUpdateExtension } from "../application/update-extension";
@@ -34,6 +39,8 @@ export interface ExtensionCompositionDeps {
   /** Local dev only: lets extensions call localhost services. */
   allowPrivateNetwork?: boolean;
   automationServices?: AutomationServices;
+  /** Where automation runs execute; only the worker dispatches them. */
+  workflows?: () => Workflows;
 }
 
 const noServices: AutomationServices = { build: () => ({}) };
@@ -68,6 +75,7 @@ export function composeExtensions(input: ExtensionCompositionDeps) {
 
   const runExtension = makeRunExtension(deps);
   const invoker = makeBindingInvoker(runExtension);
+  const resolveTransform = makeResolveTransform(deps);
 
   return {
     create: makeCreateExtension(deps),
@@ -86,11 +94,18 @@ export function composeExtensions(input: ExtensionCompositionDeps) {
     deleteSubscription: makeDeleteSubscription(deps),
     listRuns: makeListExtensionRuns(deps),
     getRun: makeGetExtensionRun(deps),
+    purgeRuns: makePurgeExtensionRuns(deps),
     verifyBindings: makeVerifyBindings(deps),
     run: runExtension,
     invoker,
     rater: makeExtensionRater(invoker),
+    resolveTransform,
+    enrichmentTransforms: makeEnrichmentTransforms({ resolve: resolveTransform, runExtension }),
     dispatchAutomations: makeDispatchAutomations({
+      ...deps,
+      ...(input.workflows && { workflows: input.workflows }),
+    }),
+    runAutomation: makeRunAutomation({
       ...deps,
       runExtension,
       services: input.automationServices ?? noServices,

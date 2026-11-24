@@ -77,7 +77,7 @@ export function makePublishExtensionVersion(deps: ExtensionDeps) {
         id: newId<"ExtensionVersion">(),
         tenantId: ctx.tenantId,
         extensionId: fresh.id,
-        version: fresh.latestVersion + 1,
+        version: extension.latestVersion + 1,
         code,
         source: structuredClone(files),
         manifest: structuredClone(manifest),

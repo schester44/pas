@@ -44,6 +44,7 @@ _Every policy in one place: term, premium, balance due, the next dates that matt
 | [Agency downloads](agency-downloads.md)              | Nightly ACORD downloads to enrolled agencies' IVANS mailboxes, commission statements, certification harness          |
 | [Client portal](client-portal.md)                    | One login per client across producers: policies, documents, invoices, payments, change requests                      |
 | [Sandboxes and time travel](sandboxes.md)            | Copies of your configuration with test providers and a clock you control                                             |
+| [Extensions](extensions.md)                          | Tenant TypeScript at named points: rating, validation, underwriting, documents, forms, record pages, automations     |
 | [Integrations, events and webhooks](integrations.md) | Provider catalog, bring-your-own credentials, signed webhooks, event catalog, notifications                          |
 | [Security and multi-tenancy](security.md)            | Tenant isolation with row-level security, built-in and custom roles, book scoping, append-only history               |
 | [Technology](technology.md)                          | For CTOs: durable workflows, ports and adapters, the outbox, immutable configuration, how it scales                  |

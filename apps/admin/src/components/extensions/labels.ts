@@ -114,6 +114,10 @@ export const SAMPLE_INPUTS: Record<string, unknown> = {
     record: { type: "policy", id: "policy-id", number: "POL-1001", jurisdiction, product, risk },
   },
   action: { record: { type: "submission", id: "submission-id", status: "draft", risk }, input: {} },
+  enrichment_transform: {
+    sources: { "call.rce.squareFeet": 2400, "call.hazard.wildfireScore": 31 },
+    risk,
+  },
   automation: {
     event: {
       id: "event-id",

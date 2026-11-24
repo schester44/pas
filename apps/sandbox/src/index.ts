@@ -23,13 +23,14 @@ const token =
 if (!token) throw new Error("SANDBOX_TOKEN is required");
 
 const threads = env("SANDBOX_THREADS", Math.max(1, availableParallelism() - 1));
-const perThread = env("SANDBOX_THREAD_CONCURRENCY", 16);
+const perThread = env("SANDBOX_THREAD_CONCURRENCY", 4);
 const pool = new ThreadPool({ size: threads, heapMb: env("SANDBOX_THREAD_HEAP_MB", 512), logger });
 
 const admission = new Admission({
   total: threads * perThread,
   perTenant: env("SANDBOX_TENANT_CONCURRENCY", 8),
   maxQueued: env("SANDBOX_MAX_QUEUED", 1_000),
+  maxQueuedPerTenant: env("SANDBOX_TENANT_MAX_QUEUED", 100),
 });
 
 const expectedAuth = Buffer.from(`Bearer ${token}`);

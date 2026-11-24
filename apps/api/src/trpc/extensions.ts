@@ -1,11 +1,16 @@
 import { EXTENSION_POINTS } from "@pas/extension-points";
 import { AUTOMATION_SERVICES, MAX_CPU_MS, MAX_MEMORY_MB } from "@pas/extensions";
+import { KNOWN_DOMAIN_EVENTS } from "@pas/queues";
 import { z } from "zod";
-import { requirePermission, router } from "./init";
+import { assertPermission, requirePermission, router } from "./init";
 
 const read = requirePermission({ extension: ["read"] });
 const write = requirePermission({ extension: ["write"] });
 const publish = requirePermission({ extension: ["publish"] });
+
+// A draft's hosts and credential rules are unreviewed, so running it against real hosts with the
+// stored secrets takes the same permission as publishing it.
+const LIVE = { extension: ["publish" as const] };
 
 const id = z.uuid();
 const point = z.enum(EXTENSION_POINTS);
@@ -115,10 +120,18 @@ export const extensionsRouter = router({
         testIds: z.array(z.string().max(64)).max(100).optional(),
       }),
     )
-    .mutation(({ ctx, input }) => ctx.container.extensions.test(ctx.tenant, input)),
+    .mutation(async ({ ctx, input }) => {
+      if (input.record) await assertPermission(ctx, LIVE);
+
+      return ctx.container.extensions.test(ctx.tenant, input);
+    }),
   try: write
     .input(z.object({ id, point, input: json, live: z.boolean() }))
-    .mutation(({ ctx, input }) => ctx.container.extensions.try(ctx.tenant, input)),
+    .mutation(async ({ ctx, input }) => {
+      if (input.live) await assertPermission(ctx, LIVE);
+
+      return ctx.container.extensions.try(ctx.tenant, input);
+    }),
   publish: publish
     .input(z.object({ id, note: z.string().trim().max(500).nullish() }))
     .mutation(({ ctx, input }) => ctx.container.extensions.publish(ctx.tenant, input)),
@@ -128,6 +141,9 @@ export const extensionsRouter = router({
   versionChoices: requirePermission({ product: ["read"] })
     .input(z.object({ point: point.optional() }))
     .query(({ ctx, input }) => ctx.container.extensions.versionChoices(ctx.tenant, input)),
+  eventTypes: read.query(() =>
+    KNOWN_DOMAIN_EVENTS.filter((type) => !type.startsWith("extensions.")),
+  ),
   saveSubscription: publish
     .input(
       z.object({

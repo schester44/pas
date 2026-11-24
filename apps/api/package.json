@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "seed:underwriting": "tsx --env-file=../../.env src/scripts/seed-underwriting.ts",
     "seed:carriers": "tsx --env-file=../../.env src/scripts/seed-carriers.ts",
+    "seed:extensions": "tsx --env-file=../../.env src/scripts/seed-extensions.ts",
     "seed:enrichment": "tsx --env-file=../../.env src/scripts/seed-enrichment.ts",
     "seed:demo": "tsx --env-file=../../.env src/scripts/seed-demo.ts"
   },
@@ -46,7 +47,6 @@
     "@pas/queues": "workspace:*",
     "@pas/rating": "workspace:*",
     "@pas/rating-engine": "workspace:*",
-    "@pas/sandbox": "workspace:*",
     "@pas/search": "workspace:*",
     "@pas/storage": "workspace:*",
     "@pas/submissions": "workspace:*",

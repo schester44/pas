@@ -2,6 +2,8 @@ import {
   type BindingInvoker,
   bindingsAt,
   failurePolicyOf,
+  prepareWith,
+  validateWith,
   type RunSubject,
 } from "@pas/extension-points";
 import {
@@ -35,47 +37,11 @@ const context = (input: RiskHookInput) => ({
   transaction: input.transaction,
 });
 
-/** `precommit` bindings, in order: each gets the risk the previous one returned. */
-export async function prepareRisk(
-  invoker: BindingInvoker,
-  ctx: TenantContext,
-  input: RiskHookInput,
-): Promise<Record<string, unknown>> {
-  let risk = input.risk;
+export const prepareRisk = (invoker: BindingInvoker, ctx: TenantContext, input: RiskHookInput) =>
+  prepareWith(invoker, ctx, input.release.extensions, context(input), input.subject);
 
-  for (const binding of bindingsAt(input.release.extensions, "precommit")) {
-    const output = await invoker.invoke(ctx, binding, context({ ...input, risk }), input.subject);
-
-    if (output) risk = output.risk;
-  }
-
-  return risk;
-}
-
-/** `validate` bindings: errors keyed by field path, the same shape form validation returns. */
-export async function validateRisk(
-  invoker: BindingInvoker,
-  ctx: TenantContext,
-  input: RiskHookInput,
-): Promise<Record<string, string[]>> {
-  const outputs = await Promise.all(
-    bindingsAt(input.release.extensions, "validate").map((binding) =>
-      invoker.invoke(ctx, binding, context(input), input.subject),
-    ),
-  );
-
-  const errors: Record<string, string[]> = {};
-
-  for (const issue of outputs.flatMap((output) => output?.issues ?? [])) {
-    if (issue.severity !== "error") continue;
-
-    const path = issue.path ?? "";
-
-    errors[path] = [...(errors[path] ?? []), issue.message];
-  }
-
-  return errors;
-}
+export const validateRisk = (invoker: BindingInvoker, ctx: TenantContext, input: RiskHookInput) =>
+  validateWith(invoker, ctx, input.release.extensions, context(input), input.subject);
 
 /** `underwrite` bindings become underwriting reasons next to the decision tables'. */
 export async function underwriteRisk(

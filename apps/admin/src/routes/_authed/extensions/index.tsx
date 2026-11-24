@@ -24,7 +24,7 @@ import {
 } from "@pas/ui/components/table";
 import { Textarea } from "@pas/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { SkeletonRows } from "@/components/catalog/skeleton-rows";
@@ -49,11 +49,18 @@ function ExtensionsPage() {
       <PageHeader
         title="Extensions"
         actions={
-          access.extensions.write && (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus /> New extension
+          <>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/extensions/runs" search={{ filter: "failed" }}>
+                Runs
+              </Link>
             </Button>
-          )
+            {access.extensions.write && (
+              <Button size="sm" onClick={() => setCreating(true)}>
+                <Plus /> New extension
+              </Button>
+            )}
+          </>
         }
       />
       <PageBody className="max-w-6xl">

@@ -1,3 +1,4 @@
+import { invalid } from "@pas/kernel";
 import { type ExtensionPoint, type FailurePolicy, POINT_SPECS } from "./points";
 
 export const RECORD_KINDS = ["submission", "policy"] as const;
@@ -74,6 +75,9 @@ export function checkBindings(
       issue(`${spec.label} extensions are set up per tenant, not per product`);
 
     if (binding.point === "rate") issue("Choose an extension rater on the Rating tab instead");
+
+    if (binding.point === "enrichment_transform")
+      issue("Add it as a transform on the Data tab instead");
 
     if (SINGULAR.has(binding.point)) {
       if (seen.has(binding.point))
@@ -159,3 +163,34 @@ export function extensionFieldsOf(bindings: readonly ExtensionBinding[] | undefi
 }
 
 export type ExtensionFields = ReturnType<typeof extensionFieldsOf>;
+
+/** What a user typed into an action's inputs, checked against its fields; unknown keys dropped. */
+export function checkActionInput(fields: readonly ActionField[], values: Record<string, unknown>) {
+  for (const field of fields) {
+    const value = values[field.key];
+    const empty = value === undefined || value === null || value === "";
+
+    if (empty) {
+      if (field.required) throw invalid(`${field.label} is required`, { field: field.key });
+
+      continue;
+    }
+
+    const ok =
+      field.kind === "number"
+        ? typeof value === "number" && Number.isFinite(value)
+        : field.kind === "boolean"
+          ? typeof value === "boolean"
+          : field.kind === "enum"
+            ? (field.options ?? []).some((o) => o.value === value)
+            : field.kind === "date"
+              ? typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+              : typeof value === "string" && value.length <= 2_000;
+
+    if (!ok) throw invalid(`${field.label} isn't valid`, { field: field.key });
+  }
+
+  const known = new Set(fields.map((f) => f.key));
+
+  return Object.fromEntries(Object.entries(values).filter(([key]) => known.has(key)));
+}

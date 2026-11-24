@@ -35,6 +35,16 @@ const crashed = (message: string): InvocationResult => ({
   stats: { cpuMs: 0, wallMs: 0, hostCalls: 0 },
 });
 
+/** How long past its own wall limit an invocation may run before its thread is killed. */
+const WATCHDOG_GRACE_MS = 2_000;
+
+const timedOut = (wallMs: number): InvocationResult => ({
+  ok: false,
+  error: { code: "timeout", message: `The extension ran longer than ${wallMs}ms` },
+  logs: [],
+  stats: { cpuMs: 0, wallMs, hostCalls: 0 },
+});
+
 /**
  * Worker threads, each running many invocations (each in its own WASM instance). A thread that
  * dies, say from hitting its heap limit, fails only its own invocations and is replaced.
@@ -92,9 +102,35 @@ export class ThreadPool {
     const send = (message: ToThread) => thread.worker.postMessage(message);
     const { invocationId } = invocation;
 
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+
     const done = new Promise<InvocationResult>((resolve) => {
-      thread.jobs.set(invocationId, { handlers, resolve });
+      thread.jobs.set(invocationId, {
+        handlers,
+        resolve: (result) => {
+          clearTimeout(watchdog);
+          resolve(result);
+        },
+      });
     });
+
+    // QuickJS's interrupt handler doesn't fire inside some native calls (a long String#indexOf),
+    // and then nothing on that thread runs, timers included; only terminating it frees it.
+    watchdog = setTimeout(() => {
+      const job = thread.jobs.get(invocationId);
+
+      if (!job) return;
+
+      thread.jobs.delete(invocationId);
+      job.resolve(timedOut(invocation.limits.wallMs));
+
+      this.options.logger.warn(
+        { tenantId: invocation.tenantId, invocationId },
+        "sandbox thread stuck past its wall limit; restarting it",
+      );
+
+      void thread.worker.terminate();
+    }, invocation.limits.wallMs + WATCHDOG_GRACE_MS);
 
     send({ type: "invoke", invocation });
 

@@ -6,10 +6,6 @@ export { ClickToSignGateway } from "./infrastructure/click-to-sign-gateway";
 export { composeRiskEnricher } from "./infrastructure/compose-risk-enricher";
 export { PrismaEnrichmentRecordRepository } from "./infrastructure/prisma-enrichment-record-repository";
 export { StoredEnrichmentReports } from "./infrastructure/stored-enrichment-reports";
-export {
-  SandboxEnrichmentTransforms,
-  StaticTransformExtensions,
-} from "./infrastructure/sandbox-enrichment-transforms";
 export { RatingModuleQuoteRater } from "./infrastructure/rating-quote-rater";
 export {
   ReactPdfQuoteDocuments,

@@ -110,7 +110,7 @@ export class HttpSandboxClient implements ExtensionSandbox {
       };
 
       const callHost = async (callId: number, name: string, args: unknown) => {
-        const fn = host[name];
+        const fn = Object.hasOwn(host, name) ? host[name] : undefined;
 
         try {
           if (!fn) throw new Error(`Host function ${name} isn't offered`);

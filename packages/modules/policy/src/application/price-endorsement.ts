@@ -1,3 +1,4 @@
+import { noExtensions, prepareWith, validateWith } from "@pas/extension-points";
 import { rowIdOf, rowPath } from "@pas/forms-core";
 import {
   DomainError,
@@ -322,7 +323,7 @@ const editPath = (edit: RiskEdit) =>
  * from its own date; where both touch the same thing, the later one wins from its date.
  */
 export async function priceEndorsement(
-  deps: Pick<ChangeDeps, "config" | "rater">,
+  deps: Pick<ChangeDeps, "config" | "rater" | "extensions">,
   ctx: TenantContext,
   policy: Policy,
   input: {
@@ -367,7 +368,42 @@ export async function priceEndorsement(
     forms,
   });
 
-  const risk = base === latest ? edited : rebased(baseRisk, riskEdits(schema, latestRisk, edited));
+  const hook = {
+    jurisdiction: term.jurisdiction,
+    product: { id: release.productId, version: release.version },
+    effectiveDate: D.toString(),
+    transaction: "ENDORSEMENT",
+  };
+
+  const invoker = deps.extensions ?? noExtensions;
+  const subject = { type: "policy", id: policy.id };
+
+  const prepared = await prepareWith(
+    invoker,
+    ctx,
+    release.extensions,
+    { ...hook, risk: edited },
+    subject,
+  );
+
+  const errors = await validateWith(
+    invoker,
+    ctx,
+    release.extensions,
+    { ...hook, risk: prepared },
+    subject,
+  );
+
+  if (Object.keys(errors).length > 0) {
+    throw invalid(Object.values(errors).flat()[0] ?? "The change isn't valid", {
+      reason: "extension_validation",
+      errors,
+    });
+  }
+
+  const risk =
+    base === latest ? prepared : rebased(baseRisk, riskEdits(schema, latestRisk, prepared));
+
   const latestChoices = coveragesOf(latest.snapshot).map(choiceOf);
   const before = coveragesOf(base.snapshot);
 

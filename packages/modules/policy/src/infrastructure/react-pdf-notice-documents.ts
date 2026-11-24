@@ -1,3 +1,4 @@
+import { type BindingInvoker, bindingsAt, noExtensions } from "@pas/extension-points";
 import type { DocumentTemplate, Jurisdiction } from "@pas/documents";
 import { renderPdf } from "@pas/documents/render";
 import type { TenantContext } from "@pas/kernel";
@@ -101,11 +102,38 @@ export class ReactPdfNoticeDocuments implements NoticeDocuments {
         supportPhone?: string;
       }>;
       jurisdictionName: (jurisdiction: Jurisdiction) => string;
+      extensions?: BindingInvoker;
     },
   ) {}
 
+  /** `document_data` for notices: values templates merge as `extension.*`. */
+  private async extensionData(ctx: TenantContext, input: Input) {
+    const bindings = bindingsAt(input.release.extensions, "document_data");
+
+    if (bindings.length === 0) return undefined;
+
+    const hook = {
+      jurisdiction: input.context.policy.jurisdiction,
+      product: { id: input.release.productId, version: input.release.version },
+      policy: { number: input.context.policy.number ?? null },
+      risk: input.context.risk,
+      notice: {
+        kind: input.notice.kind,
+        reason: input.notice.reasonLabel,
+        effectiveDate: input.notice.effectiveDate,
+      },
+    };
+
+    const outputs = await Promise.all(
+      bindings.map((b) => (this.deps.extensions ?? noExtensions).invoke(ctx, b, hook)),
+    );
+
+    return Object.assign({}, ...outputs.map((o) => o?.data ?? {})) as Record<string, unknown>;
+  }
+
   async render(ctx: TenantContext, input: Input) {
     const { release, context, notice } = input;
+    const extension = await this.extensionData(ctx, input);
 
     const scheduled = new Set(
       release.documents.schedule
@@ -136,6 +164,7 @@ export class ReactPdfNoticeDocuments implements NoticeDocuments {
           jurisdictionName: this.deps.jurisdictionName(context.policy.jurisdiction),
         },
         forms: [],
+        ...(extension && { extension }),
         notice: {
           title: notice.title,
           reason: notice.reasonLabel,

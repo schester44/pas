@@ -1,4 +1,5 @@
 import type { PointOutputs } from "@pas/extension-points";
+import { currencyDecimals } from "@pas/forms-core";
 import { Money } from "@pas/kernel";
 import {
   type RaterSource,
@@ -27,6 +28,7 @@ export function ratingResultFromExtension(
     );
   }
 
+  const places = currencyDecimals(source.currency);
   const selected = new Set(input.coverages.map(keyOf));
   const priced = new Set<string>();
 
@@ -48,6 +50,14 @@ export function ratingResultFromExtension(
     priced.add(key);
 
     const premium = Money.of(line.premium, source.currency);
+
+    // Premiums flow into taxes, invoices and proration; a sub-cent amount would be guessed at later.
+    if (!premium.round(places).equals(premium)) {
+      throw new RatingError(
+        `The extension's premium for ${line.coverage} has more than ${places} decimals`,
+        { coverage: line.coverage },
+      );
+    }
 
     if (premium.isNegative()) {
       throw new RatingError(`The extension's premium for ${line.coverage} is negative`, {

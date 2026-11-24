@@ -12,6 +12,7 @@ export const EXTENSION_POINTS = [
   "record_panel",
   "action",
   "automation",
+  "enrichment_transform",
 ] as const;
 
 export type ExtensionPoint = (typeof EXTENSION_POINTS)[number];
@@ -139,6 +140,15 @@ export const POINT_SPECS: Record<ExtensionPoint, PointSpec> = {
     failClosed: false,
     productBound: true,
     target: "record",
+  },
+  enrichment_transform: {
+    label: "Enrichment transform",
+    defaultTimeoutMs: 2_000,
+    maxTimeoutMs: 10_000,
+    defaultFailure: "block",
+    failClosed: false,
+    productBound: true,
+    target: "none",
   },
   automation: {
     label: "Automation",

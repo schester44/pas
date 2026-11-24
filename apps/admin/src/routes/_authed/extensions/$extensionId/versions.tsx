@@ -291,6 +291,7 @@ function SubscriptionDialog({
   const [events, setEvents] = useState((subscription.eventTypes ?? []).join("\n"));
   const [condition, setCondition] = useState(subscription.condition ?? "");
   const [enabled, setEnabled] = useState(subscription.enabled ?? true);
+  const known = useQuery(trpc.extensions.eventTypes.queryOptions());
 
   const save = useMutation(
     trpc.extensions.saveSubscription.mutationOptions({
@@ -347,7 +348,28 @@ function SubscriptionDialog({
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="subscription-events">Events</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="subscription-events">Events</Label>
+                <Select
+                  value=""
+                  onValueChange={(type) =>
+                    !eventTypes.includes(type) && setEvents([...eventTypes, type].join("\n"))
+                  }
+                >
+                  <SelectTrigger size="sm" className="w-48" aria-label="Add an event">
+                    <SelectValue placeholder="Add an event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(known.data ?? [])
+                      .filter((type) => !eventTypes.includes(type))
+                      .map((type) => (
+                        <SelectItem key={type} value={type}>
+                          <span className="font-mono text-xs">{type}</span>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Textarea
                 id="subscription-events"
                 rows={3}

@@ -1,5 +1,5 @@
 import { DomainError, type TenantContext } from "@pas/kernel";
-import { type ExtensionBinding, failurePolicyOf } from "./binding";
+import { bindingsAt, type ExtensionBinding, failurePolicyOf } from "./binding";
 import type { PointOutputs } from "./outputs";
 import type { ExtensionPoint } from "./points";
 
@@ -33,3 +33,47 @@ export const noExtensions: BindingInvoker = {
     });
   },
 };
+
+/** `precommit` bindings in order, each given the risk the previous one returned. */
+export async function prepareWith(
+  invoker: BindingInvoker,
+  ctx: TenantContext,
+  bindings: readonly ExtensionBinding[] | undefined,
+  input: Record<string, unknown> & { risk: Record<string, unknown> },
+  subject?: RunSubject,
+): Promise<Record<string, unknown>> {
+  let risk = input.risk;
+
+  for (const binding of bindingsAt(bindings, "precommit")) {
+    const output = await invoker.invoke(ctx, binding, { ...input, risk }, subject);
+
+    if (output) risk = output.risk;
+  }
+
+  return risk;
+}
+
+/** `validate` bindings' errors keyed by field path, the shape form validation returns. */
+export async function validateWith(
+  invoker: BindingInvoker,
+  ctx: TenantContext,
+  bindings: readonly ExtensionBinding[] | undefined,
+  input: Record<string, unknown>,
+  subject?: RunSubject,
+): Promise<Record<string, string[]>> {
+  const outputs = await Promise.all(
+    bindingsAt(bindings, "validate").map((binding) => invoker.invoke(ctx, binding, input, subject)),
+  );
+
+  const errors: Record<string, string[]> = {};
+
+  for (const issue of outputs.flatMap((output) => output?.issues ?? [])) {
+    if (issue.severity !== "error") continue;
+
+    const path = issue.path ?? "";
+
+    errors[path] = [...(errors[path] ?? []), issue.message];
+  }
+
+  return errors;
+}

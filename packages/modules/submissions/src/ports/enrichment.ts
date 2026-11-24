@@ -46,17 +46,3 @@ export interface EnrichmentReports {
     report: StoredReport,
   ): Promise<{ body: Uint8Array; contentType: string } | null>;
 }
-
-/** A compiled `enrichment_transform` extension version (PLAN §15.1). */
-export interface TransformExtension {
-  key: string;
-  version: string;
-  code: string;
-  /** The fields it declares it returns; checked against each transform's `writes`. */
-  writes?: readonly string[];
-}
-
-/** Where installed transform extensions come from; the extension store implements this. */
-export interface TransformExtensions {
-  find(tenantId: string, key: string, version?: string): Promise<TransformExtension | null>;
-}

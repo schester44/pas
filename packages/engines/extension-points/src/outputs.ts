@@ -121,6 +121,7 @@ export interface PointOutputs {
   record_panel: { blocks: DisplayBlock[] };
   action: ActionResult;
   automation: { done: true };
+  enrichment_transform: { values: Record<string, unknown> };
 }
 
 type Parser<P extends ExtensionPoint> = (output: unknown) => Parsed<PointOutputs[P]>;
@@ -347,6 +348,12 @@ const parsers: { [P in ExtensionPoint]: Parser<P> } = {
 
   automation() {
     return { ok: true, value: { done: true } };
+  },
+
+  enrichment_transform(output) {
+    const issues = new Issues();
+
+    return issues.result({ values: object(issues, output, "The output") });
   },
 };
 

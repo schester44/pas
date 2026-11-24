@@ -36,6 +36,7 @@ import { useState } from "react";
 import { type ExtensionTest, useExtensionEditor } from "@/components/extensions/extension-editor";
 import { parseJson, pointLabel, prettyJson, SAMPLE_INPUTS } from "@/components/extensions/labels";
 import { TestReportList } from "@/components/extensions/test-report";
+import { useAccess } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/_authed/extensions/$extensionId/tests")({
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/_authed/extensions/$extensionId/tests")({
 
 function TestsTab() {
   const trpc = useTRPC();
+  const access = useAccess();
   const queryClient = useQueryClient();
   const { extension, draft, set, readOnly, flush } = useExtensionEditor();
   const [editing, setEditing] = useState<ExtensionTest | null>(null);
@@ -84,7 +86,7 @@ function TestsTab() {
         description="Every point needs a test, and every test must pass to publish. Recorded responses answer network calls in tests and sandboxes."
         action={
           <div className="flex gap-2">
-            {!readOnly && (
+            {!readOnly && access.extensions.publish && (
               <Button size="sm" variant="ghost" disabled={test.isPending} onClick={() => run(true)}>
                 Record from real hosts
               </Button>

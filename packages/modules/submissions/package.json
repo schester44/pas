@@ -26,7 +26,6 @@
     "@pas/pay-plans": "workspace:*",
     "@pas/rating": "workspace:*",
     "@pas/rating-engine": "workspace:*",
-    "@pas/sandbox": "workspace:*",
     "@pas/storage": "workspace:*",
     "pdf-lib": "^1.17.1"
   }

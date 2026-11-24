@@ -88,6 +88,11 @@ export function makeIssueTransaction(deps: CancellationDeps) {
         effectiveDate: transaction.effectiveDate,
         transactionId: transaction.id,
         ...(transaction.details?.note && { note: transaction.details.note }),
+        charges: (transaction.details?.retained ?? []).flatMap((line) =>
+          line.code
+            ? [{ code: line.code, description: line.name, amount: line.amount.toString() }]
+            : [],
+        ),
       });
 
       const pricing = input.carrier

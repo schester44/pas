@@ -5,14 +5,22 @@ interface Waiter {
 
 /**
  * Caps concurrent invocations overall and per tenant, so one tenant's burst queues behind its
- * own cap instead of taking every slot. Waiters past `maxQueued` are turned away.
+ * own cap instead of taking every slot. Waiters past either queue cap are turned away, so a
+ * tenant's burst can't fill the queue for everyone else.
  */
 export class Admission {
   private running = 0;
   private readonly perTenant = new Map<string, number>();
   private readonly queue: Waiter[] = [];
 
-  constructor(private readonly limits: { total: number; perTenant: number; maxQueued: number }) {}
+  constructor(
+    private readonly limits: {
+      total: number;
+      perTenant: number;
+      maxQueued: number;
+      maxQueuedPerTenant: number;
+    },
+  ) {}
 
   private eligible(tenantId: string) {
     return (
@@ -59,7 +67,14 @@ export class Admission {
   acquire(tenantId: string, signal: AbortSignal): Promise<(() => void) | null> {
     if (this.eligible(tenantId)) return Promise.resolve(this.take(tenantId));
 
-    if (this.queue.length >= this.limits.maxQueued) return Promise.resolve(null);
+    const queuedForTenant = this.queue.filter((w) => w.tenantId === tenantId).length;
+
+    if (
+      this.queue.length >= this.limits.maxQueued ||
+      queuedForTenant >= this.limits.maxQueuedPerTenant
+    ) {
+      return Promise.resolve(null);
+    }
 
     return new Promise((resolve) => {
       const waiter: Waiter = {

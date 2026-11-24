@@ -675,7 +675,7 @@ export function compose() {
   };
 
   const enrichmentExtensions = composeEnrichmentExtensions({
-    clocks,
+    extensions,
     resolver: integrations.resolver,
   });
 
@@ -850,7 +850,11 @@ export function compose() {
     rater: termRater,
     clocks,
     storage,
-    notices: new ReactPdfNoticeDocuments({ branding: documentBranding, jurisdictionName }),
+    notices: new ReactPdfNoticeDocuments({
+      branding: documentBranding,
+      jurisdictionName,
+      extensions: extensions.invoker,
+    }),
     delivery: noticeDelivery,
     billing: billingStatus,
     carriers: carriers.transactions,

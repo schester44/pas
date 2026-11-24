@@ -1,9 +1,5 @@
 import { instantFromDb, instantToDb, jsonToDb, prismaTx } from "@pas/db";
-import {
-  Prisma as PrismaRuntime,
-  type ExtensionRun as Row,
-  type PrismaClient,
-} from "@pas/db/client";
+import { Prisma as PrismaRuntime, type ExtensionRun as Row } from "@pas/db/client";
 import type { ExtensionPoint } from "@pas/extension-points";
 import { asId, type Instant, type TenantContext, type Transaction } from "@pas/kernel";
 import type { ExtensionRun, ExtensionRunId, RunStatus, RunTrigger } from "../domain/run";
@@ -81,13 +77,12 @@ export class PrismaExtensionRunRepository implements ExtensionRunRepository {
 
     return rows.map(toRun);
   }
-}
 
-/** Platform maintenance: deletes runs older than the retention period across every tenant. */
-export async function purgeExtensionRuns(prisma: PrismaClient, before: Instant): Promise<number> {
-  const { count } = await prisma.extensionRun.deleteMany({
-    where: { createdAt: { lt: instantToDb(before) } },
-  });
+  async purgeBefore(tx: Transaction, ctx: TenantContext, before: Instant): Promise<number> {
+    const { count } = await prismaTx(tx).extensionRun.deleteMany({
+      where: { tenantId: ctx.tenantId, createdAt: { lt: instantToDb(before) } },
+    });
 
-  return count;
+    return count;
+  }
 }

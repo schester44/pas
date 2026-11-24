@@ -10,10 +10,13 @@ export type {
 export type { VersionChoiceDto } from "./application/list-version-choices";
 export type { BindingIssue, BindingReference, VerifyBindings } from "./application/verify-bindings";
 export type { RunExtension } from "./application/run-extension";
-export type {
-  AutomationEvent,
-  DispatchAutomations,
-  DispatchedAutomation,
+export {
+  automationWorkflow,
+  type AutomationEvent,
+  type AutomationInput,
+  type DispatchAutomations,
+  type DispatchedAutomation,
+  type RunAutomation,
 } from "./application/dispatch-automations";
 export type { ExtensionDraft } from "./domain/extension";
 export {
