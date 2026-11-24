@@ -1,0 +1,23 @@
+{
+  "name": "@pas/sandbox-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "LOG_PRETTY=true tsx watch --env-file=../../.env src/index.ts",
+    "build": "tsup",
+    "start": "node --env-file-if-exists=../../.env --enable-source-maps dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
+    "@pas/observability": "workspace:*",
+    "@pas/sandbox": "workspace:*",
+    "quickjs-emscripten-core": "^0.32.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15"
+  }
+}
