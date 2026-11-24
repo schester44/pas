@@ -22,7 +22,7 @@ _The catalog, grouped by what each provider powers._
 | Email                | Resend, Postmark, SMTP, email webhook to your own system, developer mailbox (built in) |
 | Print and mail       | Lob, print and mail webhook to your own system, test print and mail (built in)         |
 | Address verification | Smarty, Geoapify, sample addresses (built in)                                          |
-| Data                 | US Census geocoder, E2Value, HazardHub, sandbox data (built in)                        |
+| Data                 | US Census geocoder, E2Value, HazardHub, Mock data (testing), sandbox data (built in)   |
 | Licensing            | Licenses on file (built in), NIPR Producer Database, test licensing                    |
 | Filing               | Surplus Line Association of Illinois, file export, test filing office                  |
 | Billing              | Native billing (built in), external billing system via signed billing events           |

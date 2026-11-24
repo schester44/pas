@@ -22,32 +22,41 @@ export interface EarliestCancellation {
 
 const compare = Temporal.PlainDate.compare;
 
+/** Delivery recorded when no notice rule covers the jurisdiction: no notice is sent or mailed. */
+export const NO_NOTICE = "none";
+
+/** Whether the cancellation waits on proof of mailing before it takes effect. */
+export const mailsNotice = (delivery: string) =>
+  delivery !== "electronic" && delivery !== NO_NOTICE;
+
 export const policyAgeDays = (inception: PlainDate, on: PlainDate) =>
   Math.max(0, inception.until(on, { largestUnit: "days" }).days);
 
 /**
  * The earliest legally valid cancellation date: the notice date plus the required notice days,
- * plus the mailing days when the notice goes by mail, never before the term starts.
+ * plus the mailing days when the notice goes by mail, never before the term starts. Without a
+ * notice rule there's no notice period, so the cancellation can take effect on the notice date.
  */
 export function earliestCancellationDate(input: {
   noticeDate: PlainDate;
   termStart: PlainDate;
   termEnd: PlainDate;
   reason: string;
-  rule: NoticeRule;
+  rule: NoticeRule | null;
 }): EarliestCancellation {
   const { noticeDate, termStart, termEnd, reason, rule } = input;
 
-  if (rule.allowedReasons.length > 0 && !rule.allowedReasons.includes(reason)) {
+  if (rule && rule.allowedReasons.length > 0 && !rule.allowedReasons.includes(reason)) {
     throw new DomainError("precondition_failed", "This reason isn't allowed for this policy now", {
       reason: "reason_not_allowed",
       allowedReasons: [...rule.allowedReasons],
     });
   }
 
-  const delivery = rule.deliveryMethods[0] ?? "electronic";
-  const mailingDaysAdded = delivery === "electronic" ? 0 : rule.mailingDaysAdded;
-  const noticeEnds = noticeDate.add({ days: rule.minDaysNotice + mailingDaysAdded });
+  const delivery = rule ? (rule.deliveryMethods[0] ?? "electronic") : NO_NOTICE;
+  const minDaysNotice = rule?.minDaysNotice ?? 0;
+  const mailingDaysAdded = rule && delivery !== "electronic" ? rule.mailingDaysAdded : 0;
+  const noticeEnds = noticeDate.add({ days: minDaysNotice + mailingDaysAdded });
   const atInception = compare(noticeEnds, termStart) < 0;
   const date = atInception ? termStart : noticeEnds;
 
@@ -65,7 +74,7 @@ export function earliestCancellationDate(input: {
   return {
     date,
     noticeDate,
-    minDaysNotice: rule.minDaysNotice,
+    minDaysNotice,
     mailingDaysAdded,
     delivery,
     atInception,

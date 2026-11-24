@@ -15,6 +15,8 @@
     "@pas/decisions-engine": "workspace:*",
     "@pas/documents": "workspace:*",
     "@pas/extension-points": "workspace:*",
+    "@pas/enrichment": "workspace:*",
+    "@pas/expressions": "workspace:*",
     "@pas/forms-core": "workspace:*",
     "@pas/kernel": "workspace:*",
     "@pas/pay-plans": "workspace:*",

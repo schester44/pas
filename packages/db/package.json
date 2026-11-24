@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/generated/prisma/client.ts"
+    "./client": "./src/generated/prisma/client.ts",
+    "./seed": "./src/prisma/seed/distribution.ts"
   },
   "scripts": {
     "generate": "prisma generate",
@@ -14,8 +15,9 @@
     "reset": "prisma migrate reset --force",
     "app-role": "sh ./sql/app-role.sh",
     "seed": "prisma db seed",
-    "data-migrate": "tsx ./src/data-migrations/runner.ts",
-    "typecheck": "tsc --noEmit"
+    "data-migrate": "tsx --env-file-if-exists=../../.env ./src/data-migrations/runner.ts",
+    "typecheck": "tsc --noEmit",
+    "fresh": "sh ./sql/fresh.sh"
   },
   "dependencies": {
     "@pas/addressing": "workspace:*",

@@ -5,6 +5,7 @@ import {
   isField,
   type RiskSchema,
   type SchemaIndex,
+  type SchemaNode,
 } from "@pas/forms-core";
 import { contextSchema, type DocumentContext, documentData } from "./context";
 import { formatValue } from "./format";
@@ -34,9 +35,13 @@ export interface Resolver {
   merge: (text: string) => string;
 }
 
-export function createResolver(context: DocumentContext, risk: RiskSchema): Resolver {
+export function createResolver(
+  context: DocumentContext,
+  risk: RiskSchema,
+  extra: readonly SchemaNode[] = [],
+): Resolver {
   const data = documentData(context);
-  const index = indexSchema(contextSchema(risk, "document"));
+  const index = indexSchema(contextSchema(risk, "document", extra));
   const read = (path: string) => getAt(data, path);
 
   const format = (path: string, value = read(path)) => {

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@pas/ui/components/select";
 import { Spinner } from "@pas/ui/components/spinner";
+import { Textarea } from "@pas/ui/components/textarea";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -240,12 +241,14 @@ type Values = Record<string, unknown>;
 
 function initialValues(integration: Integration): Values {
   return Object.fromEntries(
-    integration.configFields.map((field) => [
-      field.key,
-      integration.config[field.key] ??
+    integration.configFields.map((field) => {
+      const value =
+        integration.config[field.key] ??
         field.defaultValue ??
-        (field.type === "boolean" ? false : ""),
-    ]),
+        (field.type === "boolean" ? false : "");
+
+      return [field.key, field.type === "json" ? JSON.stringify(value, null, 2) : value];
+    }),
   );
 }
 
@@ -444,6 +447,14 @@ function coerce(type: string, value: unknown): unknown {
 
   if (type === "number") return Number(value);
 
+  if (type === "json") {
+    try {
+      return JSON.parse(String(value));
+    } catch {
+      return value;
+    }
+  }
+
   return value;
 }
 
@@ -497,6 +508,16 @@ function ConfigField({
             ))}
           </SelectContent>
         </Select>
+      ) : field.type === "json" ? (
+        <Textarea
+          id={id}
+          aria-invalid={invalid}
+          spellCheck={false}
+          rows={8}
+          className="font-mono text-xs"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+        />
       ) : (
         <Input
           id={id}

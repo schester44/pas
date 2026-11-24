@@ -116,6 +116,7 @@ export async function rerate(
 
   return evaluateQuote(deps, ctx, {
     release,
+    submissionId,
     risk: q.riskData,
     jurisdiction: submission.toSnapshot().jurisdiction,
     termStart: q.termStart,

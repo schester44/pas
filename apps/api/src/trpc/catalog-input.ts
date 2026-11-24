@@ -1,3 +1,4 @@
+import { enrichmentPlanSchema } from "@pas/enrichment";
 import { FORM_CHANNELS, FORM_STAGES, MARKETS } from "@pas/catalog";
 import { DECISION_KIND_KEYS, type JdmDecision } from "@pas/decisions-engine";
 import { documentSetSchema } from "@pas/documents";
@@ -277,6 +278,7 @@ export const versionContentsInput = z.object({
   rating: ratingConfigInput.nullable(),
   billing: billingConfig,
   extensions: z.array(extensionBindingInput).max(100),
+  enrichment: enrichmentPlanSchema,
 });
 
 export const byId = z.object({ id });

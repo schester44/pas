@@ -50,6 +50,7 @@ model ProductVersion {
   rating       Json?
   billing      Json                 @default("{\"payPlans\": []}")
   extensions   Json                 @default("[]")
+  enrichment   Json                 @default("{}")
   basedOnId    String?              @map("based_on_id") @db.Uuid
   createdAt    DateTime             @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime             @map("updated_at") @db.Timestamptz(6)

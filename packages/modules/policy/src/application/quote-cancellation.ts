@@ -12,13 +12,14 @@ export interface CancellationQuoteDto {
   lastChangeDate: string | null;
   effectiveDate: string;
   atInception: boolean;
+  /** Null where no notice rule covers the cancellation, so no notice goes out. */
   rule: {
     minDaysNotice: number;
     mailingDaysAdded: number;
     delivery: string;
     recipients: string[];
     source: { version: string; fallback: boolean };
-  };
+  } | null;
   jurisdiction: { country: string; subdivision?: string };
   termStart: string;
   termEnd: string;
@@ -80,13 +81,19 @@ export function makeQuoteCancellation(
           : (policy.lastIssued(term.id)?.effectiveDate.toString() ?? null),
       effectiveDate: pricing.effectiveDate.toString(),
       atInception: pricing.earliest.atInception,
-      rule: {
-        minDaysNotice: pricing.rule.minDaysNotice,
-        mailingDaysAdded: pricing.earliest.mailingDaysAdded,
-        delivery: pricing.earliest.delivery,
-        recipients: [...pricing.rule.recipients],
-        source: { version: pricing.ruleSource.version, fallback: pricing.ruleSource.fallback },
-      },
+      rule:
+        pricing.rule && pricing.ruleSource
+          ? {
+              minDaysNotice: pricing.rule.minDaysNotice,
+              mailingDaysAdded: pricing.earliest.mailingDaysAdded,
+              delivery: pricing.earliest.delivery,
+              recipients: [...pricing.rule.recipients],
+              source: {
+                version: pricing.ruleSource.version,
+                fallback: pricing.ruleSource.fallback,
+              },
+            }
+          : null,
       jurisdiction: term.jurisdiction,
       termStart: term.effectiveDate.toString(),
       termEnd: term.expirationDate.toString(),

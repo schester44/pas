@@ -6,6 +6,7 @@ import {
   type RiskSchema,
   resolvesInSchema,
   type SchemaIndex,
+  type SchemaNode,
 } from "@pas/forms-core";
 import { Button } from "@pas/ui/components/button";
 import {
@@ -24,6 +25,7 @@ import { Braces } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Code } from "@/components/builders/inspector";
 import { KIND_META } from "@/components/builders/kinds";
+import { useDocumentFields } from "./document-fields";
 
 interface MergeOption {
   path: string;
@@ -34,8 +36,8 @@ interface MergeOption {
 
 const HIDDEN_ROOTS = new Set(["jurisdiction", "country", "transaction", "coverages"]);
 
-export function mergeOptions(risk: RiskSchema): MergeOption[] {
-  const index = indexSchema(contextSchema(risk, "document"));
+export function mergeOptions(risk: RiskSchema, extra: readonly SchemaNode[] = []): MergeOption[] {
+  const index = indexSchema(contextSchema(risk, "document", extra));
   const options: MergeOption[] = [];
 
   for (const [path, node] of index) {
@@ -86,8 +88,14 @@ export function MergeFieldInput({
   const [open, setOpen] = useState(false);
   const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const caret = useRef<[number, number]>([value.length, value.length]);
-  const options = useMemo(() => mergeOptions(schema), [schema]);
-  const index = useMemo(() => indexSchema(contextSchema(schema, "document")), [schema]);
+  const extra = useDocumentFields();
+  const options = useMemo(() => mergeOptions(schema, extra), [schema, extra]);
+
+  const index = useMemo(
+    () => indexSchema(contextSchema(schema, "document", extra)),
+    [schema, extra],
+  );
+
   const unknown = useMemo(() => unresolvedFields(index, value), [index, value]);
   const unclosed = hasUnclosedField(value);
 

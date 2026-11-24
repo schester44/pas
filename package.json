@@ -18,6 +18,7 @@
     "db:reset": "pnpm --filter @pas/db reset",
     "db:app-role": "pnpm --filter @pas/db app-role",
     "db:seed": "pnpm --filter @pas/db seed",
+    "db:fresh": "pnpm --filter @pas/db fresh && pnpm queues:setup && pnpm workflows:setup && pnpm --filter @pas/db data-migrate && pnpm --filter @pas/api seed:demo",
     "queues:setup": "pnpm --filter @pas/queues run setup",
     "workflows:setup": "pnpm --filter @pas/workflows run setup"
   },

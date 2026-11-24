@@ -9,6 +9,7 @@ import { useTRPC } from "@/lib/trpc";
 import { SubmissionHeading } from "@/components/submission-heading";
 import { SubjectivitiesList, UnderwriterMessages } from "@/components/underwriting";
 import { BoundScreen } from "./bound-screen";
+import { insuredOwns, useCompletion } from "./client-completion";
 import { CarrierBindFailed, CarrierBinding, CarrierQuote, withCarrier } from "./carrier";
 import { CustomizeStep } from "./customize-step";
 import { DetailsStep } from "./details-step";
@@ -47,6 +48,13 @@ export function Journey({
       { refetchInterval: (query) => (withCarrier(query.state.data) ? 2000 : false) },
     ),
   );
+
+  const completion = useCompletion(submission.id);
+
+  const insured = {
+    disclosures: insuredOwns(completion, "disclosures"),
+    signature: insuredOwns(completion, "signature"),
+  };
 
   const heading = (aside?: React.ReactNode) => (
     <SubmissionHeading submission={submission} aside={aside} />
@@ -98,8 +106,8 @@ export function Journey({
 
   if (q.status === "expired") return <ExpiredScreen {...props} heading={heading()} />;
 
-  const furthest = furthestStep(q);
-  const wanted = step ?? resumeStep(q);
+  const furthest = furthestStep(q, insured);
+  const wanted = step ?? resumeStep(q, insured);
 
   const index = Math.min(
     STEPS.findIndex((s) => s.id === wanted),

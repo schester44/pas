@@ -17,7 +17,9 @@ export type IssueLink =
   | { to: "/products/$productId/versions/$versionId/rating"; search: RatingSearch }
   | { to: "/products/$productId/versions/$versionId/billing"; search: { plan?: string } }
   | { to: "/products/$productId/versions/$versionId/carrier"; search: Record<string, never> }
-  | { to: "/products/$productId/versions/$versionId/extensions"; search: { binding?: string } };
+  | { to: "/products/$productId/versions/$versionId/extensions"; search: { binding?: string } }
+  | { to: "/products/$productId/versions/$versionId/data"; search: { item?: string } }
+  | { to: "/products/$productId/versions/$versionId/bind"; search: Record<string, never> };
 
 export interface RatingSearch {
   section?: "rater" | "golden";
@@ -34,6 +36,14 @@ const RATING_SECTIONS: Record<string, string> = {
   workbook: "Workbook",
   manifest: "Bindings",
   golden: "Golden cases",
+};
+
+const ENRICHMENT_SECTIONS: Record<string, string> = {
+  calls: "Sources",
+  transforms: "Transforms",
+  derivations: "Calculated values",
+  mappings: "Mappings",
+  reports: "Reports",
 };
 
 const COVERAGE_FIELDS: Record<string, string> = {
@@ -175,6 +185,21 @@ export function describeIssue(
         },
       };
     }
+    case "bind":
+      return {
+        area: "Bind",
+        where: [],
+        link: { to: "/products/$productId/versions/$versionId/bind", search: {} },
+      };
+    case "enrichment":
+      return {
+        area: "Data enrichment",
+        where: [ENRICHMENT_SECTIONS[target.section ?? ""] ?? "", target.item ?? ""].filter(Boolean),
+        link: {
+          to: "/products/$productId/versions/$versionId/data",
+          search: target.item ? { item: `${target.section}:${target.item}` } : {},
+        },
+      };
     case "carrier":
       return {
         area: "Carrier",

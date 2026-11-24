@@ -1,4 +1,5 @@
 import { Button } from "@pas/ui/components/button";
+import { PropertyData } from "@/components/underwriting/property-data";
 import { Checkbox } from "@pas/ui/components/checkbox";
 import {
   Dialog,
@@ -128,6 +129,7 @@ function ReferralPage() {
                 canDecide={access.underwriting.approve}
               />
               <InspectionsPanel quoteId={referral.quoteId} />
+              <PropertyData submissionId={referral.submissionId} />
               {quote.data && submission.data && (
                 <QuoteWorksheet quote={quote.data} schema={submission.data.riskSchema} />
               )}

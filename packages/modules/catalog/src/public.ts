@@ -104,3 +104,5 @@ export type {
 } from "./ports/rating-verifier";
 export type { CarrierVerifier } from "./ports/carrier-verifier";
 export type { ExtensionVerifier } from "./ports/extension-verifier";
+export type { EnrichmentDirectory } from "./ports/enrichment-directory";
+export type { EnrichmentTarget } from "./domain/enrichment-checks";

@@ -1,4 +1,5 @@
 import type { AddressValue } from "@pas/forms-core";
+import type { CompletingParty } from "./completion";
 
 export const INTEREST_KINDS = ["mortgagee", "additional_insured", "loss_payee"] as const;
 
@@ -18,9 +19,18 @@ export interface AdmittedDeclination {
   reason: string;
 }
 
+export interface CompletedBy {
+  party: CompletingParty;
+  name: string;
+  email?: string;
+  userId?: string;
+}
+
 export interface Acknowledgement {
   code: string;
   acceptedAt: string;
+  /** Absent on acknowledgements recorded before insureds could accept them remotely. */
+  by?: CompletedBy;
 }
 
 /** What the legal and compliance step captures before signing (PLAN §7.2.1 step 3). */

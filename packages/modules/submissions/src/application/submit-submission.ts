@@ -1,6 +1,7 @@
 import { clearanceModeFrom } from "@pas/addresses";
 import { validateSubmission, withRowIds } from "@pas/forms-core";
 import type { Outbox, TenantContext, UnitOfWork, ClockProvider } from "@pas/kernel";
+import { deferToEnrichment, enrichedRisk, unfilledTargets } from "../domain/enrichment";
 import { Quote } from "../domain/quote";
 import type { RiskData } from "../domain/submission";
 import type { SubmissionScope } from "../domain/scope";
@@ -51,15 +52,17 @@ export function makeSubmitSubmission(
     ]);
 
     const result = validateSubmission(intake.riskSchema, intake.form, input.riskData);
+    const errors = deferToEnrichment(result.errors, release.enrichment, input.riskData);
+    const deferred = new Set(Object.keys(result.errors).filter((path) => !(path in errors)));
 
-    if (!result.ok) {
+    if (Object.keys(errors).length > 0) {
       await deps.uow.run(ctx, async (tx) => {
         const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
         submission.saveDraft(input.riskData, deps.clocks.forTenant(ctx.tenantId));
         await deps.submissions.save(tx, submission);
       });
 
-      return { ok: false, errors: result.errors };
+      return { ok: false, errors };
     }
 
     const invoker = deps.extensions ?? noExtensions;
@@ -140,6 +143,7 @@ export function makeSubmitSubmission(
 
     const { evaluation, selection } = await evaluateQuote(deps, ctx, {
       release,
+      submissionId: input.id,
       risk: stamped.data,
       jurisdiction: d.jurisdiction,
       termStart,
@@ -148,6 +152,28 @@ export function makeSubmitSubmission(
       channel: d.channel,
       subject: { type: "submission", id: d.id },
     });
+
+    const unfilled = unfilledTargets(
+      release.enrichment,
+      stamped.data,
+      enrichedRisk(stamped.data, evaluation.enrichment),
+      deferred,
+    );
+
+    if (unfilled.length > 0) {
+      await deps.uow.run(ctx, async (tx) => {
+        const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);
+        submission.saveDraft(stamped.data, deps.clocks.forTenant(ctx.tenantId));
+        await deps.submissions.save(tx, submission);
+      });
+
+      return {
+        ok: false,
+        errors: Object.fromEntries(
+          unfilled.map((path) => [path, ["We couldn't get this from property data. Enter it."]]),
+        ),
+      };
+    }
 
     const quote = await deps.uow.run(ctx, async (tx) => {
       const submission = await loadSubmission(deps.submissions, tx, ctx, scope, input.id);

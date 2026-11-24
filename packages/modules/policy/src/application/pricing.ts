@@ -134,8 +134,9 @@ export interface CancellationPricing {
   details: TransactionDetails;
   effectiveDate: PlainDate;
   earliest: EarliestCancellation;
-  rule: NoticeRule;
-  ruleSource: NoticeRuleSource;
+  /** Null where no notice rule covers the cancellation: no notice is sent and none is required. */
+  rule: NoticeRule | null;
+  ruleSource: NoticeRuleSource | null;
 }
 
 function minimumEarnedOf(
@@ -186,21 +187,14 @@ export async function priceCancellation(
   };
 
   const notice = await noticeRuleFor(deps, ctx, release, data);
-
-  if (!notice?.rule) {
-    throw new DomainError(
-      "precondition_failed",
-      `No notice rule covers ${reason.label.toLowerCase()} cancellations here. Add one to the product's notice rules.`,
-      { reason: "no_notice_rule" },
-    );
-  }
+  const rule = notice?.rule ?? null;
 
   const earliest = earliestCancellationDate({
     noticeDate,
     termStart: term.effectiveDate,
     termEnd: term.expirationDate,
     reason: reason.code,
-    rule: notice.rule,
+    rule,
   });
 
   const lastChange = policy.lastIssued(term.id)?.effectiveDate;
@@ -288,8 +282,8 @@ export async function priceCancellation(
   return {
     effectiveDate,
     earliest,
-    rule: notice.rule,
-    ruleSource: notice.source,
+    rule,
+    ruleSource: rule ? notice!.source : null,
     details: {
       after: {
         ...snapshot,

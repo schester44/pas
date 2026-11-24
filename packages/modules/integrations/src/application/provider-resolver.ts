@@ -67,14 +67,21 @@ export class ProviderResolver {
 
   /**
    * The tenant's data providers for enrichment plans: every enabled one, by id. In a sandbox any
-   * provider a plan names is answered by the built-in fake, so plans run unchanged.
+   * provider a plan names is answered by an installed stand-in (Mock data) or the built-in fake,
+   * so plans run unchanged.
    */
   readonly dataProviders: ProviderFor<ProviderRegistry> = {
     for: async (ctx) => {
       const chain = await this.chain(ctx, "data");
       const sandbox = await this.isSandbox(ctx.tenantId);
       const byId = new Map(chain.map((p) => [p.providerId, p.adapter]));
-      const fake = chain.find((p) => p.installId === null)?.adapter;
+
+      const fake = (
+        chain.find(
+          (p) => p.installId !== null && this.deps.catalog.get(p.providerId)?.manifest.standIn,
+        ) ?? chain.find((p) => p.installId === null)
+      )?.adapter;
+
       const manifests = chain.map((p) => p.adapter.manifest);
 
       return {

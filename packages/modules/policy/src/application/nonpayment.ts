@@ -1,4 +1,5 @@
 import { formatMoney, newId, type TenantContext } from "@pas/kernel";
+import { NO_NOTICE } from "../domain/notice";
 import type { PolicyScope } from "../domain/scope";
 import type { BillingStatus } from "../ports/notice-delivery";
 import {
@@ -16,8 +17,8 @@ type Deps = CancellationDeps & { billing: BillingStatus };
 
 /**
  * A delinquent account starts nonpayment (PLAN §13, §17.3): a notice of intent to cancel, sent by
- * email and by mail when the notice rules require it, and the cancellation scheduled for the
- * earliest valid date. Paying the past-due amount before then cures it.
+ * email and by mail when the notice rules require it (none where no rule applies), and the
+ * cancellation scheduled for the earliest valid date. Paying the past-due amount before then cures it.
  */
 export function makeStartNonpayment(deps: Deps) {
   return async function startNonpayment(
@@ -76,18 +77,22 @@ export function makeCureNonpayment(deps: Deps) {
     if (pastDue && Number(pastDue.amount) > 0) return { status: "still_past_due" };
 
     const pending = policy.transaction(term.cancellation.transactionId);
+    const delivery = pending.details?.cancellation?.delivery ?? "electronic";
 
-    const notice = await renderNotice(
-      deps,
-      ctx,
-      policy,
-      { details: pending.details!, effectiveDate: pending.effectiveDate },
-      { kind: "rescission" },
-    );
+    const notice =
+      delivery === NO_NOTICE
+        ? null
+        : await renderNotice(
+            deps,
+            ctx,
+            policy,
+            { details: pending.details!, effectiveDate: pending.effectiveDate },
+            { kind: "rescission" },
+          );
 
     const key = `tenants/${ctx.tenantId}/policies/${policy.id}/notices/${newId()}.pdf`;
 
-    await deps.storage.put({ key, body: notice.pdf, contentType: "application/pdf" });
+    if (notice) await deps.storage.put({ key, body: notice.pdf, contentType: "application/pdf" });
 
     const actor = { type: "system" as const, name: "Billing" };
 
@@ -103,22 +108,26 @@ export function makeCureNonpayment(deps: Deps) {
 
       await billIssued(deps, tx, ctx, current, transaction.id, [], actor);
 
-      current.attachDocument(
-        {
-          transactionId: transaction.id,
-          kind: "rescission_notice",
-          title: notice.title,
-          storageKey: key,
-          sizeBytes: notice.pdf.byteLength,
-        },
-        clock,
-      );
+      if (notice) {
+        current.attachDocument(
+          {
+            transactionId: transaction.id,
+            kind: "rescission_notice",
+            title: notice.title,
+            storageKey: key,
+            sizeBytes: notice.pdf.byteLength,
+          },
+          clock,
+        );
+      }
 
       await deps.policies.save(tx, current);
       await deps.outbox.add(tx, current.pullEvents());
 
       return transaction;
     });
+
+    if (!notice) return { status: "rescinded" };
 
     const sent = policy
       .toSnapshot()
@@ -129,7 +138,7 @@ export function makeCureNonpayment(deps: Deps) {
       transactionId: rescission.id,
       title: notice.title,
       pdf: notice.pdf,
-      delivery: pending.details?.cancellation?.delivery ?? "electronic",
+      delivery,
       recipients: (sent?.data.recipients as string[] | undefined) ?? ["insured"],
     });
 

@@ -1,3 +1,4 @@
+import type { EnrichmentPlan } from "@pas/enrichment";
 import type { DecisionKind, JdmDecision } from "@pas/decisions-engine";
 import type { DocumentSet } from "@pas/documents";
 import type { ExtensionBinding } from "@pas/extension-points";
@@ -36,6 +37,7 @@ export interface CatalogRelease {
   lifecycle: Record<string, unknown>;
   billing: BillingConfig;
   extensions: ExtensionBinding[];
+  enrichment: EnrichmentPlan;
 }
 
 /** The submissions context's view of the catalog. Never call it inside a unit of work. */

@@ -12,7 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@pas/ui/components/dropdown-menu";
-import { createFileRoute, Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   BadgeCheck,
   Banknote,
@@ -126,6 +133,10 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const access = useAccess();
 
   const isPlatformAdmin = Route.useRouteContext().session.user.role === "admin";
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  const within = (...prefixes: string[]) =>
+    prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   return (
     <>
@@ -142,14 +153,18 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         </button>
         <NotificationsBell />
       </div>
-      <div className="grid gap-6">
+      <div className="-mx-3 grid min-h-0 flex-1 content-start gap-4 overflow-y-auto px-3">
         <NavSection>
           <Link to="/" className={navItemClassName} activeOptions={{ exact: true }}>
             <House /> Overview
           </Link>
         </NavSection>
         {(access.submissions.read || access.policies.read) && (
-          <NavSection label="Operate">
+          <NavSection
+            label="Operate"
+            collapsible
+            active={within("/submissions", "/underwriting", "/policies", "/clients", "/compliance")}
+          >
             {access.submissions.read && (
               <Link to="/submissions" className={navItemClassName}>
                 <Inbox /> Submissions
@@ -178,7 +193,7 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           </NavSection>
         )}
         {access.billing.read && (
-          <NavSection label="Billing">
+          <NavSection label="Billing" collapsible active={within("/billing")}>
             <Link to="/billing/payments" className={navItemClassName}>
               <Banknote /> Payments
             </Link>
@@ -200,7 +215,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           </NavSection>
         )}
         {access.agencies.read && (
-          <NavSection label="Distribution">
+          <NavSection
+            label="Distribution"
+            collapsible
+            active={within("/agencies", "/distribution")}
+          >
             <Link to="/agencies" className={navItemClassName}>
               <Building /> Agencies
             </Link>
@@ -220,7 +239,11 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           </NavSection>
         )}
         {(access.products.read || access.documents.read || access.extensions.read) && (
-          <NavSection label="Configure">
+          <NavSection
+            label="Configure"
+            collapsible
+            active={within("/products", "/carriers", "/documents", "/extensions")}
+          >
             {access.products.read && (
               <Link to="/products" className={navItemClassName}>
                 <Layers /> Products
@@ -244,7 +267,7 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           </NavSection>
         )}
       </div>
-      <div className="mt-auto grid gap-2">
+      <div className="grid gap-2">
         {isPlatformAdmin && (
           <NavSection>
             <Link to="/platform/tenants" className={navItemClassName}>

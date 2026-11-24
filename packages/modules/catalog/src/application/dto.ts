@@ -3,6 +3,7 @@ import type { FormDefinition, RiskSchema } from "@pas/forms-core";
 import type { Jurisdiction } from "@pas/kernel";
 import type { BillingConfig } from "@pas/pay-plans";
 import type { ExtensionBinding } from "@pas/extension-points";
+import type { EnrichmentPlan } from "@pas/enrichment";
 import type { RatingConfig } from "@pas/rating-engine";
 import {
   type AvailabilityWindowJson,
@@ -62,6 +63,7 @@ export interface VersionContentsDto {
   rating: RatingConfig | null;
   billing: BillingConfig;
   extensions: ExtensionBinding[];
+  enrichment: EnrichmentPlan;
 }
 
 export interface ProductVersionSummaryDto {
@@ -121,7 +123,18 @@ export function toVersionSummaryDto(version: ProductVersion): ProductVersionSumm
 }
 
 export function toVersionDto(version: ProductVersion): ProductVersionDto {
-  const { riskSchema, forms, coverages, lifecycle, documents, rules, rating, billing, extensions } =
+  const {
+    riskSchema,
+    forms,
+    coverages,
+    lifecycle,
+    documents,
+    rules,
+    rating,
+    billing,
+    enrichment,
+    extensions,
+  } =
     version.contents;
 
   return {
@@ -135,6 +148,7 @@ export function toVersionDto(version: ProductVersion): ProductVersionDto {
     rating,
     billing,
     extensions,
+    enrichment,
   };
 }
 

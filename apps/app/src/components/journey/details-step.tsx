@@ -21,6 +21,8 @@ import type * as React from "react";
 import { useId, useState } from "react";
 import type { Quote, Requirement } from "@/lib/quotes";
 import { useTRPC } from "@/lib/trpc";
+import { formatDateTime } from "@/lib/format";
+import { insuredOwns, useCompletion } from "./client-completion";
 import type { StepProps } from "./journey";
 import { PremiumSummary } from "./premium";
 
@@ -52,7 +54,10 @@ export function DetailsStep({ quote, submission, go }: StepProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const search = quote.requirements.find((r) => r.kind === "diligent_search");
-  const attestations = quote.requirements.filter((r) => r.kind === "attestation");
+  const completion = useCompletion(submission.id);
+  const clientDiscloses = insuredOwns(completion, "disclosures");
+  const offered = quote.requirements.filter((r) => r.kind === "attestation");
+  const attestations = clientDiscloses ? [] : offered;
   const [details, setDetails] = useState<Details>(() => withDeclinationRows(quote.details, search));
 
   const [accepted, setAccepted] = useState(
@@ -396,6 +401,39 @@ export function DetailsStep({ quote, submission, go }: StepProps) {
                 </li>
               ))}
             </ol>
+          </Panel>
+        )}
+
+        {clientDiscloses && offered.length > 0 && (
+          <Panel
+            title="Disclosures"
+            description="The insured accepts these from the link you send them on the next step."
+          >
+            <ul className="m-0 grid list-none gap-4 p-0">
+              {offered.map((attestation) => {
+                const code = attestation.id.replace(/^attestation:/, "");
+                const ack = quote.details.acknowledgements.find((a) => a.code === code);
+
+                return (
+                  <li key={code} className="grid gap-1 rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-sm leading-5 font-medium">{attestation.title}</span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-xs tabular-nums",
+                          ack ? "text-emerald-700" : "text-muted-foreground",
+                        )}
+                      >
+                        {ack
+                          ? `Accepted${ack.by ? ` by ${ack.by.name}` : ""}, ${formatDateTime(ack.acceptedAt)}`
+                          : "Waiting for the insured"}
+                      </span>
+                    </div>
+                    <p className="m-0 text-sm text-muted-foreground">{attestation.statement}</p>
+                  </li>
+                );
+              })}
+            </ul>
           </Panel>
         )}
 

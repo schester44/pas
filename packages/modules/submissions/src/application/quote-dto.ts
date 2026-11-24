@@ -4,7 +4,12 @@ import type { BindDetails } from "../domain/bind-details";
 import type { BindRequirement } from "../domain/bind-requirements";
 import type { CarrierQuoteState } from "../domain/carrier-quote";
 import { exposuresOf } from "../domain/coverages";
-import { exposureLabel, insuredNameOf, mailingAddressOf } from "../domain/insured";
+import {
+  exposureLabel,
+  insuredNameOf,
+  insuredPartiesOf,
+  mailingAddressOf,
+} from "../domain/insured";
 import type { PayPlanOffer } from "../domain/pay-plan-offers";
 import type { Quote } from "../domain/quote";
 import type { DecisionRecord, RatingRecord } from "../domain/quote-evaluation";
@@ -92,8 +97,16 @@ export interface QuoteDto {
   requirements: BindRequirement[];
   details: BindDetails;
   detailsSaved: boolean;
-  signature: { signerName: string; signedAt: string; provider: string } | null;
+  signature: {
+    signerName: string;
+    signedAt: string;
+    provider: string;
+    party: "insured" | "producer";
+    email: string | null;
+  } | null;
   signatureConsent: string;
+  /** From the risk data; where the producer's send-to-client form starts. */
+  insuredEmail: string | null;
   payment: { brand: string; last4: string; amount: MoneyDto; capturedAt: string } | null;
   policy: { id: string; number: string } | null;
   payPlans: PayPlanOffer[];
@@ -266,8 +279,11 @@ export function toQuoteDto(
       signerName: signature.signerName,
       signedAt: signature.signedAt.toString(),
       provider: signature.provider,
+      party: signature.signer?.party ?? "producer",
+      email: signature.signer?.email ?? null,
     },
     signatureConsent: ESIGN_CONSENT,
+    insuredEmail: insuredPartiesOf([], q.riskData, null)[0]?.email ?? null,
     payment: q.payment && {
       brand: q.payment.brand,
       last4: q.payment.last4,

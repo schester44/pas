@@ -17,6 +17,11 @@ export {
   smartyProvider,
 } from "./infrastructure/providers/addresses";
 export { e2valueProvider, hazardhubProvider } from "./infrastructure/providers/data-vendors";
+export {
+  defaultMockDataConfig,
+  mockDataAdapter,
+  mockDataProvider,
+} from "./infrastructure/providers/mock-data";
 export { resendProvider } from "./infrastructure/providers/resend";
 export { postmarkProvider } from "./infrastructure/providers/postmark";
 export { smtpProvider } from "./infrastructure/providers/smtp";

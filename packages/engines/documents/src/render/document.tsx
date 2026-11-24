@@ -1,4 +1,4 @@
-import { evaluate } from "@pas/expressions";
+import { evaluate, evaluateUnary } from "@pas/expressions";
 import { getAt, isField, type RiskSchema, type SchemaNode } from "@pas/forms-core";
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { formatMoney } from "@pas/kernel";
@@ -10,6 +10,7 @@ import type {
   Clause,
   CoverageScheduleBlock,
   DocumentTemplate,
+  DataTableBlock,
   ExposureTableBlock,
   KeyValueBlock,
   PageSettings,
@@ -23,6 +24,7 @@ export interface RenderInput {
   context: DocumentContext;
   clauses: readonly Clause[];
   schema: RiskSchema;
+  extraFields?: readonly SchemaNode[];
 }
 
 const INK = "#18181b";
@@ -439,6 +441,51 @@ function ExposureTable({ block, resolver }: { block: ExposureTableBlock; resolve
   );
 }
 
+function DataTable({ block, resolver }: { block: DataTableBlock; resolver: Resolver }) {
+  const entries = resolver.read(block.path);
+
+  const rows = (Array.isArray(entries) ? entries : [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => !block.rowWhen || evaluateUnary(block.rowWhen, { $: row }));
+
+  const cell = (i: number) => [
+    s.td,
+    { flex: i === 0 ? 2 : 1, paddingRight: 8, textAlign: i === 0 ? "left" : "right" } as const,
+  ];
+
+  return (
+    <View>
+      <View wrap={false} minPresenceAhead={36}>
+        <SectionTitle>{block.title}</SectionTitle>
+        <View style={s.thead}>
+          {block.columns.map((column, i) => (
+            <Text key={i} style={[s.th, ...cell(i).slice(1)]}>
+              {column.label}
+            </Text>
+          ))}
+        </View>
+      </View>
+      {rows.map(({ index }) => (
+        <View key={index} style={s.tr} wrap={false}>
+          {block.columns.map((column, i) => (
+            <Text key={i} style={cell(i)}>
+              {resolver.format(`${block.path}[${index}].${column.path}`) || DASH}
+            </Text>
+          ))}
+        </View>
+      ))}
+      {block.total && (
+        <View style={s.tr} wrap={false}>
+          <Text style={[...cell(0), { fontWeight: 600 }]}>{block.total.label}</Text>
+          <Text style={[...cell(1), { fontWeight: 600 }]}>
+            {resolver.format(block.total.path) || DASH}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function BlockView({
   block,
   input,
@@ -469,6 +516,8 @@ function BlockView({
       return <CoverageSchedule block={block} context={context} schema={schema} />;
     case "exposureTable":
       return <ExposureTable block={block} resolver={resolver} />;
+    case "dataTable":
+      return <DataTable block={block} resolver={resolver} />;
     case "clause": {
       const clause = clauses.find((candidate) => candidate.key === block.clause);
 
@@ -540,7 +589,7 @@ function BlockView({
 
 export function DocumentPdf(input: RenderInput) {
   const { template, context } = input;
-  const resolver = createResolver(context, input.schema);
+  const resolver = createResolver(context, input.schema, input.extraFields);
   const margin = MARGINS[template.page.margins];
   const blocks = template.blocks.filter((block) => shows(block, resolver.data));
 

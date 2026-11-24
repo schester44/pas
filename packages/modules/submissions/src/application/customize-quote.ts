@@ -36,6 +36,7 @@ export function makeCustomizeQuote(
 
     const { evaluation, selection } = await evaluateQuote(deps, ctx, {
       release,
+      submissionId: q.submissionId,
       risk: q.riskData,
       jurisdiction: current.submission.toSnapshot().jurisdiction,
       termStart: q.termStart,

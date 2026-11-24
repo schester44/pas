@@ -20,6 +20,7 @@ import {
   ScrollText,
   SeparatorHorizontal,
   ShieldCheck,
+  Table2,
   TextQuote,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export const TEMPLATE_KIND_LABELS: Record<TemplateKind, string> = {
   binder: "Binder",
   notice: "Notice",
   letter: "Letter",
+  enrichment_report: "Data report",
   other: "Other",
 };
 
@@ -57,6 +59,7 @@ export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon; hi
     hint: "Selected coverages with limits and deductibles",
   },
   exposureTable: { label: "Exposure table", icon: MapPin, hint: "One row per location, vehicle…" },
+  dataTable: { label: "Data table", icon: Table2, hint: "Rows from a list, like a cost breakdown" },
   clause: { label: "Clause", icon: ScrollText, hint: "Wording from the clause library" },
   formsSchedule: { label: "Forms schedule", icon: ListChecks, hint: "Forms in this packet" },
   signature: { label: "Signature", icon: FileSignature, hint: "Signature and date lines" },
@@ -87,6 +90,7 @@ export function blockSummary(block: Block, clauseTitle?: string): string {
     case "formsSchedule":
       return block.title ?? "";
     case "exposureTable":
+    case "dataTable":
       return block.title || block.path;
     case "clause":
       return clauseTitle ?? block.clause;

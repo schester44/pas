@@ -1,3 +1,4 @@
+import { enrichmentSchema, sampleSources } from "@pas/enrichment";
 import {
   buildPacket,
   type DocumentContext,
@@ -81,8 +82,12 @@ export function usePreviewContext(
     });
 
     const packet = buildPacket(contents.documents.schedule, scheduleContextOf(context));
+    const enrichment = { ...sampleSources(contents.enrichment, context.risk) };
 
-    return { context: { ...context, forms: formRows(packet, editions.data ?? []) }, packet };
+    return {
+      context: { ...context, forms: formRows(packet, editions.data ?? []), enrichment },
+      packet,
+    };
   }, [
     ready,
     profile.data,
@@ -126,6 +131,7 @@ export function useTemplatePdf(
         context,
         clauses: contents.documents.clauses,
         schema: contents.riskSchema,
+        extraFields: [enrichmentSchema(contents.enrichment)],
       }).then(
         (data) => !cancelled && setState({ data, error: null, input }),
         (cause: unknown) =>
@@ -137,7 +143,15 @@ export function useTemplatePdf(
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [template, context, contents.documents.clauses, contents.riskSchema, delay, input]);
+  }, [
+    template,
+    context,
+    contents.documents.clauses,
+    contents.riskSchema,
+    contents.enrichment,
+    delay,
+    input,
+  ]);
 
   return {
     data: state.data,
@@ -165,6 +179,7 @@ export async function renderPacketPdf(
           context,
           clauses: contents.documents.clauses,
           schema: contents.riskSchema,
+          extraFields: [enrichmentSchema(contents.enrichment)],
         });
       }
 

@@ -7,6 +7,7 @@ import {
   type UnitOfWork,
 } from "@pas/kernel";
 import { checkVersion } from "../domain/checks";
+import { pinExtensions } from "../domain/enrichment-checks";
 import { ProductRelease } from "../domain/product-release";
 import type { ProductReleaseRepository } from "../ports/product-release-repository";
 import type { ProductRepository } from "../ports/product-repository";
@@ -34,17 +35,23 @@ export function makePublishProductVersion(
       const product = await loadProduct(deps.products, tx, ctx, version.toSnapshot().productId);
       const published = await publishedSiblings(deps.versions, tx, ctx, version);
 
-      const issues = checkVersion(
-        version.contents,
-        published,
-        await resolveReferences(deps, ctx, version),
-      );
+      const references = await resolveReferences(deps, ctx, version);
+      const issues = checkVersion(version.contents, published, references);
 
       const publishedAt = deps.clocks.forTenant(ctx.tenantId).now();
 
       const releases = await Promise.all(
         version.contents.availability.map(async (window) => {
-          const manifest = ProductRelease.manifestFor(version, window);
+          const base = ProductRelease.manifestFor(version, window);
+
+          const manifest = {
+            ...base,
+            enrichment: pinExtensions(
+              base.enrichment,
+              references.enrichment?.extensions ?? new Map(),
+            ),
+          };
+
           const contentHash = await sha256(canonicalJson(manifest));
 
           return ProductRelease.create({ version, window, manifest, contentHash, publishedAt });

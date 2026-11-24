@@ -264,6 +264,25 @@ const entries: { [T in PublicEventType]: CatalogEntry<T> } = {
       body: quoteLine(data),
     }),
   },
+  "quote.signed": {
+    type: "quote.signed",
+    title: "Application signed",
+    description:
+      "The application packet was signed, by the insured from their link or by the producer.",
+    sample: {
+      submission: sampleSubmission,
+      quote: sampleQuote,
+      signedBy: "insured",
+      signerName: "Jordan Lee",
+    },
+    subject: submissionSubject,
+    producerId: (data) => data.submission.producer.id,
+    facets: quoteFacets,
+    message: (data) => ({
+      title: `${data.signerName} signed ${data.submission.number}`,
+      body: quoteLine(data),
+    }),
+  },
   "policy.issued": transactionEntry(
     "policy.issued",
     "Policy issued",

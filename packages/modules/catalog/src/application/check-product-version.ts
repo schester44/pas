@@ -12,6 +12,9 @@ import type { ProductVersionRepository } from "../ports/product-version-reposito
 import type { RatingVerifier } from "../ports/rating-verifier";
 import type { CarrierVerifier } from "../ports/carrier-verifier";
 import type { ExtensionVerifier } from "../ports/extension-verifier";
+import type { EnrichmentDirectory } from "../ports/enrichment-directory";
+import type { EnrichmentReferences } from "../domain/enrichment-checks";
+import type { EnrichmentPlan } from "@pas/enrichment";
 import { loadVersion } from "./load";
 
 export interface ReferenceDeps {
@@ -19,6 +22,7 @@ export interface ReferenceDeps {
   rating: RatingVerifier;
   carriers?: CarrierVerifier;
   extensions?: ExtensionVerifier;
+  enrichment?: EnrichmentDirectory;
 }
 
 export function makeCheckProductVersion(
@@ -59,7 +63,7 @@ export async function resolveReferences(
       : []),
   ];
 
-  const [formEditions, rating, carrier, extensions] = await Promise.all([
+  const [formEditions, rating, carrier, extensionIssues, enrichment] = await Promise.all([
     deps.formEditions.existing(ctx, scheduledEditionIds(contents.documents)),
     deps.rating.verify(ctx, {
       rating: contents.rating,
@@ -68,9 +72,31 @@ export async function resolveReferences(
     }),
     deps.carriers ? deps.carriers.verify(ctx, contents.lifecycle) : [],
     deps.extensions && references.length > 0 ? deps.extensions.verify(ctx, references) : [],
+    deps.enrichment ? enrichmentReferences(deps.enrichment, ctx, contents.enrichment) : undefined,
   ]);
 
-  return { formEditions, rating, carrier, extensions };
+  return {
+    formEditions,
+    rating,
+    carrier,
+    extensions: extensionIssues,
+    ...(enrichment && { enrichment }),
+  };
+}
+
+export async function enrichmentReferences(
+  directory: EnrichmentDirectory,
+  ctx: TenantContext,
+  plan: EnrichmentPlan,
+): Promise<EnrichmentReferences> {
+  const keys = [...new Set(plan.transforms.map((t) => t.extension.key))];
+
+  const [providers, extensions] = await Promise.all([
+    directory.providers(ctx),
+    Promise.all(keys.map(async (key) => [key, await directory.extension(ctx, key)] as const)),
+  ]);
+
+  return { providers, extensions: new Map(extensions) };
 }
 
 export async function publishedSiblings(

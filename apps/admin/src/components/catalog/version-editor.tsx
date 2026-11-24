@@ -27,6 +27,7 @@ export type Contents = Pick<
   | "rating"
   | "billing"
   | "extensions"
+  | "enrichment"
 >;
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
@@ -56,6 +57,7 @@ const pick = (version: ProductVersion): Contents => ({
   rating: version.rating,
   billing: version.billing,
   extensions: version.extensions,
+  enrichment: version.enrichment,
 });
 
 export function VersionEditorProvider({

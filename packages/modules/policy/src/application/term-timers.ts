@@ -9,6 +9,7 @@ import {
   type TenantContext,
   type UnitOfWork,
 } from "@pas/kernel";
+import { mailsNotice } from "../domain/notice";
 import type { InvoiceIssuer } from "../ports/invoice-issuer";
 import type { PolicyRepository } from "../ports/policy-repository";
 import { billIssued } from "./pricing";
@@ -109,7 +110,7 @@ export function makeTermTimers(deps: {
 
         const delivery = transaction.details?.cancellation?.delivery ?? "electronic";
 
-        if (delivery !== "electronic" && !policy.hasProofOfMailing(transaction.id)) {
+        if (mailsNotice(delivery) && !policy.hasProofOfMailing(transaction.id)) {
           if (policy.holdCancellation(transaction.id, clock)) {
             await deps.policies.save(tx, policy);
             await deps.outbox.add(tx, policy.pullEvents());

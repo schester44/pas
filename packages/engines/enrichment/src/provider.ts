@@ -16,6 +16,14 @@ export interface ProviderManifest {
   readonly consumerReport: boolean;
 }
 
+/** A document a provider produces alongside its data, such as a replacement cost report PDF. */
+export interface ProviderArtifact {
+  readonly kind: "report";
+  readonly title: string;
+  readonly contentType: string;
+  readonly bytes: Uint8Array;
+}
+
 export interface DataProvider {
   readonly manifest: ProviderManifest;
   fetch(
@@ -23,6 +31,13 @@ export interface DataProvider {
     request: ProviderRequest,
     options: { signal: AbortSignal },
   ): Promise<ProviderResponse>;
+  /** Downloads the provider's report for a response it gave; vendor links expire, so it's fetched at once. */
+  report?(
+    capability: ProviderCapability,
+    request: ProviderRequest,
+    response: ProviderResponse,
+    options: { signal: AbortSignal },
+  ): Promise<ProviderArtifact | null>;
 }
 
 export interface ProviderRegistry {

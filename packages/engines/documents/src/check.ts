@@ -5,6 +5,7 @@ import {
   type RiskSchema,
   resolvesInSchema,
   type SchemaIndex,
+  type SchemaNode,
 } from "@pas/forms-core";
 import { contextSchema, type CoverageLike } from "./context";
 import { hasUnclosedField, mergeFields } from "./merge";
@@ -28,6 +29,7 @@ export interface DocumentIssue {
 
 export interface CheckOptions {
   formEditions?: ReadonlySet<string>;
+  extraFields?: readonly SchemaNode[];
 }
 
 const KEY = /^[a-z][a-z0-9_]*$/;
@@ -39,8 +41,8 @@ class Checker {
   readonly schedule: SchemaIndex;
   readonly risk: SchemaIndex;
 
-  constructor(schema: RiskSchema) {
-    this.document = indexSchema(contextSchema(schema, "document"));
+  constructor(schema: RiskSchema, extra: readonly SchemaNode[] = []) {
+    this.document = indexSchema(contextSchema(schema, "document", extra));
     this.schedule = indexSchema(contextSchema(schema, "schedule"));
     this.risk = indexSchema(schema);
   }
@@ -141,6 +143,29 @@ function checkBlock(checker: Checker, set: DocumentSet, template: string, block:
 
       break;
     }
+    case "dataTable": {
+      const node = checker.document.get(canonicalPath(block.path));
+
+      if (!node) checker.error(at("path"), `Unknown path ${block.path}`);
+      else if (node.kind !== "repeatable") checker.error(at("path"), `${block.path} isn't a list`);
+      else {
+        block.columns.forEach((column, i) => {
+          if (
+            !resolvesInSchema(checker.document, `${canonicalPath(block.path)}[].${column.path}`)
+          ) {
+            checker.error(at(`columns[${i}]`), `Unknown path ${block.path}[].${column.path}`);
+          }
+        });
+      }
+
+      if (block.total && !resolvesInSchema(checker.document, canonicalPath(block.total.path))) {
+        checker.error(at("total"), `Unknown path ${block.total.path}`);
+      }
+
+      if (block.columns.length === 0) checker.warn(at("columns"), "Add at least one column");
+
+      break;
+    }
     case "clause":
       if (!set.clauses.some((clause) => clause.key === block.clause)) {
         checker.error(at("clause"), `Clause ${block.clause || "(none)"} isn't in the library`);
@@ -182,7 +207,7 @@ export function checkDocuments(
   set: DocumentSet,
   options: CheckOptions = {},
 ): DocumentIssue[] {
-  const checker = new Checker(schema);
+  const checker = new Checker(schema, options.extraFields);
   const templateKeys = new Set<string>();
   const clauseKeys = new Set<string>();
 

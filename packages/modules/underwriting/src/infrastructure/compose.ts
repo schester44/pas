@@ -10,6 +10,7 @@ import type { UnderwritingDeps } from "../application/deps";
 import { makeGetReferral } from "../application/get-referral";
 import { makeInspectionTimers } from "../application/inspection-timers";
 import { makeListInspections } from "../application/list-inspections";
+import { makeListProducerActions } from "../application/list-producer-actions";
 import { makeListReferrals } from "../application/list-referrals";
 import { makeManageSettings } from "../application/manage-settings";
 import { makeManageSubjectivities } from "../application/manage-subjectivities";
@@ -58,6 +59,7 @@ export function composeUnderwriting(input: {
     assign: makeAssignReferral(deps),
     requestInfo: makeRequestInfo(deps),
     reply: makeReplyToReferral(deps),
+    producerActions: makeListProducerActions(deps),
     note: makeNoteReferral(deps),
     approve: makeApproveReferral(deps),
     decline: makeDeclineReferral(deps),

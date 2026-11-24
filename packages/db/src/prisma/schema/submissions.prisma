@@ -128,3 +128,49 @@ model QuoteActivity {
   @@index([tenantId, quoteId, occurredAt])
   @@map("quote_activity")
 }
+
+/// A link the producer sent so the insured completes their part of the application (disclosures,
+/// signature, payment). The token is an HMAC of the id, so nothing secret is stored here.
+model QuoteClientRequest {
+  id               String    @id @db.Uuid
+  tenantId         String    @map("tenant_id")
+  quoteId          String    @map("quote_id") @db.Uuid
+  submissionId     String    @map("submission_id") @db.Uuid
+  submissionNumber String    @map("submission_number")
+  producerId       String    @map("producer_id")
+  email            String
+  name             String
+  sentByUserId     String?   @map("sent_by_user_id")
+  sentByName       String    @map("sent_by_name")
+  sentAt           DateTime  @map("sent_at") @db.Timestamptz(6)
+  openedAt         DateTime? @map("opened_at") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, quoteId, createdAt])
+  @@map("quote_client_requests")
+}
+
+/// One enrichment stage as it ran for a submission (PLAN §11.1). Append-only: a trigger rejects updates.
+model EnrichmentRecord {
+  id               String   @id @db.Uuid
+  tenantId         String   @map("tenant_id")
+  submissionId     String   @map("submission_id") @db.Uuid
+  productReleaseId String   @map("product_release_id") @db.Uuid
+  stage            String
+  inputHash        String   @map("input_hash")
+  snapshot         Json
+  prefills         Json
+  discrepancies    Json
+  calls            Json
+  reports          Json
+  missingReports   Json     @map("missing_reports")
+  blocked          Json?
+  takenAt          DateTime @map("taken_at") @db.Timestamptz(6)
+
+  @@index([tenantId, submissionId, stage, takenAt])
+  @@map("enrichment_records")
+}

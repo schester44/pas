@@ -82,154 +82,183 @@ const PRODUCERS = [
   },
 ];
 
-/**
- * The demo distribution network: Lakeshore Insurance Group with North Shore Brokers as a
- * sub-agency, their producers' Illinois and Indiana licenses, appointments, a commission
- * schedule and a blocking licensing requirement on every product. Safe to re-run.
- */
+/** Re-seeds every tenant that already has the demo agencies. Safe to re-run. */
 export async function seedDistribution(db: PrismaClient) {
-  const now = new Date();
-
   const tenants = await db.agency.findMany({
     where: { name: { in: Object.keys(AGENCIES) } },
     distinct: ["tenantId"],
   });
 
   for (const { tenantId } of tenants) {
-    const ids: Record<string, string> = {};
+    await seedDistributionFor(db, tenantId, {
+      carriers: [{ name: "Great Lakes Mutual", subdivisions: ["US-IL", "US-IN"] }],
+    });
+  }
+}
 
-    for (const [name, details] of Object.entries(AGENCIES)) {
-      const existing = await db.agency.findFirst({ where: { tenantId, name } });
-      const id = existing?.id ?? newId();
-      const data = { ...details, address: details.address, status: "active", updatedAt: now };
+/**
+ * The demo distribution network for one tenant: Lakeshore Insurance Group with North Shore Brokers
+ * as a sub-agency, appointments with each carrier where it writes, producer licenses (Lakeshore's
+ * producers are licensed everywhere Lakeshore is appointed), a commission schedule and a blocking
+ * licensing requirement on every product. Safe to re-run.
+ */
+export async function seedDistributionFor(
+  db: PrismaClient,
+  tenantId: string,
+  options: { carriers: readonly { name: string; subdivisions: readonly string[] }[] },
+) {
+  const now = new Date();
+  const appointed = [...new Set(options.carriers.flatMap((carrier) => carrier.subdivisions))];
 
-      await db.agency.upsert({
-        where: { id },
-        update: data,
-        create: { ...data, id, tenantId, name, createdAt: now },
-      });
+  const ids: Record<string, string> = {};
 
-      ids[name] = id;
-    }
+  for (const [name, details] of Object.entries(AGENCIES)) {
+    const existing = await db.agency.findFirst({ where: { tenantId, name } });
+    const id = existing?.id ?? newId();
+    const data = { ...details, address: details.address, status: "active", updatedAt: now };
 
-    await db.agency.update({
-      where: { id: ids["North Shore Brokers"]! },
-      data: { parentId: ids["Lakeshore Insurance Group"]! },
+    await db.agency.upsert({
+      where: { id },
+      update: data,
+      create: { ...data, id, tenantId, name, createdAt: now },
     });
 
-    for (const seed of PRODUCERS) {
-      const user = await db.user.findUnique({ where: { email: seed.email } });
+    ids[name] = id;
+  }
 
-      if (!user) continue;
+  await db.agency.update({
+    where: { id: ids["North Shore Brokers"]! },
+    data: { parentId: ids["Lakeshore Insurance Group"]! },
+  });
 
-      const producer =
-        (await db.producer.findFirst({ where: { tenantId, userId: user.id } })) ??
-        (await db.producer.create({
-          data: {
-            id: newId(),
-            tenantId,
-            userId: user.id,
-            name: user.name,
-            email: seed.email,
-            status: "active",
-            createdAt: now,
-            updatedAt: now,
-          },
-        }));
+  for (const seed of PRODUCERS) {
+    const user = await db.user.findUnique({ where: { email: seed.email } });
 
-      await db.producer.update({
-        where: { id: producer.id },
-        data: { npn: seed.npn, producerNumber: seed.producerNumber, status: "active" },
-      });
+    if (!user) continue;
 
-      const agencyId = ids[seed.agency]!;
-
-      await db.agencyMembership.upsert({
-        where: { tenantId_agencyId_producerId: { tenantId, agencyId, producerId: producer.id } },
-        update: { primary: true },
-        create: {
+    const producer =
+      (await db.producer.findFirst({ where: { tenantId, userId: user.id } })) ??
+      (await db.producer.create({
+        data: {
           id: newId(),
           tenantId,
-          agencyId,
-          producerId: producer.id,
-          role: "producer",
-          primary: true,
-          createdAt: now,
-        },
-      });
-
-      await db.producerLicense.deleteMany({ where: { tenantId, producerId: producer.id } });
-
-      await db.producerLicense.createMany({
-        data: seed.licenses.map((l) => ({
-          id: newId(),
-          tenantId,
-          producerId: producer.id,
-          npn: seed.npn,
-          country: "US",
-          subdivision: l.subdivision,
-          licenseNumber: l.number,
-          linesOfAuthority: l.lines,
-          effectiveDate: day("2024-01-01"),
-          expirationDate: day(l.expires),
+          userId: user.id,
+          name: user.name,
+          email: seed.email,
           status: "active",
-          source: "manual",
-          verifiedAt: now,
           createdAt: now,
           updatedAt: now,
-        })),
-      });
-    }
+        },
+      }));
 
-    await db.appointment.deleteMany({ where: { tenantId } });
+    await db.producer.update({
+      where: { id: producer.id },
+      data: { npn: seed.npn, producerNumber: seed.producerNumber, status: "active" },
+    });
 
-    await db.appointment.createMany({
-      data: ["US-IL", "US-IN"].map((subdivision) => ({
+    const agencyId = ids[seed.agency]!;
+
+    await db.agencyMembership.upsert({
+      where: { tenantId_agencyId_producerId: { tenantId, agencyId, producerId: producer.id } },
+      update: { primary: true },
+      create: {
+        id: newId(),
+        tenantId,
+        agencyId,
+        producerId: producer.id,
+        role: "producer",
+        primary: true,
+        createdAt: now,
+      },
+    });
+
+    await db.producerLicense.deleteMany({ where: { tenantId, producerId: producer.id } });
+
+    const listed = new Set(seed.licenses.map((l) => l.subdivision));
+
+    const appointedOnly =
+      seed.agency === "Lakeshore Insurance Group"
+        ? appointed
+            .filter((subdivision) => !listed.has(subdivision))
+            .map((subdivision) => ({
+              subdivision,
+              number: `${subdivision.slice(3)}-${seed.npn}`,
+              lines: ["Property", "Casualty", "Personal Lines"],
+              expires: "2028-03-31",
+            }))
+        : [];
+
+    await db.producerLicense.createMany({
+      data: [...seed.licenses, ...appointedOnly].map((l) => ({
+        id: newId(),
+        tenantId,
+        producerId: producer.id,
+        npn: seed.npn,
+        country: "US",
+        subdivision: l.subdivision,
+        licenseNumber: l.number,
+        linesOfAuthority: l.lines,
+        effectiveDate: day("2024-01-01"),
+        expirationDate: day(l.expires),
+        status: "active",
+        source: "manual",
+        verifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    });
+  }
+
+  await db.appointment.deleteMany({ where: { tenantId } });
+
+  await db.appointment.createMany({
+    data: options.carriers.flatMap((carrier) =>
+      carrier.subdivisions.map((subdivision) => ({
         id: newId(),
         tenantId,
         agencyId: ids["Lakeshore Insurance Group"]!,
-        carrier: "Great Lakes Mutual",
+        carrier: carrier.name,
         country: "US",
         subdivision,
         status: "active",
         effectiveDate: day("2024-01-01"),
         createdAt: now,
       })),
-    });
+    ),
+  });
 
-    await db.commissionSchedule.deleteMany({ where: { tenantId } });
+  await db.commissionSchedule.deleteMany({ where: { tenantId } });
 
-    await db.commissionSchedule.createMany({
-      data: [
-        { business: "new", tier: null, rate: "12" },
-        { business: "renewal", tier: null, rate: "10" },
-        { business: "new", tier: "preferred", rate: "15" },
-        { business: "renewal", tier: "preferred", rate: "12.5" },
-      ].map((s) => ({
+  await db.commissionSchedule.createMany({
+    data: [
+      { business: "new", tier: null, rate: "12" },
+      { business: "renewal", tier: null, rate: "10" },
+      { business: "new", tier: "preferred", rate: "15" },
+      { business: "renewal", tier: "preferred", rate: "12.5" },
+    ].map((s) => ({
+      id: newId(),
+      tenantId,
+      productId: null,
+      country: "US",
+      subdivision: null,
+      ...s,
+      effectiveDate: day("2024-01-01"),
+      createdAt: now,
+    })),
+  });
+
+  for (const product of await db.product.findMany({ where: { tenantId } })) {
+    await db.licensingRequirement.upsert({
+      where: { tenantId_productId: { tenantId, productId: product.id } },
+      update: { mode: "block", linesOfAuthority: ["Property"], updatedAt: now },
+      create: {
         id: newId(),
         tenantId,
-        productId: null,
-        country: "US",
-        subdivision: null,
-        ...s,
-        effectiveDate: day("2024-01-01"),
-        createdAt: now,
-      })),
+        productId: product.id,
+        mode: "block",
+        linesOfAuthority: ["Property"],
+        updatedAt: now,
+      },
     });
-
-    for (const product of await db.product.findMany({ where: { tenantId } })) {
-      await db.licensingRequirement.upsert({
-        where: { tenantId_productId: { tenantId, productId: product.id } },
-        update: { mode: "block", linesOfAuthority: ["Property"], updatedAt: now },
-        create: {
-          id: newId(),
-          tenantId,
-          productId: product.id,
-          mode: "block",
-          linesOfAuthority: ["Property"],
-          updatedAt: now,
-        },
-      });
-    }
   }
 }

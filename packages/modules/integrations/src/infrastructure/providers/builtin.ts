@@ -1,4 +1,4 @@
-import { createCensusGeocoder, createFakeDataProvider, type DataProvider } from "@pas/enrichment";
+import { createCensusGeocoder, type DataProvider } from "@pas/enrichment";
 import { newId } from "@pas/kernel";
 import { z } from "zod";
 import type {
@@ -11,6 +11,7 @@ import type {
 } from "../../ports/adapters";
 import type { AnyProviderPackage, ProviderManifest } from "../../ports/provider-catalog";
 import { builtinAddressProvider } from "./addresses";
+import { defaultMockDataConfig, mockDataAdapter } from "./mock-data";
 
 const builtin = {
   vendor: "Built in",
@@ -74,7 +75,12 @@ export function builtinProviders(adapters: {
     chargeSaved: (ctx, input) => adapters.payments.chargeSaved(ctx, input),
   };
 
-  const data = adapters.data ?? createFakeDataProvider({ id: "sandbox_data" });
+  const data =
+    adapters.data ??
+    mockDataAdapter(defaultMockDataConfig(), {
+      id: "sandbox_data",
+      name: "Sandbox data",
+    });
 
   return [
     {
@@ -161,7 +167,7 @@ export function builtinProviders(adapters: {
         category: "data",
         summary: "Deterministic, plausible property and hazard data.",
         description:
-          "Derives geocodes, property characteristics, hazard scores and tax jurisdictions from the request, so the same address always returns the same data.",
+          "Derives geocodes, property characteristics, hazard scores, tax jurisdictions and replacement costs (with a sample report) from the request, so the same address always returns the same data.",
         capabilities: [
           "Geocode",
           "Property characteristics",

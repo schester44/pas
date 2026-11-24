@@ -124,4 +124,17 @@ export class PrismaSubjectivityRepository implements SubjectivityRepository {
 
     return rows.map(toDomain);
   }
+
+  async listOpenBySubmissions(
+    tx: Transaction,
+    ctx: TenantContext,
+    submissionIds: readonly string[],
+  ) {
+    const rows = await prismaTx(tx).underwritingSubjectivity.findMany({
+      where: { tenantId: ctx.tenantId, submissionId: { in: [...submissionIds] }, status: "open" },
+      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+    });
+
+    return rows.map(toDomain);
+  }
 }

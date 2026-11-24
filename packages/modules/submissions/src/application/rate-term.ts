@@ -35,6 +35,7 @@ export function makeRateTerm(deps: EvaluationDeps & { catalog: ProductCatalog })
         termEnd: input.termEnd,
         selection: input.coverages,
         transaction: input.transaction,
+        enrich: false,
       });
 
       const names = new Map(release.coverages.map((c) => [c.code, c.name]));

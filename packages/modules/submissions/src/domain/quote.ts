@@ -12,7 +12,7 @@ import {
   type TenantId,
   type UserId,
 } from "@pas/kernel";
-import type { BindDetails } from "./bind-details";
+import type { Acknowledgement, BindDetails, CompletedBy } from "./bind-details";
 import type { CarrierBindState, CarrierQuoteResult, CarrierQuoteState } from "./carrier-quote";
 import {
   type ActivityActor,
@@ -80,6 +80,7 @@ export interface SignatureRecord {
   revision: number;
   documentKey: string;
   documentSha256: string;
+  signer?: CompletedBy;
 }
 
 export interface PaymentRecord {
@@ -420,8 +421,60 @@ export class Quote extends AggregateRoot {
         provider: signature.provider,
         envelopeId: signature.envelopeId,
         revision: this.props.revision,
+        ...(signature.signer && { party: signature.signer.party }),
       },
     );
+
+    this.recordEvent("submissions.quote_signed", signature.signedAt, {
+      revision: this.props.revision,
+      signerName: signature.signerName,
+      party: signature.signer?.party ?? "producer",
+    });
+  }
+
+  /** The insured accepting offered disclosures on their own; earlier acceptances keep their time. */
+  acceptDisclosures(codes: readonly string[], by: CompletedBy, clock: Clock): Acknowledgement[] {
+    this.guard("prepare", clock);
+
+    const details = this.props.details;
+
+    if (!details) {
+      throw conflict("The producer hasn't entered the policy details yet", {
+        reason: "details_missing",
+      });
+    }
+
+    const offered = new Set(this.props.evaluation.attestations.map((a) => a.code));
+    const held = new Set(details.acknowledgements.map((a) => a.code));
+    const now = clock.now();
+
+    const added = [...new Set(codes)]
+      .filter((code) => offered.has(code) && !held.has(code))
+      .map((code) => ({ code, acceptedAt: now.toString(), by }));
+
+    if (added.length === 0) return details.acknowledgements;
+
+    this.props = {
+      ...this.props,
+      details: { ...details, acknowledgements: [...details.acknowledgements, ...added] },
+      updatedAt: now,
+    };
+
+    this.log(
+      "disclosures_accepted",
+      now,
+      { type: "user", ...(by.userId && { id: by.userId }), name: by.name },
+      `${by.name} accepted ${added.length === 1 ? "a disclosure" : `${added.length} disclosures`}`,
+      { codes: added.map((a) => a.code), party: by.party },
+    );
+
+    return this.props.details!.acknowledgements;
+  }
+
+  noteSentToClient(input: { email: string; by: ActivityActor }, clock: Clock): void {
+    this.log("sent_to_client", clock.now(), input.by, `Sent to ${input.email} to complete`, {
+      email: input.email,
+    });
   }
 
   notePaymentFailed(

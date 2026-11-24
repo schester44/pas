@@ -99,8 +99,9 @@ export async function renderNotice(
 }
 
 /**
- * Schedules a priced cancellation: notice generated and recorded, term pending_cancellation, and
- * the CANCELLATION issued at once when it's already effective (PLAN §7.3, §17.3).
+ * Schedules a priced cancellation: notice generated and recorded when a notice rule applies, term
+ * pending_cancellation, and the CANCELLATION issued at once when it's already effective
+ * (PLAN §7.3, §17.3).
  */
 export async function commitCancellation(
   deps: CancellationDeps,
@@ -119,10 +120,13 @@ export async function commitCancellation(
   const policy = await loadPolicy(deps, ctx, scope, input.policyId);
   const term = policy.currentTerm;
   const base = policy.latestVersion(term.id).version;
-  const notice = await renderNotice(deps, ctx, policy, input.pricing, input.notice);
+  const rule = input.pricing.rule;
+
+  const notice = rule ? await renderNotice(deps, ctx, policy, input.pricing, input.notice) : null;
+
   const key = `tenants/${ctx.tenantId}/policies/${policy.id}/notices/${newId()}.pdf`;
 
-  await deps.storage.put({ key, body: notice.pdf, contentType: "application/pdf" });
+  if (notice) await deps.storage.put({ key, body: notice.pdf, contentType: "application/pdf" });
 
   const committed = await deps.uow.run(ctx, async (tx) => {
     const current = await loadPolicy(deps, ctx, scope, input.policyId, tx);
@@ -151,16 +155,18 @@ export async function commitCancellation(
 
     current.scheduleCancellation(transaction.id, input.approvedBy ?? input.actor, clock);
 
-    current.attachDocument(
-      {
-        transactionId: transaction.id,
-        kind: "cancellation_notice",
-        title: notice.title,
-        storageKey: key,
-        sizeBytes: notice.pdf.byteLength,
-      },
-      clock,
-    );
+    if (notice) {
+      current.attachDocument(
+        {
+          transactionId: transaction.id,
+          kind: "cancellation_notice",
+          title: notice.title,
+          storageKey: key,
+          sizeBytes: notice.pdf.byteLength,
+        },
+        clock,
+      );
+    }
 
     const now = today(clock);
 
@@ -184,14 +190,16 @@ export async function commitCancellation(
     return toTransactionDto(current.transaction(transaction.id));
   });
 
-  await dispatchNotice(deps, ctx, scope, {
-    policyId: input.policyId,
-    transactionId: committed.id,
-    title: notice.title,
-    pdf: notice.pdf,
-    delivery: input.pricing.earliest.delivery,
-    recipients: [...input.pricing.rule.recipients],
-  });
+  if (notice && rule) {
+    await dispatchNotice(deps, ctx, scope, {
+      policyId: input.policyId,
+      transactionId: committed.id,
+      title: notice.title,
+      pdf: notice.pdf,
+      delivery: input.pricing.earliest.delivery,
+      recipients: [...rule.recipients],
+    });
+  }
 
   return committed;
 }

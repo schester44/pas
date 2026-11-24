@@ -27,6 +27,7 @@ import { useTRPC } from "@/lib/trpc";
 import type { StepProps } from "./journey";
 import { PayPlanPicker } from "./pay-plans";
 import { PremiumSummary } from "./premium";
+import { PropertyData } from "./property-data";
 
 interface Choice {
   coverage: string;
@@ -149,6 +150,7 @@ export function CustomizeStep({ quote, submission, go }: StepProps) {
             ))}
           </ul>
         </Panel>
+        <PropertyData submissionId={submission.id} />
         <PayPlanPicker quote={quote} submissionId={submission.id} />
         {customize.error && (
           <Notice tone="error" title="Couldn't update the price">

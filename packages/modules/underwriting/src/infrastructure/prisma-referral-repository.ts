@@ -175,6 +175,7 @@ export class PrismaReferralRepository implements ReferralRepository {
         ...(subdivision && { subdivision }),
         ...(filter.assigneeId !== undefined && { assigneeId: filter.assigneeId }),
         ...(filter.openedBefore && { openedAt: { lte: instantToDb(filter.openedBefore) } }),
+        ...(filter.submissionIds && { submissionId: { in: [...filter.submissionIds] } }),
       },
       include,
       orderBy: { dueAt: "asc" },

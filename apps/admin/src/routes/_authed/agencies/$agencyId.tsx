@@ -18,6 +18,7 @@ import { BadgeCheck, Building2, Plus, Users } from "lucide-react";
 import { useState } from "react";
 import { AgencyDownloadsPanel } from "@/components/agency-downloads/agency-downloads-panel";
 import { StatementsTable } from "@/components/billing/statements";
+import { CopyableLink } from "@/components/copyable-link";
 import { Breadcrumb } from "@/components/catalog/breadcrumb";
 import { AgencyDialog } from "@/components/distribution/agency-dialog";
 import { AgencyStatement } from "@/components/distribution/agency-statement";
@@ -167,6 +168,8 @@ function AgencyPage() {
 }
 
 function AgencySummary({ agency }: { agency: AgencyDetail }) {
+  const trpc = useTRPC();
+  const profile = useQuery(trpc.tenant.profile.get.queryOptions());
   const address = agency.address;
 
   return (
@@ -195,6 +198,16 @@ function AgencySummary({ agency }: { agency: AgencyDetail }) {
             : "—"}
         </Fact>
       </dl>
+      {profile.data && (
+        <div className="mt-5 grid gap-1 border-t pt-4">
+          <p className="m-0 text-xs text-muted-foreground">Agency dashboard</p>
+          <ul className="m-0 grid list-none gap-1 p-0">
+            {profile.data.appUrls.map((url) => (
+              <CopyableLink key={url} url={url} />
+            ))}
+          </ul>
+        </div>
+      )}
     </Panel>
   );
 }

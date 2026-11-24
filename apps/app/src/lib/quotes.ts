@@ -19,24 +19,40 @@ export type StepId = (typeof STEPS)[number]["id"];
 
 export const isStep = (value: unknown): value is StepId => STEPS.some((step) => step.id === value);
 
+/** Steps the insured completes from their link; the producer moves past them while they wait. */
+export interface InsuredSteps {
+  disclosures: boolean;
+  signature: boolean;
+}
+
+const NONE: InsuredSteps = { disclosures: false, signature: false };
+
 const open = (quote: Quote, ignore: readonly Requirement["kind"][]) =>
   quote.requirements.filter((r) => r.blocking && !r.satisfied && !ignore.includes(r.kind));
 
-export const readyToSign = (quote: Quote) => open(quote, ["signature", "payment"]).length === 0;
-export const readyToPay = (quote: Quote) => open(quote, ["payment"]).length === 0;
+const owned = (insured: InsuredSteps): Requirement["kind"][] => [
+  ...(insured.disclosures ? (["attestation"] as const) : []),
+  ...(insured.signature ? (["signature"] as const) : []),
+];
+
+export const readyToSign = (quote: Quote, insured = NONE) =>
+  open(quote, ["signature", "payment", ...owned(insured)]).length === 0;
+
+export const readyToPay = (quote: Quote, insured = NONE) =>
+  open(quote, ["payment", ...owned(insured)]).length === 0;
 
 /** The furthest step the quote's state allows; earlier steps stay reachable. */
-export function furthestStep(quote: Quote): number {
-  if (readyToPay(quote)) return 4;
+export function furthestStep(quote: Quote, insured = NONE): number {
+  if (quote.detailsSaved && readyToPay(quote, insured)) return 4;
 
-  if (quote.detailsSaved && readyToSign(quote)) return 3;
+  if (quote.detailsSaved && readyToSign(quote, insured)) return 3;
 
   return 2;
 }
 
 /** Where a returning agent lands: approval resumes at Details, then wherever they left off. */
-export function resumeStep(quote: Quote): StepId {
-  const furthest = furthestStep(quote);
+export function resumeStep(quote: Quote, insured = NONE): StepId {
+  const furthest = furthestStep(quote, insured);
 
   if (furthest >= 3) return STEPS[furthest]!.id;
 

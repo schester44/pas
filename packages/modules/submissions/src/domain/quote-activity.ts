@@ -6,6 +6,8 @@ export type QuoteActivityType =
   | "uw_approved"
   | "uw_declined"
   | "signed"
+  | "sent_to_client"
+  | "disclosures_accepted"
   | "payment_failed"
   | "expired"
   | "uw_info_requested"
@@ -51,6 +53,8 @@ export const CATEGORY: Record<QuoteActivityType, QuoteActivity["category"]> = {
   uw_approved: "underwriting",
   uw_declined: "underwriting",
   signed: "document",
+  sent_to_client: "document",
+  disclosures_accepted: "document",
   payment_failed: "billing",
   expired: "lifecycle",
   uw_info_requested: "underwriting",

@@ -204,21 +204,29 @@ import {
   makeStartSubmission,
   makeSubmitSubmission,
   QuoteJourney,
+  clientApplicationPath,
+  makeClientApplication,
+  makeGetClientCompletion,
+  makeSendToClient,
+  makeGetQuoteEnrichment,
 } from "@pas/submissions";
 import {
   CatalogProductCatalog,
   ClickToSignGateway,
   FakeCardGateway,
-  PassThroughRiskEnricher,
+  composeRiskEnricher,
   PrismaQuoteRepository,
   PrismaSubmissionRepository,
   RatingModuleQuoteRater,
   ReactPdfQuoteDocuments,
+  HmacClientLinks,
+  PrismaClientRequestRepository,
 } from "@pas/submissions/infrastructure";
 import { createLogger } from "@pas/observability";
 import { PgBossOutbox, QueueClient, queueConnectionFromEnv } from "@pas/queues";
 import { createStorageFromEnv } from "@pas/storage";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
+import { composeEnrichmentExtensions } from "./enrichment";
 import { PostgresWorkflows, workflowConnectionFromEnv } from "@pas/workflows";
 import {
   composeUnderwriting,
@@ -238,6 +246,7 @@ import { env } from "./env";
 import { sandboxAccess } from "./sandbox-access";
 import { makeRunDescriber, makeSandboxTimers, type RunDescriberDeps } from "./sandbox-timers";
 import { makeWorkflowRuns } from "./workflow-runs";
+import { makeActionItems } from "./action-items";
 import { makeClientDetail } from "./client-detail";
 
 const party = (policyIds: readonly string[]) => ({ kind: "party" as const, policyIds });
@@ -665,11 +674,27 @@ export function compose() {
     resendInvite: makeResendPortalInvite({ uow, outbox, ...partyRepos, clocks }),
   };
 
+  const enrichmentExtensions = composeEnrichmentExtensions({
+    clocks,
+    resolver: integrations.resolver,
+  });
+
+  const enrichment = composeRiskEnricher({
+    uow,
+    clocks,
+    storage,
+    providers: integrations.resolver.dataProviders,
+    branding: (ctx) => documentBranding(ctx),
+    productName: (ctx, productId) => productCatalog.productName(ctx, productId),
+    jurisdictionName,
+    transforms: enrichmentExtensions.transforms,
+  });
+
   const evaluation = {
     rater: new RatingModuleQuoteRater(
       makeRateRisk({ models: workbookModels, extensions: extensions.rater }),
     ),
-    enricher: new PassThroughRiskEnricher(),
+    enricher: enrichment.enricher,
     clocks,
     extensions: extensions.invoker,
   };
@@ -925,6 +950,76 @@ export function compose() {
     },
   });
 
+  const clientRequests = new PrismaClientRequestRepository();
+  // The link MAC reuses the auth secret under its own purpose prefix (see HmacClientLinks).
+  const clientLinks = new HmacClientLinks(env.BETTER_AUTH_SECRET);
+
+  const clientLinkUrl = async (ctx: TenantContext, requestId: string) =>
+    new URL(
+      clientApplicationPath(clientLinks.token(requestId)),
+      (await getProfile(ctx)).appUrls[0],
+    ).toString();
+
+  const signQuote = makeSignQuote({
+    ...quoting,
+    renderPacket: renderQuotePacket,
+    esign: integrations.resolver.port("esign"),
+    storage,
+  });
+
+  const bindQuote = makeBindQuote({
+    ...quoting,
+    ...evaluation,
+    addresses,
+    payments: cardGateway,
+    licensing: {
+      check: (ctx, input) => checkProducerLicense(ctx, { ...input, userId: input.producerId }),
+    },
+    policies: {
+      issue: async (ctx, request) => {
+        const record = await producerOfRecord(ctx, {
+          userId: request.producer.id,
+          agencyId: request.producer.agencyId,
+        });
+
+        return policy.issueNewBusiness(ctx, {
+          ...(request as Parameters<typeof policy.issueNewBusiness>[1]),
+          producer: {
+            ...request.producer,
+            agencyId: record.agencyId,
+            agencyName: record.agencyName,
+          },
+        });
+      },
+      attachDocuments: policy.attachDocuments,
+      applyPayment: async (ctx, input) => {
+        await applyPayment(ctx, input);
+      },
+      enrollAutopay,
+    },
+    documents: quoteDocuments,
+    storage,
+    conditions: { outstanding: underwriting.outstanding },
+    agencyBilling: billingMethods.agencyBillCheck,
+    carrier: carriers.gateway,
+  });
+
+  const clientApplication = makeClientApplication({
+    ...quoting,
+    requests: clientRequests,
+    links: clientLinks,
+    sign: signQuote,
+    bind: bindQuote,
+    packet: renderQuotePacket,
+  });
+
+  const listSubmissions = makeListSubmissions({
+    uow,
+    submissions,
+    quotes,
+    catalog: productCatalog,
+  });
+
   return {
     logger,
     auth,
@@ -942,6 +1037,7 @@ export function compose() {
         createProduct: makeCreateProduct({ uow, outbox, products, clocks }),
         ...catalog,
         listAvailableProducts: makeListAvailableProducts({ uow, products, releases }),
+        dataProviders: enrichmentExtensions.directory.providers,
         listVersions: makeListProductVersions({ uow, versions }),
         getVersion: makeGetProductVersion({ uow, versions }),
         createVersion: makeCreateProductVersion({ uow, outbox, products, versions, clocks }),
@@ -956,6 +1052,7 @@ export function compose() {
           rating: ratingVerifier,
           carriers: { verify: carriers.services.verify },
           extensions: { verify: extensions.verifyBindings },
+          enrichment: enrichmentExtensions.directory,
         }),
         publishVersion: makePublishProductVersion({
           uow,
@@ -967,6 +1064,7 @@ export function compose() {
           rating: ratingVerifier,
           carriers: { verify: carriers.services.verify },
           extensions: { verify: extensions.verifyBindings },
+          enrichment: enrichmentExtensions.directory,
           clocks,
         }),
         listReleases: makeListProductReleases({ uow, releases }),
@@ -994,56 +1092,32 @@ export function compose() {
           catalog: productCatalog,
           addresses,
         }),
-        list: makeListSubmissions({ uow, submissions, quotes, catalog: productCatalog }),
+        list: listSubmissions,
       },
       quotes: {
         get: getQuote,
         customize: makeCustomizeQuote({ ...quoting, ...evaluation }),
-        saveDetails: makeSaveBindDetails({ uow, submissions, quotes, clocks, addresses }),
-        packet: renderQuotePacket,
-        sign: makeSignQuote({
-          ...quoting,
-          renderPacket: renderQuotePacket,
-          esign: integrations.resolver.port("esign"),
-          storage,
-        }),
-        bind: makeBindQuote({
-          ...quoting,
-          ...evaluation,
+        saveDetails: makeSaveBindDetails({
+          uow,
+          submissions,
+          quotes,
+          clocks,
           addresses,
-          payments: cardGateway,
-          licensing: {
-            check: (ctx, input) =>
-              checkProducerLicense(ctx, { ...input, userId: input.producerId }),
-          },
-          policies: {
-            issue: async (ctx, request) => {
-              const record = await producerOfRecord(ctx, {
-                userId: request.producer.id,
-                agencyId: request.producer.agencyId,
-              });
-
-              return policy.issueNewBusiness(ctx, {
-                ...(request as Parameters<typeof policy.issueNewBusiness>[1]),
-                producer: {
-                  ...request.producer,
-                  agencyId: record.agencyId,
-                  agencyName: record.agencyName,
-                },
-              });
-            },
-            attachDocuments: policy.attachDocuments,
-            applyPayment: async (ctx, input) => {
-              await applyPayment(ctx, input);
-            },
-            enrollAutopay,
-          },
-          documents: quoteDocuments,
-          storage,
-          conditions: { outstanding: underwriting.outstanding },
-          agencyBilling: billingMethods.agencyBillCheck,
-          carrier: carriers.gateway,
+          catalog: productCatalog,
         }),
+        sendToClient: makeSendToClient({ ...quoting, requests: clientRequests }),
+        completion: makeGetClientCompletion({ ...quoting, requests: clientRequests }),
+        packet: renderQuotePacket,
+        enrichment: makeGetQuoteEnrichment({
+          uow,
+          submissions,
+          quotes,
+          records: enrichment.records,
+          reports: enrichment.reports,
+          catalog: productCatalog,
+        }),
+        sign: signQuote,
+        bind: bindQuote,
         decideReferral,
         choosePayPlan: makeChoosePayPlan({ uow, submissions, quotes, clocks }),
         billingOptions: makeBillingOptions({
@@ -1071,6 +1145,16 @@ export function compose() {
       search,
       recentViews,
       workflowRuns,
+      clientApplication,
+      clientLinkUrl,
+      actionItems: makeActionItems({
+        submissions: listSubmissions,
+        policies: policy.list,
+        invoices: (ctx: TenantContext, policyIds: readonly string[]) =>
+          listInvoices.forPolicies(ctx, { policyIds }),
+        underwriting: underwriting.producerActions,
+        clocks,
+      }),
       clientDetail: makeClientDetail({
         account: parties.account,
         policies: policy.get,

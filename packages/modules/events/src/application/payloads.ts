@@ -106,6 +106,10 @@ export const eventDataSchemas = {
   "quote.approved": quoted.extend({ conditions: z.array(z.string()) }),
   "quote.declined": quoted.extend({ declinedBy: z.enum(["underwriter", "rules"]) }),
   "quote.bound": quoted.extend({ policy: z.object({ id: z.string(), number: z.string() }) }),
+  "quote.signed": quoted.extend({
+    signedBy: z.enum(["insured", "producer"]),
+    signerName: z.string(),
+  }),
   "policy.issued": transacted,
   "policy.endorsed": transacted,
   "policy.cancellation_scheduled": z.object({

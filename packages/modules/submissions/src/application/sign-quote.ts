@@ -4,15 +4,20 @@ import {
   type TenantContext,
   type UnitOfWork,
   type ClockProvider,
+  type Outbox,
   type ProviderFor,
 } from "@pas/kernel";
 import type { ObjectStorage } from "@pas/storage";
+import type { CompletedBy } from "../domain/bind-details";
 import { outstandingFor } from "../domain/bind-requirements";
+import { assertCompletes } from "../domain/completion";
 import type { SubmissionScope } from "../domain/scope";
 import type { ESignGateway } from "../ports/esign-gateway";
+import type { ProductCatalog } from "../ports/product-catalog";
 import type { QuoteRepository } from "../ports/quote-repository";
 import type { SubmissionRepository } from "../ports/submission-repository";
 import { namedInsuredOf } from "./document-context";
+import { completionRulesFor } from "./client-requests";
 import { ESIGN_CONSENT } from "./esign-consent";
 import { type QuoteDto, toQuoteDto } from "./quote-dto";
 import { loadQuote } from "./quoting";
@@ -23,8 +28,10 @@ const normalized = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCas
 /** Embedded e-sign of the reviewed packet (PLAN §7.2.1 step 4). */
 export function makeSignQuote(deps: {
   uow: UnitOfWork;
+  outbox: Outbox;
   submissions: SubmissionRepository;
   quotes: QuoteRepository;
+  catalog: ProductCatalog;
   renderPacket: RenderQuotePacket;
   esign: ProviderFor<ESignGateway>;
   storage: ObjectStorage;
@@ -39,9 +46,14 @@ export function makeSignQuote(deps: {
       agreed: boolean;
       ipAddress: string;
       userAgent: string;
+      signer: Omit<CompletedBy, "name">;
     },
   ): Promise<QuoteDto> {
     if (!input.agreed) throw invalid("Agree to the terms to sign", { field: "agreed" });
+
+    const rules = await completionRulesFor(deps, ctx, scope, input.submissionId);
+
+    assertCompletes(rules, "signature", input.signer.party);
 
     const { quote } = await deps.uow.run(ctx, (tx) =>
       loadQuote(deps, tx, ctx, scope, input.submissionId),
@@ -115,11 +127,13 @@ export function makeSignQuote(deps: {
           consent: ESIGN_CONSENT,
           documentKey,
           documentSha256: signed.sha256,
+          signer: { ...input.signer, name: input.typedName.trim() },
         },
         deps.clocks.forTenant(ctx.tenantId),
       );
 
       await deps.quotes.save(tx, current.quote);
+      await deps.outbox.add(tx, current.quote.pullEvents());
 
       return toQuoteDto(current.quote, current.submission, "producer");
     });

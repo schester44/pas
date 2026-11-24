@@ -14,6 +14,7 @@
     "@pas/auth": "workspace:*",
     "@pas/decisions-engine": "workspace:*",
     "@pas/documents": "workspace:*",
+    "@pas/enrichment": "workspace:*",
     "@pas/expressions": "workspace:*",
     "@pas/extension-points": "workspace:*",
     "@pas/forms-core": "workspace:*",

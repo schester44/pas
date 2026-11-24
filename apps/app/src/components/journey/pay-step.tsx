@@ -21,6 +21,7 @@ import { StripeProvider, useStripeCard } from "@/components/stripe-card";
 import { formatMoney } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
 import { type BillingMethod, BillingMethodChoice } from "./billing-method";
+import { ClientCompletionPanel, useCompletion } from "./client-completion";
 import type { StepProps } from "./journey";
 import { scheduleSummary, selectedOffer } from "./pay-plans";
 import { PremiumSummary } from "./premium";
@@ -122,8 +123,11 @@ function PayLayout({
     trpc.quotes.billingOptions.queryOptions({ submissionId: submission.id }),
   );
 
+  const completion = useCompletion(submission.id);
   const [billingMethod, setBillingMethod] = useState<BillingMethod>("direct");
   const billed = billingMethod !== "direct";
+  const clientPays = !billed && completion?.rules.payment === "insured";
+  const eitherPays = !billed && completion?.rules.payment === "either";
   const offer = selectedOffer(quote);
   const installments = offer !== null && offer.installments > 1;
   const [autopay, setAutopay] = useState(true);
@@ -186,7 +190,15 @@ function PayLayout({
             quote={quote}
           />
         )}
-        {!billed && (
+        {clientPays && (
+          <ClientCompletionPanel
+            quote={quote}
+            submissionId={submission.id}
+            completion={completion}
+            title="Waiting for the insured to pay"
+          />
+        )}
+        {!billed && !clientPays && (
           <Panel
             title={offer ? offer.label : "Pay in full"}
             description={
@@ -234,16 +246,26 @@ function PayLayout({
             {notice ?? bind.error?.message}
           </Notice>
         )}
+        {eitherPays && completion && (
+          <ClientCompletionPanel
+            quote={quote}
+            submissionId={submission.id}
+            completion={completion}
+            title="Or let the insured pay"
+          />
+        )}
         <div className="flex justify-between gap-2">
           <Button type="button" variant="outline" onClick={() => go("review")}>
             Back
           </Button>
-          <Button type="submit" disabled={(!billed && !ready) || busy}>
-            {busy ? <Spinner /> : !billed && <Lock />}
-            {billed
-              ? `Bind on ${billingMethod === "agency" ? "agency" : "mortgagee"} bill`
-              : `Pay ${total} and bind`}
-          </Button>
+          {!clientPays && (
+            <Button type="submit" disabled={(!billed && !ready) || busy}>
+              {busy ? <Spinner /> : !billed && <Lock />}
+              {billed
+                ? `Bind on ${billingMethod === "agency" ? "agency" : "mortgagee"} bill`
+                : `Pay ${total} and bind`}
+            </Button>
+          )}
         </div>
       </form>
       <PremiumSummary quote={quote} />

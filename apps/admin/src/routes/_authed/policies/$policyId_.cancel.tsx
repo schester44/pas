@@ -222,9 +222,13 @@ function CancelPage() {
                       {initiate.isPending && <Spinner />} {action}
                     </Button>
                     <p className="m-0 text-xs text-muted-foreground">
-                      {authority.data?.issue
-                        ? `Sends the notice to the ${new Intl.ListFormat("en-US").format(q.rule.recipients.map(recipientLabel))} today.`
-                        : "Someone who can issue reviews it before the notice goes out."}
+                      {!q.rule
+                        ? authority.data?.issue
+                          ? "No notice goes out."
+                          : "Someone who can issue reviews it first."
+                        : authority.data?.issue
+                          ? `Sends the notice to the ${new Intl.ListFormat("en-US").format(q.rule.recipients.map(recipientLabel))} today.`
+                          : "Someone who can issue reviews it before the notice goes out."}
                     </p>
                   </div>
                 )

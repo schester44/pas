@@ -1,5 +1,5 @@
 import { type Block, type Clause, contextSchema } from "@pas/documents";
-import type { RiskSchema } from "@pas/forms-core";
+import { indexSchema, isField, type RiskSchema } from "@pas/forms-core";
 import { Button } from "@pas/ui/components/button";
 import { Input } from "@pas/ui/components/input";
 import { SegmentedControl } from "@pas/ui/components/segmented-control";
@@ -24,6 +24,7 @@ import {
   PropRow,
 } from "@/components/builders/inspector";
 import { PathPicker } from "@/components/builders/path-picker";
+import { useDocumentFields } from "./document-fields";
 import { MergeFieldInput } from "./merge-field-input";
 
 interface Props<B extends Block = Block> {
@@ -285,6 +286,208 @@ function ExposureFields({
   );
 }
 
+function DataTableFields({
+  block,
+  onChange,
+  schema,
+  readOnly,
+}: Props<Extract<Block, { type: "dataTable" }>>) {
+  const id = useId();
+  const extra = useDocumentFields();
+
+  const index = useMemo(
+    () => indexSchema(contextSchema(schema, "document", extra)),
+    [schema, extra],
+  );
+
+  const lists = useMemo(
+    () =>
+      [...index].filter(
+        ([path, node]) =>
+          node.kind === "repeatable" && !path.includes("[]") && !path.startsWith("risk."),
+      ),
+    [index],
+  );
+
+  const list = index.get(block.path);
+  const columns = list?.kind === "repeatable" ? list.children.filter(isField) : [];
+  const parent = block.path.slice(0, block.path.lastIndexOf("."));
+
+  const totals = [...index].filter(
+    ([path, node]) =>
+      isField(node) &&
+      path.startsWith(`${parent}.`) &&
+      !path.slice(parent.length + 1).includes("."),
+  );
+
+  const setColumn = (i: number, patch: Partial<(typeof block.columns)[number]>) =>
+    onChange({
+      ...block,
+      columns: block.columns.map((column, j) => (j === i ? { ...column, ...patch } : column)),
+    });
+
+  const labelOf = (path: string) => index.get(path)?.label ?? path;
+
+  return (
+    <>
+      <InspectorSection title="Content" readOnly={readOnly}>
+        <TextProp
+          label="Title"
+          optional
+          merge={false}
+          value={block.title}
+          onChange={(title) => onChange({ ...block, title: optional(title) })}
+          readOnly={readOnly}
+          schema={schema}
+        />
+        {readOnly ? (
+          <Prop readOnly label="Rows from" value={labelOf(block.path)} />
+        ) : (
+          <Prop label="Rows from" htmlFor={id} hint="One row per entry.">
+            <Select
+              value={block.path || undefined}
+              onValueChange={(path) => onChange({ ...block, path, columns: [] })}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue placeholder="Choose a list" />
+              </SelectTrigger>
+              <SelectContent>
+                {lists.map(([path, node]) => (
+                  <SelectItem key={path} value={path}>
+                    {labelOf(path.slice(0, path.lastIndexOf(".")))} · {node.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Prop>
+        )}
+      </InspectorSection>
+      {block.path && (
+        <InspectorSection
+          title="Columns"
+          readOnly={readOnly}
+          action={
+            !readOnly && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  onChange({ ...block, columns: [...block.columns, { label: "", path: "" }] })
+                }
+              >
+                <Plus /> Add column
+              </Button>
+            )
+          }
+        >
+          {block.columns.map((column, i) =>
+            readOnly ? (
+              <Prop key={i} readOnly label={column.label} value={<Code>{column.path}</Code>} />
+            ) : (
+              <div key={i} className="grid grid-cols-[10rem_minmax(0,1fr)_2rem] items-start gap-2">
+                <Input
+                  aria-label={`Column ${i + 1} label`}
+                  placeholder="Label"
+                  value={column.label}
+                  onChange={(event) => setColumn(i, { label: event.target.value })}
+                />
+                <Select
+                  value={column.path || undefined}
+                  onValueChange={(path) =>
+                    setColumn(i, {
+                      path,
+                      label: column.label || (columns.find((c) => c.key === path)?.label ?? ""),
+                    })
+                  }
+                >
+                  <SelectTrigger aria-label={`Column ${i + 1} field`}>
+                    <SelectValue placeholder="Field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {columns.map((field) => (
+                      <SelectItem key={field.key} value={field.key}>
+                        {field.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <IconAction
+                  label={`Remove column ${i + 1}`}
+                  icon={X}
+                  onClick={() =>
+                    onChange({ ...block, columns: block.columns.filter((_, j) => j !== i) })
+                  }
+                />
+              </div>
+            ),
+          )}
+        </InspectorSection>
+      )}
+      {block.path && (
+        <InspectorSection title="Rows and total" readOnly={readOnly}>
+          {readOnly ? (
+            <>
+              <Prop
+                readOnly
+                label="Include rows when"
+                value={block.rowWhen ? <Code>{block.rowWhen}</Code> : "Always"}
+              />
+              <Prop
+                readOnly
+                label="Total"
+                value={block.total ? labelOf(block.total.path) : "None"}
+              />
+            </>
+          ) : (
+            <>
+              <Prop
+                label="Include rows when"
+                htmlFor={`${id}-when`}
+                optional
+                hint="An expression over the row, like $.excluded == false."
+              >
+                <Input
+                  id={`${id}-when`}
+                  className="font-mono text-xs"
+                  spellCheck={false}
+                  value={block.rowWhen ?? ""}
+                  onChange={(event) =>
+                    onChange({ ...block, rowWhen: optional(event.target.value) })
+                  }
+                />
+              </Prop>
+              <Prop label="Total" htmlFor={`${id}-total`} optional>
+                <Select
+                  value={block.total?.path ?? "none"}
+                  onValueChange={(path) => {
+                    const { total: _, ...rest } = block;
+
+                    onChange(
+                      path === "none" ? rest : { ...rest, total: { label: labelOf(path), path } },
+                    );
+                  }}
+                >
+                  <SelectTrigger id={`${id}-total`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {totals.map(([path, node]) => (
+                      <SelectItem key={path} value={path}>
+                        {node.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Prop>
+            </>
+          )}
+        </InspectorSection>
+      )}
+    </>
+  );
+}
+
 function BlockFields(props: Props) {
   const { block, onChange, schema, readOnly, clauses } = props;
   const id = useId();
@@ -340,6 +543,8 @@ function BlockFields(props: Props) {
       return <KeyValueFields {...props} block={block} onChange={onChange as never} />;
     case "exposureTable":
       return <ExposureFields {...props} block={block} onChange={onChange as never} />;
+    case "dataTable":
+      return <DataTableFields {...props} block={block} onChange={onChange as never} />;
     case "coverageSchedule":
       return (
         <InspectorSection title="Content" readOnly={readOnly}>
@@ -424,7 +629,9 @@ function BlockFields(props: Props) {
 export function BlockInspector(props: Props) {
   const { block, onChange, schema, readOnly } = props;
   const id = useId();
-  const expressionSchema = useMemo(() => contextSchema(schema, "document"), [schema]);
+  const extra = useDocumentFields();
+
+  const expressionSchema = useMemo(() => contextSchema(schema, "document", extra), [schema, extra]);
 
   return (
     <InspectorBody>

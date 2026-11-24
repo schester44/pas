@@ -1,3 +1,4 @@
+import type { QuoteEnrichment } from "./enrichment";
 import type { DecisionKind } from "@pas/decisions-engine";
 import type { Instant, Money } from "@pas/kernel";
 import type { Attestation, DiligentSearch } from "./bind-requirements";
@@ -50,6 +51,8 @@ export interface QuoteEvaluation {
   adjustment?: { percent: string; reason: string; amount: Money };
   /** Set when the release's carrier rates or confirms (PLAN §12). */
   carrier?: CarrierQuoteState;
+  /** The enrichment this evaluation used (PLAN §11.1). */
+  enrichment?: QuoteEnrichment;
   evaluatedAt: Instant;
   durationMs: number;
 }

@@ -65,6 +65,7 @@ export class CatalogProductCatalog implements ProductCatalog {
       lifecycle: dto.manifest.lifecycle,
       billing: dto.manifest.billing,
       extensions: dto.manifest.extensions ?? [],
+      enrichment: dto.manifest.enrichment,
     };
 
     this.releases.set(cacheKey(ctx, dto.id), release);

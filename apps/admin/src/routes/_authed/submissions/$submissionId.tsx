@@ -20,6 +20,7 @@ import {
 } from "@/components/submissions/quote";
 import { SubmissionStatus } from "@/components/submissions/submission-status";
 import { InspectionsPanel, SubjectivitiesPanel } from "@/components/underwriting/conditions";
+import { PropertyData } from "@/components/underwriting/property-data";
 import { useAccess } from "@/lib/permissions";
 import { formatDate, formatMoney, formatPlainDate } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
@@ -107,6 +108,7 @@ function SubmissionPage() {
                       <InspectionsPanel quoteId={quote.data.id} />
                     </>
                   )}
+                  <PropertyData submissionId={submissionId} />
                   <QuoteWorksheet quote={quote.data} schema={submission.data.riskSchema} />
                 </>
               )}

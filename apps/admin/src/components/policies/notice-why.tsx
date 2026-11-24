@@ -10,6 +10,7 @@ import {
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import {
   deliveryLabel,
+  noNoticeExplanation,
   noticeExplanation,
   plainDate,
   recipientLabel,
@@ -28,10 +29,17 @@ export interface NoticeBasis {
     delivery: string;
     recipients: string[];
     source: { version: string; fallback: boolean };
-  };
+  } | null;
 }
 
 export function noticeSentence(basis: NoticeBasis) {
+  if (!basis.rule) {
+    return noNoticeExplanation({
+      jurisdictionName: jurisdictionName(basis.jurisdiction),
+      atInception: basis.atInception,
+    });
+  }
+
   return noticeExplanation({
     jurisdictionName: jurisdictionName(basis.jurisdiction),
     reasonLabel: basis.reasonLabel,
@@ -44,6 +52,8 @@ export function noticeSentence(basis: NoticeBasis) {
 
 /** "Why this date?": the notice rule behind the earliest valid cancellation date. */
 export function NoticeWhy({ basis }: { basis: NoticeBasis }) {
+  if (!basis.rule) return null;
+
   const facts: [string, string][] = [
     ["Notice date", plainDate(basis.noticeDate)],
     ["Days of notice", `${basis.rule.minDaysNotice}`],

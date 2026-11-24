@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@pas/ui/components/radio-group";
 import { Spinner } from "@pas/ui/components/spinner";
 import { Textarea } from "@pas/ui/components/textarea";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
-import { noticeExplanation, plainDate } from "@pas/ui/lib/policy-change";
+import { noNoticeExplanation, noticeExplanation, plainDate } from "@pas/ui/lib/policy-change";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -106,14 +106,19 @@ function RequestCancellationPage() {
                   <span className="font-medium text-foreground tabular-nums">
                     Earliest {plainDate(q.earliestDate)}.
                   </span>{" "}
-                  {noticeExplanation({
-                    jurisdictionName: jurisdictionName(q.jurisdiction),
-                    reasonLabel: chosen.label,
-                    initiator: chosen.initiator,
-                    minDaysNotice: q.rule.minDaysNotice,
-                    mailingDaysAdded: q.rule.mailingDaysAdded,
-                    atInception: q.atInception,
-                  })}
+                  {q.rule
+                    ? noticeExplanation({
+                        jurisdictionName: jurisdictionName(q.jurisdiction),
+                        reasonLabel: chosen.label,
+                        initiator: chosen.initiator,
+                        minDaysNotice: q.rule.minDaysNotice,
+                        mailingDaysAdded: q.rule.mailingDaysAdded,
+                        atInception: q.atInception,
+                      })
+                    : noNoticeExplanation({
+                        jurisdictionName: jurisdictionName(q.jurisdiction),
+                        atInception: q.atInception,
+                      })}
                 </p>
                 <div className="grid gap-2">
                   <Label htmlFor="note">

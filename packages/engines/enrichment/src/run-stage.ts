@@ -1,17 +1,27 @@
+import { evaluate } from "@pas/expressions";
 import { getAt } from "@pas/forms-core";
 import { canonicalJson, type Clock, type Instant, type Money, type TenantId } from "@pas/kernel";
 import { enrichmentCacheKey, type EnrichmentCache } from "./cache";
 import type { CircuitBreaker } from "./circuit-breaker";
-import { cacheTtlSeconds } from "./plan";
+import { cacheTtlSeconds, mappingsOf, stageOfRef } from "./plan";
 import type {
   ConsentKind,
   EnrichmentCall,
   EnrichmentMode,
   EnrichmentPlan,
+  EnrichmentReport,
   EnrichmentStage,
+  EnrichmentTransform,
   ProviderCapability,
 } from "./plan";
-import type { DataProvider, ProviderRegistry, ProviderRequest, ProviderResponse } from "./provider";
+import type {
+  DataProvider,
+  ProviderArtifact,
+  ProviderRegistry,
+  ProviderRequest,
+  ProviderResponse,
+} from "./provider";
+import type { TransformRunner } from "./transform";
 
 /** An answer the PAS already holds, such as a geocode from the address registry. */
 export interface KnownResult {
@@ -30,6 +40,8 @@ export interface EnrichmentRisk {
   readonly userEntered: ReadonlySet<string>;
   readonly consents?: ReadonlySet<ConsentKind>;
   readonly known?: readonly KnownResult[];
+  /** Sources from earlier stages, which this stage's transforms, derivations and mappings can read. */
+  readonly prior?: EnrichmentSources;
 }
 
 export interface EnrichmentDeps {
@@ -38,12 +50,15 @@ export interface EnrichmentDeps {
   readonly cache: EnrichmentCache;
   readonly clock: Clock;
   readonly breaker?: CircuitBreaker;
+  readonly transforms?: TransformRunner;
 }
 
 interface Attribution {
   readonly path: string;
-  readonly callId: string;
-  readonly providerId: string;
+  /** The source ref the value came from (`call.rce.replacementCost`, `derived.coverageA`). */
+  readonly source: string;
+  /** The provider behind a `call.*` source; null for transforms and derived values. */
+  readonly providerId: string | null;
   readonly mode: EnrichmentMode;
 }
 
@@ -87,25 +102,104 @@ export interface SnapshotEntry {
   readonly provenance: Readonly<Record<string, string>>;
 }
 
+export type TransformOutcome = "ok" | "error" | "invalid_output" | "unavailable";
+
+export interface TransformRecord {
+  readonly transformId: string;
+  readonly extension: { readonly key: string; readonly version?: string };
+  readonly outcome: TransformOutcome;
+  readonly values: Readonly<Record<string, unknown>>;
+  readonly logs: readonly string[];
+  readonly latencyMs: number;
+  readonly error?: string;
+}
+
+export interface DerivationError {
+  readonly derivationId: string;
+  readonly message: string;
+}
+
 export interface EnrichmentSnapshot {
   readonly stage: EnrichmentStage;
   readonly takenAt: Instant;
+  /** Provider responses exactly as returned (after field mapping in the adapter). */
   readonly entries: readonly SnapshotEntry[];
+  readonly transforms: readonly TransformRecord[];
+  readonly derived: Readonly<Record<string, unknown>>;
+  readonly derivationErrors: readonly DerivationError[];
 }
+
+/** Everything a stage produced, addressable by source ref; earlier stages' sources carry forward. */
+export interface EnrichmentSources {
+  readonly call: Readonly<Record<string, ProviderResponse>>;
+  readonly transform: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  readonly derived: Readonly<Record<string, unknown>>;
+}
+
+export const emptySources = (): EnrichmentSources => ({ call: {}, transform: {}, derived: {} });
+
+export function sourcesOf(snapshots: readonly EnrichmentSnapshot[]): EnrichmentSources {
+  return snapshots.reduce<EnrichmentSources>(
+    (sources, snapshot) => ({
+      call: {
+        ...sources.call,
+        ...Object.fromEntries(snapshot.entries.map((entry) => [entry.callId, entry.response])),
+      },
+      transform: {
+        ...sources.transform,
+        ...Object.fromEntries(
+          snapshot.transforms
+            .filter((t) => t.outcome === "ok")
+            .map((t) => [t.transformId, t.values]),
+        ),
+      },
+      derived: { ...sources.derived, ...snapshot.derived },
+    }),
+    emptySources(),
+  );
+}
+
+export type ReportOutcome =
+  | {
+      readonly reportId: string;
+      readonly title: string;
+      readonly source: "vendor";
+      readonly providerId: string;
+      readonly artifact: ProviderArtifact;
+    }
+  | {
+      readonly reportId: string;
+      readonly title: string;
+      readonly source: "template";
+      readonly template: string;
+    }
+  | {
+      readonly reportId: string;
+      readonly title: string;
+      readonly source: null;
+      readonly reason: string;
+    };
 
 export interface EnrichmentStageResult {
   readonly snapshot: EnrichmentSnapshot;
+  /** This stage's sources merged over the prior ones. */
+  readonly sources: EnrichmentSources;
   readonly prefills: readonly Prefill[];
   readonly discrepancies: readonly Discrepancy[];
   readonly calls: readonly CallRecord[];
+  readonly reports: readonly ReportOutcome[];
+  /** A transform with `onFailure: "block"` failed; the caller must not use this enrichment. */
+  readonly blocked?: { readonly transformId: string; readonly message: string };
 }
 
 class ProviderTimeout extends Error {}
 
 /**
- * Runs a stage's calls (PLAN §11.1). Independent calls run in parallel; a call waits for the calls
- * it `dependsOn` and reads their results (a geocode before hazards). Each call falls back through
+ * Runs a stage (PLAN §11.1). Independent calls run in parallel; a call waits for the calls it
+ * `dependsOn` and reads their results (a geocode before hazards). Each call falls back through
  * its providers, or with `merge` asks them all and merges field by field, recording provenance.
+ * Then the stage's transforms (sandboxed extensions) and derivations (expressions) run in order,
+ * and mappings from any source ref write onto the risk.
  */
 export async function runEnrichmentStage(
   plan: EnrichmentPlan,
@@ -145,46 +239,202 @@ export async function runEnrichmentStage(
   const order = new Map(calls.map((call, index) => [call.id, index]));
   outcomes.sort((a, b) => order.get(a.call.id)! - order.get(b.call.id)!);
 
+  const entries = outcomes.flatMap((outcome) => (outcome.entry ? [outcome.entry] : []));
+  const prior = risk.prior ?? emptySources();
+
+  const sources = {
+    call: { ...prior.call, ...Object.fromEntries(entries.map((e) => [e.callId, e.response])) },
+    transform: { ...prior.transform },
+    derived: { ...prior.derived },
+  };
+
+  const transforms: TransformRecord[] = [];
+  let blocked: EnrichmentStageResult["blocked"];
+
+  for (const transform of plan.transforms.filter((t) => t.stage === stage)) {
+    const record = await runTransform(transform, sources, risk, deps);
+    transforms.push(record);
+
+    if (record.outcome === "ok") {
+      sources.transform[transform.id] = record.values;
+    } else if (transform.onFailure === "block" && !blocked) {
+      blocked = { transformId: transform.id, message: record.error ?? record.outcome };
+    }
+  }
+
+  const derivedNow: Record<string, unknown> = {};
+  const derivationErrors: DerivationError[] = [];
+
+  for (const derivation of plan.derivations.filter((d) => d.stage === stage)) {
+    try {
+      const value = evaluate(derivation.expression, { ...sources, risk: risk.data });
+
+      if (value !== undefined) {
+        derivedNow[derivation.id] = value;
+        sources.derived[derivation.id] = value;
+      }
+    } catch (error) {
+      derivationErrors.push({
+        derivationId: derivation.id,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const providerOf = (ref: string): string | null => {
+    const [kind, callId, field] = ref.split(".");
+
+    if (kind !== "call") return null;
+
+    const entry = entries.find((e) => e.callId === callId);
+
+    return (field && entry?.provenance[field]) ?? entry?.providerId ?? null;
+  };
+
   const prefills: Prefill[] = [];
   const discrepancies: Discrepancy[] = [];
 
-  for (const { call, entry } of outcomes) {
-    if (!entry) continue;
+  for (const mapping of mappingsOf(plan)) {
+    if (stageOfRef(plan, mapping.from) !== stage) continue;
 
-    for (const [field, path] of Object.entries(call.response)) {
-      const providerValue = entry.response[field];
+    const providerValue = getAt(sources, mapping.from);
 
-      if (providerValue === undefined || providerValue === null) continue;
+    if (isBlank(providerValue)) continue;
 
-      const attribution = {
-        path,
-        callId: call.id,
-        providerId: entry.provenance[field] ?? entry.providerId,
-        mode: call.mode,
+    const attribution = {
+      path: mapping.to,
+      source: mapping.from,
+      providerId: providerOf(mapping.from),
+      mode: mapping.mode,
+    };
+
+    if (risk.userEntered.has(mapping.to)) {
+      const userValue = getAt(risk.data, mapping.to);
+
+      if (!isBlank(userValue) && !sameValue(userValue, providerValue)) {
+        discrepancies.push({ ...attribution, userValue, providerValue });
+      }
+    } else if (mapping.mode !== "uw_only") {
+      prefills.push({ ...attribution, value: providerValue });
+    }
+  }
+
+  const reports = await Promise.all(
+    plan.reports
+      .filter((report) => report.stage === stage)
+      .map((report) => resolveReport(report, calls, entries, deps)),
+  );
+
+  return {
+    snapshot: { stage, takenAt, entries, transforms, derived: derivedNow, derivationErrors },
+    sources,
+    prefills,
+    discrepancies,
+    calls: outcomes.flatMap((outcome) => outcome.records),
+    reports,
+    ...(blocked && { blocked }),
+  };
+}
+
+async function runTransform(
+  transform: EnrichmentTransform,
+  sources: EnrichmentSources,
+  risk: EnrichmentRisk,
+  deps: EnrichmentDeps,
+): Promise<TransformRecord> {
+  const base = { transformId: transform.id, extension: transform.extension, values: {}, logs: [] };
+
+  if (!deps.transforms) {
+    return {
+      ...base,
+      outcome: "unavailable",
+      latencyMs: 0,
+      error: "No extension runtime is configured",
+    };
+  }
+
+  const input = {
+    sources: Object.fromEntries(transform.reads.map((ref) => [ref, getAt(sources, ref) ?? null])),
+    risk: risk.data,
+  };
+
+  const started = deps.clock.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), transform.timeoutMs);
+
+  try {
+    const run = await deps.transforms.run(transform, input, { signal: controller.signal });
+    const latencyMs = elapsedMs(deps.clock, started);
+
+    if (!run.ok) return { ...base, outcome: "error", logs: run.logs, latencyMs, error: run.error };
+
+    const unexpected = Object.keys(run.values).filter((field) => !transform.writes.includes(field));
+
+    if (unexpected.length > 0) {
+      return {
+        ...base,
+        outcome: "invalid_output",
+        logs: run.logs,
+        latencyMs,
+        error: `Returned fields it doesn't declare: ${unexpected.join(", ")}`,
       };
+    }
 
-      if (risk.userEntered.has(path)) {
-        const userValue = getAt(risk.data, path);
+    return { ...base, outcome: "ok", values: run.values, logs: run.logs, latencyMs };
+  } catch (error) {
+    return {
+      ...base,
+      outcome: "error",
+      latencyMs: elapsedMs(deps.clock, started),
+      error: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-        if (!isBlank(userValue) && !sameValue(userValue, providerValue)) {
-          discrepancies.push({ ...attribution, userValue, providerValue });
+async function resolveReport(
+  report: EnrichmentReport,
+  calls: readonly EnrichmentCall[],
+  entries: readonly SnapshotEntry[],
+  deps: EnrichmentDeps,
+): Promise<ReportOutcome> {
+  const base = { reportId: report.id, title: report.title };
+  let reason = "No report source";
+
+  if (report.source !== "template") {
+    const entry = entries.find((e) => e.callId === report.callId);
+    const provider = entry && deps.providers.get(entry.providerId);
+    const call = calls.find((c) => c.id === report.callId);
+
+    if (!entry || !call) {
+      reason = "The call didn't return data";
+    } else if (!provider?.report) {
+      reason = `${entry.providerId} doesn't supply reports`;
+    } else {
+      try {
+        const artifact = await withTimeout(
+          (signal) => provider.report!(call.capability, entry.request, entry.response, { signal }),
+          call.timeoutMs,
+          `${entry.providerId} report timed out after ${call.timeoutMs}ms`,
+        );
+
+        if (artifact) {
+          return { ...base, source: "vendor", providerId: entry.providerId, artifact };
         }
-      } else if (call.mode !== "uw_only") {
-        prefills.push({ ...attribution, value: providerValue });
+
+        reason = `${entry.providerId} returned no report`;
+      } catch (error) {
+        reason = error instanceof Error ? error.message : String(error);
       }
     }
   }
 
-  return {
-    snapshot: {
-      stage,
-      takenAt,
-      entries: outcomes.flatMap((outcome) => (outcome.entry ? [outcome.entry] : [])),
-    },
-    prefills,
-    discrepancies,
-    calls: outcomes.flatMap((outcome) => outcome.records),
-  };
+  if (report.source !== "vendor" && report.template) {
+    return { ...base, source: "template", template: report.template };
+  }
+
+  return { ...base, source: null, reason };
 }
 
 type Attempt = { providerId: string; response?: ProviderResponse; record: CallRecord };
@@ -403,7 +653,11 @@ function resolveRequest(
     const entered = getAt(risk.data, path);
     const value = isBlank(entered) ? derived.get(path) : entered;
 
-    if (isBlank(value)) return null;
+    if (isBlank(value)) {
+      if (call.optional.includes(field)) continue;
+
+      return null;
+    }
 
     request[field] = value;
   }
@@ -411,31 +665,38 @@ function resolveRequest(
   return request;
 }
 
-async function fetchWithTimeout(
+function fetchWithTimeout(
   provider: DataProvider,
   call: EnrichmentCall,
   request: ProviderRequest,
 ): Promise<ProviderResponse> {
+  return withTimeout(
+    (signal) => provider.fetch(call.capability, request, { signal }),
+    call.timeoutMs,
+    `${provider.manifest.id} timed out after ${call.timeoutMs}ms`,
+  );
+}
+
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   // Raced as well as signalled, so a provider that ignores the signal still can't stall the stage.
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      const error = new ProviderTimeout(
-        `${provider.manifest.id} timed out after ${call.timeoutMs}ms`,
-      );
+      const error = new ProviderTimeout(message);
 
       controller.abort(error);
       reject(error);
-    }, call.timeoutMs);
+    }, timeoutMs);
   });
 
   try {
-    return await Promise.race([
-      provider.fetch(call.capability, request, { signal: controller.signal }),
-      timeout,
-    ]);
+    return await Promise.race([run(controller.signal), timeout]);
   } finally {
     clearTimeout(timer);
   }

@@ -1,3 +1,9 @@
+import { enrichmentSchema } from "@pas/enrichment";
+import {
+  checkEnrichment,
+  type EnrichmentReferences,
+  type EnrichmentTarget,
+} from "./enrichment-checks";
 import { checkDocuments, type DocumentSet, type DocumentTarget } from "@pas/documents";
 import { checkBindings } from "@pas/extension-points";
 import { checkEndorsableRules, checkReferences, schemaIndex } from "@pas/forms-core";
@@ -39,6 +45,8 @@ export type CheckTarget =
   | { area: "billing"; plan?: string; field?: string }
   | ({ area: "rating" } & RatingTarget)
   | { area: "carrier" }
+  | ({ area: "enrichment" } & EnrichmentTarget)
+  | { area: "bind"; field: string }
   | { area: "extensions"; binding?: string };
 
 export interface CheckIssue {
@@ -69,6 +77,7 @@ export interface ResolvedReferences {
   rating?: readonly RatingIssue[];
   carrier?: readonly { severity: "error" | "warning"; message: string }[];
   extensions?: readonly { bindingId?: string; severity: "error" | "warning"; message: string }[];
+  enrichment?: EnrichmentReferences;
 }
 
 export function checkVersion(
@@ -84,6 +93,11 @@ export function checkVersion(
     ...checkVersionDocuments(contents, resolved.formEditions),
     ...checkRules(contents),
     ...checkBilling(contents),
+    ...checkCompletion(contents),
+    ...checkEnrichment(contents, resolved.enrichment).map((issue) => ({
+      ...issue,
+      target: { area: "enrichment" as const, ...issue.target },
+    })),
     ...(resolved.rating ?? []).map((issue) => ({
       ...issue,
       target: { area: "rating" as const, ...issue.target },
@@ -143,12 +157,10 @@ function checkVersionDocuments(
 ): CheckIssue[] {
   const { documents } = contents;
 
-  const issues: CheckIssue[] = checkDocuments(
-    contents.riskSchema,
-    contents.coverages,
-    documents,
-    formEditions ? { formEditions } : {},
-  ).map((issue) => ({ ...issue, target: documentTarget(issue.target) }));
+  const issues: CheckIssue[] = checkDocuments(contents.riskSchema, contents.coverages, documents, {
+    ...(formEditions && { formEditions }),
+    extraFields: [enrichmentSchema(contents.enrichment)],
+  }).map((issue) => ({ ...issue, target: documentTarget(issue.target) }));
 
   const declarations = new Set(
     documents.templates.filter((t) => t.kind === "declarations").map((t) => t.key),
@@ -184,6 +196,35 @@ function checkBilling(contents: VersionContents): CheckIssue[] {
       target: { area: "billing", ...(plan && { plan }), ...(field && { field }) },
     }),
   );
+}
+
+const COMPLETING: Record<string, readonly string[]> = {
+  disclosures: ["insured", "producer"],
+  signature: ["insured", "producer"],
+  payment: ["insured", "producer", "either"],
+};
+
+function checkCompletion(contents: VersionContents): CheckIssue[] {
+  const completion = contents.lifecycle.completion;
+
+  if (completion === undefined) return [];
+
+  if (typeof completion !== "object" || completion === null || Array.isArray(completion)) {
+    return [error({ area: "bind", field: "completion" }, "Choose who completes each step")];
+  }
+
+  return Object.entries(COMPLETING).flatMap(([field, allowed]) => {
+    const value = (completion as Record<string, unknown>)[field];
+
+    return value === undefined || allowed.includes(value as string)
+      ? []
+      : [
+          error(
+            { area: "bind", field },
+            `Choose who ${field === "payment" ? "pays" : `completes ${field}`}`,
+          ),
+        ];
+  });
 }
 
 function checkRiskSchema(contents: VersionContents): CheckIssue[] {

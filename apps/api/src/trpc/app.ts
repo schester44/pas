@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { asId } from "@pas/kernel";
 import { z } from "zod";
 import { addressRouter } from "./addresses";
+import { applyRouter } from "./apply";
 import { statementQueries } from "./billing";
 import { notificationsRouter } from "./events";
 import { requireAppPermission, tenantFromHost } from "./app-tenant";
@@ -29,6 +30,7 @@ import {
   setAutopayInput,
   listPoliciesInput,
   packetInput,
+  enrichmentReportInput,
   policyById,
   policyDocument,
   signQuoteInput,
@@ -90,6 +92,7 @@ export const appRouter = router({
   }),
 
   client: clientRouter,
+  clientApplication: applyRouter,
   notifications: notificationsRouter(requireAppPermission({ submission: ["read"] })),
 
   addresses: addressRouter(tenantFromHost),
@@ -202,12 +205,29 @@ export const appRouter = router({
 
         return { pdf: base64(packet.pdf), documents: packet.documents, revision: packet.revision };
       }),
+    enrichment: inBook({ quote: ["read"] })
+      .input(bySubmission)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.quotes.enrichment.view(ctx.tenant, ctx.scope, input),
+      ),
+    enrichmentReport: inBook({ quote: ["read"] })
+      .input(enrichmentReportInput)
+      .query(async ({ ctx, input }) => {
+        const file = await ctx.container.useCases.quotes.enrichment.report(
+          ctx.tenant,
+          ctx.scope,
+          input,
+        );
+
+        return { title: file.title, pdf: base64(file.body) };
+      }),
     sign: inBook({ quote: ["bind"] })
       .input(signQuoteInput)
       .mutation(({ ctx, input }) =>
         ctx.container.useCases.quotes.sign(ctx.tenant, ctx.scope, {
           ...input,
           ...ctx.client,
+          signer: { party: "producer", userId: ctx.session.user.id, email: ctx.session.user.email },
         }),
       ),
     billingOptions: inBook({ quote: ["bind"] })
@@ -215,6 +235,29 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.quotes.billingOptions(ctx.tenant, ctx.scope, input),
       ),
+    completion: inBook({ quote: ["read"] })
+      .input(bySubmission)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.quotes.completion(ctx.tenant, ctx.scope, input),
+      ),
+    sendToClient: inBook({ quote: ["bind"] })
+      .input(
+        bySubmission.extend({
+          email: z.email().max(254),
+          name: z.string().trim().min(1).max(200),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const sent = await ctx.container.useCases.quotes.sendToClient(ctx.tenant, ctx.scope, {
+          ...input,
+          actorName: ctx.session.user.name,
+        });
+
+        return {
+          request: sent.request,
+          url: await ctx.container.useCases.clientLinkUrl(ctx.tenant, sent.requestId),
+        };
+      }),
     checkout: inBook({ quote: ["bind"] }).query(async ({ ctx }) =>
       ctx.container.useCases.quotes.checkout(ctx.tenant),
     ),
@@ -231,11 +274,16 @@ export const appRouter = router({
               : {}),
           actorName: ctx.session.user.name,
           autopay: input.autopay ?? false,
+          payer: "producer",
         }),
       ),
   }),
 
   search: router({ query: appSearch, ...appRecent }),
+
+  actionItems: inBook({ submission: ["read"], policy: ["read"] }).query(({ ctx }) =>
+    ctx.container.useCases.actionItems(ctx.tenant, ctx.scope),
+  ),
 
   underwriting: producerUnderwritingRouter,
 

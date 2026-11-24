@@ -25,7 +25,7 @@ export interface ConfigFieldDto {
   key: string;
   label: string;
   description: string | null;
-  type: "text" | "url" | "email" | "number" | "boolean" | "select";
+  type: "text" | "url" | "email" | "number" | "boolean" | "select" | "json";
   options: string[];
   optionLabels: Record<string, string>;
   optional: boolean;
@@ -132,6 +132,8 @@ export function configFields(schema: z.ZodObject): ConfigFieldDto[] {
 
 function fieldType(property: JsonProperty): ConfigFieldDto["type"] {
   if (property.enum) return "select";
+
+  if (property.type === "array" || property.type === "object") return "json";
 
   if (property.type === "boolean") return "boolean";
 

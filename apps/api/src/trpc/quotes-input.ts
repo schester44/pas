@@ -134,3 +134,8 @@ export const policyDocument = z.object({ policyId: id, documentId: id });
 export const listPoliciesInput = z
   .object({ limit: z.number().int().min(1).max(500).optional() })
   .optional();
+
+export const enrichmentReportInput = bySubmission.extend({
+  recordId: id,
+  reportId: z.string().min(1).max(64),
+});

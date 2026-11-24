@@ -61,7 +61,7 @@ export const POLICY_EVENT_TYPES = {
     "mortgagee_reminder",
     "direct_bill_offered",
   ],
-  document: ["documents_generated", "signed"],
+  document: ["documents_generated", "signed", "sent_to_client", "disclosures_accepted"],
   communication: ["notice_sent", "notice_mailed"],
   service: ["change_requested"],
   compliance: [

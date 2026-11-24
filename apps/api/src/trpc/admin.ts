@@ -22,6 +22,7 @@ import {
 } from "./init";
 import {
   bySubmission,
+  enrichmentReportInput,
   decideReferralInput,
   listPoliciesInput,
   payPolicyInvoiceInput,
@@ -114,6 +115,9 @@ export const adminRouter = router({
       get: requirePermission({ product: ["read"] })
         .input(byId)
         .query(({ ctx, input }) => ctx.container.useCases.catalog.getVersion(ctx.tenant, input)),
+      dataProviders: requirePermission({ product: ["read"] }).query(({ ctx }) =>
+        ctx.container.useCases.catalog.dataProviders(ctx.tenant),
+      ),
       check: requirePermission({ product: ["read"] })
         .input(byId)
         .query(({ ctx, input }) => ctx.container.useCases.catalog.checkVersion(ctx.tenant, input)),
@@ -259,6 +263,20 @@ export const adminRouter = router({
       .query(({ ctx, input }) =>
         ctx.container.useCases.quotes.get.forStaff(ctx.tenant, ctx.scope, input),
       ),
+    quoteEnrichment: submissionRead
+      .input(bySubmission)
+      .query(({ ctx, input }) =>
+        ctx.container.useCases.quotes.enrichment.view(ctx.tenant, ctx.scope, input),
+      ),
+    enrichmentReport: submissionRead.input(enrichmentReportInput).query(async ({ ctx, input }) => {
+      const file = await ctx.container.useCases.quotes.enrichment.report(
+        ctx.tenant,
+        ctx.scope,
+        input,
+      );
+
+      return { title: file.title, pdf: base64(file.body) };
+    }),
     decideReferral: submissionRead
       .use(async ({ ctx, next }) => {
         await assertPermission(ctx, { uw: ["approve"] });

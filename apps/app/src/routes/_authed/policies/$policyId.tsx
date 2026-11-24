@@ -3,7 +3,7 @@ import type { AppOutputs } from "@pas/api-client";
 import { Notice } from "@pas/ui/components/notice";
 import { Panel } from "@pas/ui/components/panel";
 import { SubjectivitiesList } from "@/components/underwriting";
-import { StatusChip, type StatusTone } from "@pas/ui/components/status-chip";
+import { StatusChip } from "@pas/ui/components/status-chip";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import { PolicyDocumentList } from "@/components/policy-documents";
 import { BackLink } from "@/components/submission-heading";
 import { formatDate, formatPlainDate, formatPlainDateRange } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
+import { TERM_STATUS } from "@/lib/policies";
 import { useRecordView } from "@/lib/recent-views";
 
 export const Route = createFileRoute("/_authed/policies/$policyId")({
@@ -24,14 +25,6 @@ export const Route = createFileRoute("/_authed/policies/$policyId")({
 });
 
 type Policy = AppOutputs["policies"]["get"];
-
-const TERM_STATUS: Record<string, { label: string; tone: StatusTone }> = {
-  pending_effective: { label: "Pending effective", tone: "accent" },
-  in_force: { label: "In force", tone: "success" },
-  pending_cancellation: { label: "Pending cancellation", tone: "warning" },
-  expired: { label: "Expired", tone: "neutral" },
-  cancelled: { label: "Cancelled", tone: "danger" },
-};
 
 function PolicyPage() {
   const { policyId } = Route.useParams();

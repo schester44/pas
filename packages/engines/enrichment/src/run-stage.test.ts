@@ -85,7 +85,7 @@ describe("runEnrichmentStage", () => {
     expect(result.discrepancies).toEqual([
       {
         path: "building.yearBuilt",
-        callId: "property",
+        source: "call.property.yearBuilt",
         providerId: "backup",
         mode: "authoritative",
         userValue: 1890,
@@ -170,5 +170,119 @@ describe("runEnrichmentStage", () => {
       floodZone: "other",
       crimeScore: "other",
     });
+  });
+
+  it("runs transforms, then derivations, then mappings, keeping user values and blocking on failure", async () => {
+    const plan = enrichmentPlanSchema.parse({
+      stages: {
+        pre_rate: [
+          {
+            id: "rce",
+            capability: "replacement_cost",
+            providers: ["vendor"],
+            request: { address: "address" },
+            response: {},
+            mode: "prefill",
+            costClass: "medium",
+          },
+        ],
+      },
+      transforms: [
+        {
+          id: "adjust",
+          stage: "pre_rate",
+          extension: { key: "rce-adjust", version: "3" },
+          reads: ["call.rce.replacementCost", "derived.region"],
+          writes: ["adjustedCost"],
+        },
+        {
+          id: "optional",
+          stage: "pre_rate",
+          extension: { key: "broken" },
+          writes: ["x"],
+          onFailure: "skip",
+        },
+      ],
+      derivations: [
+        { id: "coverageA", stage: "pre_rate", expression: "transform.adjust.adjustedCost * 1.1" },
+        { id: "broken", stage: "pre_rate", expression: "nope(" },
+      ],
+      mappings: [
+        { from: "call.rce.replacementCost", to: "building.rce", mode: "uw_only" },
+        { from: "derived.coverageA", to: "coverages.dwelling", mode: "prefill" },
+        { from: "transform.adjust.adjustedCost", to: "building.adjustedRce", mode: "prefill" },
+      ],
+    });
+
+    const seen: unknown[] = [];
+
+    const run = (failAdjust: boolean) =>
+      runEnrichmentStage(
+        plan,
+        "pre_rate",
+        {
+          data: { address: "1 Elm St", building: { adjustedRce: 1000 } },
+          userEntered: new Set(["address", "building.adjustedRce"]),
+          prior: { call: {}, transform: {}, derived: { region: "coastal" } },
+        },
+        {
+          tenantId: asId("tenant-1"),
+          providers: createProviderRegistry([
+            {
+              ...createFakeDataProvider({ id: "vendor" }),
+              fetch: async () => ({ replacementCost: 400_000 }),
+            },
+          ]),
+          cache: new InMemoryEnrichmentCache(systemClock),
+          clock: systemClock,
+          transforms: {
+            run: async (transform, input) => {
+              seen.push(input.sources);
+
+              if (transform.id === "optional") return { ok: false, error: "boom", logs: [] };
+
+              return failAdjust
+                ? { ok: true, values: { adjustedCost: 1, extra: 2 }, logs: [] }
+                : {
+                    ok: true,
+                    values: {
+                      adjustedCost: (input.sources["call.rce.replacementCost"] as number) * 2,
+                    },
+                    logs: ["doubled"],
+                  };
+            },
+          },
+        },
+      );
+
+    const result = await run(false);
+
+    expect(seen[0]).toEqual({ "call.rce.replacementCost": 400_000, "derived.region": "coastal" });
+    expect(result.snapshot.entries[0]!.response).toEqual({ replacementCost: 400_000 });
+    expect(result.snapshot.transforms.map((t) => t.outcome)).toEqual(["ok", "error"]);
+    expect(result.snapshot.derived).toEqual({ coverageA: 880_000 });
+    expect(result.snapshot.derivationErrors.map((e) => e.derivationId)).toEqual(["broken"]);
+    expect(result.blocked).toBeUndefined();
+
+    expect(result.prefills.map(({ path, value, source }) => [path, value, source])).toEqual([
+      ["coverages.dwelling", 880_000, "derived.coverageA"],
+    ]);
+
+    expect(result.discrepancies).toEqual([
+      {
+        path: "building.adjustedRce",
+        source: "transform.adjust.adjustedCost",
+        providerId: null,
+        mode: "prefill",
+        userValue: 1000,
+        providerValue: 800_000,
+      },
+    ]);
+
+    const failed = await run(true);
+
+    expect(failed.snapshot.transforms[0]!.outcome).toBe("invalid_output");
+    expect(failed.blocked?.transformId).toBe("adjust");
+    expect(failed.prefills).toEqual([]);
   });
 });

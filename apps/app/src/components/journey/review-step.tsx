@@ -12,6 +12,7 @@ import type * as React from "react";
 import { useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import { useTRPC } from "@/lib/trpc";
+import { ClientCompletionPanel, insuredOwns, useCompletion } from "./client-completion";
 import type { StepProps } from "./journey";
 
 export const fromBase64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
@@ -55,7 +56,33 @@ export function ReviewStep({ quote, submission, go }: StepProps) {
           </div>
         )}
       </Panel>
-      <SignPanel quote={quote} submission={submission} go={go} />
+      <SignOrWait quote={quote} submission={submission} go={go} />
+    </div>
+  );
+}
+
+function SignOrWait(props: StepProps) {
+  const completion = useCompletion(props.submission.id);
+
+  if (!completion) return <div className="h-64 animate-pulse rounded-xl border bg-card" />;
+
+  if (!insuredOwns(completion, "signature")) return <SignPanel {...props} />;
+
+  const { quote, submission, go } = props;
+
+  return (
+    <div className="grid gap-4 lg:sticky lg:top-20">
+      <ClientCompletionPanel
+        quote={quote}
+        submissionId={submission.id}
+        completion={completion}
+        title={quote.signature ? "Signed by the insured" : "Waiting for the insured to sign"}
+      />
+      {quote.signature && (
+        <Button onClick={() => go("pay")}>
+          Continue to payment <ArrowRight />
+        </Button>
+      )}
     </div>
   );
 }

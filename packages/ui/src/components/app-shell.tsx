@@ -1,5 +1,5 @@
-import { Menu } from "lucide-react";
-import { Dialog as DialogPrimitive } from "radix-ui";
+import { ChevronRight, Menu } from "lucide-react";
+import { Collapsible as CollapsiblePrimitive, Dialog as DialogPrimitive } from "radix-ui";
 import * as React from "react";
 import { cn } from "../lib/utils";
 
@@ -58,13 +58,94 @@ function AppShell({
   );
 }
 
-function NavSection({ label, children }: { label?: string; children: React.ReactNode }) {
+function NavSection({
+  label,
+  collapsible,
+  active = false,
+  children,
+}: {
+  label?: string;
+  collapsible?: boolean;
+  /** The current route is inside this section; a collapsed section opens when this turns true. */
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!label || !collapsible) {
+    return (
+      <nav className="grid gap-0.5">
+        {label && (
+          <p className="m-0 px-2 pb-1 text-xs font-medium text-muted-foreground">{label}</p>
+        )}
+        {children}
+      </nav>
+    );
+  }
+
   return (
-    <nav className="grid gap-0.5">
-      {label && <p className="m-0 px-2 pb-1 text-xs font-medium text-muted-foreground">{label}</p>}
+    <CollapsibleNavSection label={label} active={active}>
       {children}
-    </nav>
+    </CollapsibleNavSection>
   );
+}
+
+function CollapsibleNavSection({
+  label,
+  active,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = usePersistedOpen(`pas.nav.${label}`);
+
+  React.useEffect(() => {
+    if (active) setOpen(true);
+  }, [active, setOpen]);
+
+  return (
+    <CollapsiblePrimitive.Root open={open} onOpenChange={setOpen} asChild>
+      <nav className="grid gap-0.5">
+        <CollapsiblePrimitive.Trigger className="group flex h-6 items-center gap-1 rounded-md px-2 text-left text-xs font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
+          <span className="flex-1">{label}</span>
+          <ChevronRight
+            aria-hidden
+            className="size-3.5 transition-transform group-data-[state=open]:rotate-90"
+          />
+        </CollapsiblePrimitive.Trigger>
+        <CollapsiblePrimitive.Content className="grid gap-0.5">
+          {children}
+        </CollapsiblePrimitive.Content>
+      </nav>
+    </CollapsiblePrimitive.Root>
+  );
+}
+
+function usePersistedOpen(key: string) {
+  const [open, setOpenState] = React.useState(() => readOpen(key));
+
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      setOpenState(next);
+
+      try {
+        localStorage.setItem(key, next ? "1" : "0");
+      } catch {
+        // Storage can be unavailable (private mode); the section just won't remember.
+      }
+    },
+    [key],
+  );
+
+  return [open, setOpen] as const;
+}
+
+function readOpen(key: string) {
+  try {
+    return localStorage.getItem(key) !== "0";
+  } catch {
+    return true;
+  }
 }
 
 const navItemClassName = cn(

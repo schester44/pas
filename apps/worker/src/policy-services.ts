@@ -35,12 +35,8 @@ import { type ExtensionRaterRunner, makeRateRisk, makeWorkbookModels } from "@pa
 import type { BindingInvoker } from "@pas/extension-points";
 import { PrismaRaterWorkbookRepository } from "@pas/rating/infrastructure";
 import type { ObjectStorage } from "@pas/storage";
-import { makeRateTerm } from "@pas/submissions";
-import {
-  CatalogProductCatalog,
-  PassThroughRiskEnricher,
-  RatingModuleQuoteRater,
-} from "@pas/submissions/infrastructure";
+import { makeRateTerm, noEnrichment } from "@pas/submissions";
+import { CatalogProductCatalog, RatingModuleQuoteRater } from "@pas/submissions/infrastructure";
 import { jurisdictionName } from "@pas/ui/lib/jurisdictions";
 
 /** The policy-change dependencies nonpayment needs in the worker (same wiring as apps/api). */
@@ -87,7 +83,7 @@ export function composePolicyServices(deps: {
     rater: new RatingModuleQuoteRater(
       makeRateRisk({ models: workbookModels, extensions: deps.extensions.rater }),
     ),
-    enricher: new PassThroughRiskEnricher(),
+    enricher: noEnrichment,
     clocks,
     catalog,
     extensions: deps.extensions.invoker,

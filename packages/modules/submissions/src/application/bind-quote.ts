@@ -1,4 +1,5 @@
 import { planOf } from "../domain/pay-plan-offers";
+import { enrichedRisk } from "../domain/enrichment";
 import {
   conflict,
   DomainError,
@@ -13,6 +14,7 @@ import {
 import { addressesIn, addressIdsIn } from "@pas/addresses";
 import type { ObjectStorage } from "@pas/storage";
 import { outstandingFor } from "../domain/bind-requirements";
+import { assertCompletes, type CompletingParty, completionRules } from "../domain/completion";
 import type { Quote } from "../domain/quote";
 import type { SubmissionScope } from "../domain/scope";
 import type { Submission } from "../domain/submission";
@@ -89,6 +91,7 @@ export function makeBindQuote(deps: Deps) {
       billingMethod?: BillingMethodOption["method"];
       actorName: string;
       autopay?: boolean;
+      payer: CompletingParty;
     },
   ): Promise<BindQuoteResult> {
     const clock = deps.clocks.forTenant(ctx.tenantId);
@@ -132,6 +135,11 @@ export function makeBindQuote(deps: Deps) {
       deps.catalog.getRelease(ctx, q.productReleaseId),
       deps.catalog.productName(ctx, s.productId),
     ]);
+
+    // Agency and mortgagee bill collect nothing at bind, so only a direct-bill payment has a payer.
+    if ((input.billingMethod ?? "direct") === "direct") {
+      assertCompletes(completionRules(release.lifecycle), "payment", input.payer);
+    }
 
     const licensing = await deps.licensing.check(ctx, {
       producerId: s.producer.userId,
@@ -375,6 +383,12 @@ export async function attachPacket(
         sizeBytes: signed?.body.byteLength ?? 0,
       },
       ...(await storeCarrierDocuments(deps, ctx, issued, input.carrier)),
+      ...(quote.toSnapshot().evaluation.enrichment?.reports ?? []).map((report) => ({
+        kind: "enrichment_report",
+        title: report.title,
+        storageKey: report.storageKey,
+        sizeBytes: report.sizeBytes,
+      })),
     ],
     actor: { type: "system", name: "Document generation" },
   });
@@ -543,6 +557,7 @@ async function recheck(
 
   const { evaluation } = await evaluateQuote(deps, ctx, {
     release,
+    submissionId,
     risk: q.riskData,
     jurisdiction: submission.toSnapshot().jurisdiction,
     termStart: q.termStart,
@@ -620,7 +635,7 @@ export function issueRequest(
     taxesFees,
     writtenPremium: q.evaluation.writtenPremium.toJSON(),
     snapshot: {
-      risk: q.riskData,
+      risk: enrichedRisk(q.riskData, q.evaluation.enrichment),
       coverages,
       taxesFees,
       writtenPremium: q.evaluation.writtenPremium.toJSON(),

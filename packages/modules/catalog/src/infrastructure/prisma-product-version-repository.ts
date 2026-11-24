@@ -1,3 +1,4 @@
+import { enrichmentPlanOf } from "@pas/enrichment";
 import { instantFromDb, instantToDb, prismaTx } from "@pas/db";
 import { Prisma as PrismaRuntime } from "@pas/db/client";
 import type {
@@ -41,6 +42,7 @@ export class PrismaProductVersionRepository implements ProductVersionRepository 
       rating: v.contents.rating === null ? PrismaRuntime.DbNull : json(v.contents.rating),
       billing: json(v.contents.billing),
       extensions: json(v.contents.extensions),
+      enrichment: json(v.contents.enrichment),
       updatedAt: instantToDb(v.updatedAt),
       publishedAt: v.publishedAt ? instantToDb(v.publishedAt) : null,
       retiredAt: v.retiredAt ? instantToDb(v.retiredAt) : null,
@@ -121,6 +123,7 @@ function toVersion(row: ProductVersionRow): ProductVersion {
       rating: row.rating as unknown as VersionContents["rating"],
       billing: billingConfigOf(row.billing),
       extensions: (row.extensions ?? []) as unknown as VersionContents["extensions"],
+      enrichment: enrichmentPlanOf(row.enrichment),
     },
     basedOnId: row.basedOnId ? asId(row.basedOnId) : null,
     createdAt: instantFromDb(row.createdAt),

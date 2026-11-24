@@ -31,6 +31,8 @@ export interface ProviderManifest {
   webhook: { kind: string; events: readonly string[] } | null;
   /** Data providers: the enrichment capabilities it answers. */
   supplies?: readonly string[];
+  /** Data providers: in sandboxes, answers for any data provider a product's plan names. */
+  standIn?: boolean;
   /** Needs an account and credentials issued by the vendor. */
   requiresCredentials?: boolean;
   /** Filing channels: the obligation kinds and jurisdictions they file (PLAN §17.5). */

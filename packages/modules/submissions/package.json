@@ -17,6 +17,7 @@
     "@pas/db": "workspace:*",
     "@pas/decisions-engine": "workspace:*",
     "@pas/documents": "workspace:*",
+    "@pas/enrichment": "workspace:*",
     "@pas/expressions": "workspace:*",
     "@pas/extension-points": "workspace:*",
     "@pas/form-library": "workspace:*",
@@ -25,6 +26,7 @@
     "@pas/pay-plans": "workspace:*",
     "@pas/rating": "workspace:*",
     "@pas/rating-engine": "workspace:*",
+    "@pas/sandbox": "workspace:*",
     "@pas/storage": "workspace:*",
     "pdf-lib": "^1.17.1"
   }

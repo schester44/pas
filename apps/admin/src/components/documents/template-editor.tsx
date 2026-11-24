@@ -329,6 +329,7 @@ function newBlockFor(type: BlockType, template: DocumentTemplate): Block {
     case "coverageSchedule":
       return { id, type, title: "Coverages", limit: true, deductible: true, premium: true };
     case "exposureTable":
+    case "dataTable":
       return { id, type, path: "", columns: [] };
     case "clause":
       return { id, type, clause: "" };

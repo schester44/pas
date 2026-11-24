@@ -28,6 +28,27 @@ export {
 } from "./application/save-bind-details";
 export { makeRenderQuotePacket, type RenderQuotePacket } from "./application/render-quote-packet";
 export { makeSignQuote, type SignQuote } from "./application/sign-quote";
+export { makeSendToClient, type SendToClient } from "./application/send-to-client";
+export {
+  makeGetClientCompletion,
+  type ClientCompletionDto,
+  type GetClientCompletion,
+} from "./application/get-client-completion";
+export {
+  makeClientApplication,
+  type ClientApplication,
+  type ClientApplicationDto,
+  type ClientIdentity,
+  type ClientLinkPeek,
+} from "./application/client-application";
+export type { ClientRequestDto } from "./application/client-requests";
+export { completionRules, type CompletingParty, type CompletionRules } from "./domain/completion";
+export { clientApplicationPath, type ClientLinks } from "./ports/client-links";
+export type { ClientRequestLinks, ClientRequestMail } from "./ports/client-request-mail";
+export {
+  makeEmailClientRequest,
+  type EmailClientRequest,
+} from "./application/email-client-request";
 export { makeBindQuote, type BindQuote, type BindQuoteResult } from "./application/bind-quote";
 export {
   makeDecideReferral,
@@ -104,3 +125,24 @@ export {
   type RunSubmissionAction,
   type SubmissionPanel,
 } from "./application/run-record-extension";
+export { makeRiskEnricher, type RiskEnricherDeps } from "./application/enrich-risk";
+export { noEnrichment, type RiskEnricher, type EnrichedRisk } from "./ports/risk-enricher";
+export type {
+  DataProviders,
+  EnrichmentRecordRepository,
+  EnrichmentReports,
+  TransformExtension,
+  TransformExtensions,
+} from "./ports/enrichment";
+export {
+  enrichedRisk,
+  type EnrichmentRecord,
+  type MissingReport,
+  type QuoteEnrichment,
+  type StoredReport,
+} from "./domain/enrichment";
+export {
+  makeGetQuoteEnrichment,
+  type GetQuoteEnrichment,
+  type QuoteEnrichmentDto,
+} from "./application/get-quote-enrichment";

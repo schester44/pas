@@ -88,6 +88,13 @@ export function noticeExplanation(input: {
   return `${input.jurisdictionName} requires ${input.minDaysNotice} days' notice for cancellations for ${reason}${mailing}.${inception}`;
 }
 
+/** No notice rule covers the jurisdiction, so no notice goes out and none is required. */
+export function noNoticeExplanation(input: { jurisdictionName: string; atInception?: boolean }) {
+  return input.atInception
+    ? `No notice rule covers ${input.jurisdictionName}, so no notice goes out. The policy hasn't started yet, so the earliest date is inception.`
+    : `No notice rule covers ${input.jurisdictionName}, so no notice goes out and the cancellation can take effect today.`;
+}
+
 export const deliveryLabel = (code: string) =>
   ({
     electronic: "Electronic",

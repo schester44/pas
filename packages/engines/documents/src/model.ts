@@ -7,6 +7,7 @@ export const TEMPLATE_KINDS = [
   "binder",
   "notice",
   "letter",
+  "enrichment_report",
   "other",
 ] as const;
 
@@ -31,6 +32,7 @@ export const BLOCK_TYPES = [
   "keyValue",
   "coverageSchedule",
   "exposureTable",
+  "dataTable",
   "clause",
   "formsSchedule",
   "signature",
@@ -93,6 +95,17 @@ export interface ExposureTableBlock extends BlockBase {
   columns: ExposureColumn[];
 }
 
+/** Rows from any list in the context (an enrichment cost breakdown), with an optional total. */
+export interface DataTableBlock extends BlockBase {
+  type: "dataTable";
+  title?: string;
+  path: string;
+  columns: ExposureColumn[];
+  /** A unary expression over each row (`$`); rows where it's false are left out. */
+  rowWhen?: string;
+  total?: { label: string; path: string };
+}
+
 export interface ClauseBlock extends BlockBase {
   type: "clause";
   clause: string;
@@ -127,6 +140,7 @@ export type Block =
   | KeyValueBlock
   | CoverageScheduleBlock
   | ExposureTableBlock
+  | DataTableBlock
   | ClauseBlock
   | FormsScheduleBlock
   | SignatureBlock
@@ -217,6 +231,15 @@ const blockSchema = z.discriminatedUnion("type", [
     title: text(200).optional(),
     path: text(500),
     columns: z.array(z.object({ label: text(200), path: text(500) })).max(12),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("dataTable"),
+    title: text(200).optional(),
+    path: text(500),
+    columns: z.array(z.object({ label: text(200), path: text(500) })).max(12),
+    rowWhen: optionalExpression,
+    total: z.object({ label: text(200), path: text(500) }).optional(),
   }),
   z.object({ ...base, type: z.literal("clause"), clause: text(64) }),
   z.object({ ...base, type: z.literal("formsSchedule"), title: text(200).optional() }),

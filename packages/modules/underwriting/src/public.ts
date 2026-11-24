@@ -8,6 +8,7 @@ export type {
   ReferralSummaryDto,
   SubjectivityDto,
 } from "./application/dto";
+export type { ListProducerActions, ProducerActionsDto } from "./application/list-producer-actions";
 export { INSPECTION_VIEWS, type InspectionView } from "./application/list-inspections";
 export { QUEUE_VIEWS, type QueueInput, type QueueView } from "./application/list-referrals";
 export type { InspectionTimers } from "./application/inspection-timers";

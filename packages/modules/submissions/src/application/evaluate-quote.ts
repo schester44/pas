@@ -33,7 +33,7 @@ import {
 } from "../domain/underwriter-terms";
 import type { CatalogRelease, ReleaseDecision } from "../ports/product-catalog";
 import type { QuoteRater } from "../ports/quote-rater";
-import type { RiskEnricher } from "../ports/risk-enricher";
+import { noEnrichment, type RiskEnricher } from "../ports/risk-enricher";
 import { installmentSplits, underwriteRisk } from "./extension-hooks";
 
 export interface EvaluationDeps {
@@ -54,6 +54,10 @@ export interface EvaluationInput {
   transaction?: { type: RatingInput["transaction"]["type"]; effective: PlainDate };
   modifications?: ReferralModifications;
   subject?: RunSubject;
+  /** Keeps and reuses enrichment records for this submission. */
+  submissionId?: string;
+  /** Issued terms are rated on the enrichment pinned at bind, so they pass `false`. */
+  enrich?: boolean;
 }
 
 export interface EvaluationOutput {
@@ -72,8 +76,27 @@ export async function evaluateQuote(
 ): Promise<EvaluationOutput> {
   const started = performance.now();
   const { release } = input;
-  const { risk } = await deps.enricher.enrich(ctx, release, input.risk, ["prefill", "pre_rate"]);
-  const data = { ...risk, jurisdiction: input.jurisdiction, market: release.market };
+
+  const enricher = input.enrich === false ? noEnrichment : deps.enricher;
+
+  const { risk, enrichment } = await enricher.enrich(
+    ctx,
+    release,
+    input.risk,
+    ["prefill", "pre_rate"],
+    input.submissionId,
+  );
+
+  const data = {
+    ...risk,
+    jurisdiction: input.jurisdiction,
+    market: release.market,
+    enrichment: {
+      derived: enrichment?.derived ?? {},
+      discrepancies: enrichment?.discrepancies ?? [],
+    },
+  };
+
   const records: DecisionRecord[] = [];
 
   const run = <K extends DecisionKind>(
@@ -234,6 +257,7 @@ export async function evaluateQuote(
       attestations,
       payPlans,
       ...(carrier && { carrier }),
+      ...(enrichment && { enrichment }),
       evaluatedAt: clock.now(),
       durationMs: performance.now() - started,
     },

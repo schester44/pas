@@ -9,8 +9,9 @@ import { Spinner } from "@pas/ui/components/spinner";
 import { cn } from "@pas/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Copy, ExternalLink, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { Check, X } from "lucide-react";
+import { useId, useState } from "react";
+import { CopyableLink } from "@/components/copyable-link";
 import { usePermission } from "@/lib/permissions";
 import { useTRPC } from "@/lib/trpc";
 
@@ -387,45 +388,6 @@ function CustomDomains({
       </div>
       <Hint>Point a CNAME record for the domain at your app subdomain, then add it here.</Hint>
     </div>
-  );
-}
-
-function CopyableLink({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-
-    const timer = setTimeout(() => setCopied(false), 1500);
-
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  return (
-    <li className="-mx-2 flex h-9 items-center gap-1 rounded-md px-2 hover:bg-muted/40">
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="group flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground"
-      >
-        <span className="truncate group-hover:underline">{url.replace(/^https?:\/\//, "")}</span>
-        <ExternalLink aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-      </a>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="text-muted-foreground"
-        onClick={async () => {
-          await navigator.clipboard.writeText(url);
-          setCopied(true);
-        }}
-      >
-        {copied ? <Check className="text-emerald-600" /> : <Copy />}
-        {copied ? "Copied" : "Copy"}
-      </Button>
-    </li>
   );
 }
 

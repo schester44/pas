@@ -74,6 +74,8 @@ export interface DocumentContext {
   /** Whatever the product's document_data extension returned (PLAN §15.1). */
   extension?: Record<string, unknown>;
   /** Set when rendering a notice (cancellation, rescission, reinstatement). */
+  /** Enrichment sources (`call.*`, `transform.*`, `derived.*`) for enrichment reports. */
+  enrichment?: Record<string, unknown>;
   notice?: {
     title: string;
     reason: string;
@@ -121,6 +123,7 @@ export function documentData(context: DocumentContext): Record<string, unknown> 
     producer: context.producer ?? {},
     premium: context.premium ?? {},
     notice: context.notice ?? {},
+    enrichment: context.enrichment ?? {},
   };
 }
 
@@ -135,7 +138,12 @@ const group = (key: string, label: string, children: SchemaNode[]): SchemaNode =
 });
 
 /** The paths merge fields, `showWhen` and `includeWhen` may read, described as a schema. */
-export function contextSchema(risk: RiskSchema, scope: "document" | "schedule"): RiskSchema {
+export function contextSchema(
+  risk: RiskSchema,
+  scope: "document" | "schedule",
+  /** More top-level groups a document may read, such as the product's enrichment sources. */
+  extra: readonly SchemaNode[] = [],
+): RiskSchema {
   const common: SchemaNode[] = [
     field("jurisdiction", "Jurisdiction code"),
     field("country", "Country code"),
@@ -183,6 +191,7 @@ export function contextSchema(risk: RiskSchema, scope: "document" | "schedule"):
         field("minDaysNotice", "Days of notice", "integer"),
         field("returnPremium", "Return premium", "money"),
       ]),
+      ...extra,
     ],
   };
 }

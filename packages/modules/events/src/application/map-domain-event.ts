@@ -99,6 +99,19 @@ const MAPPERS: Record<string, Mapper> = {
 
     return data ? [{ type: "quote.declined", data: { ...data, declinedBy } }] : [];
   },
+  "submissions.quote_signed": async (_, payload, subjects, ctx) => {
+    const data = await quoted(subjects, ctx, text(payload.submissionId));
+    const signedBy = payload.party === "insured" ? "insured" : "producer";
+
+    return data
+      ? [
+          {
+            type: "quote.signed",
+            data: { ...data, signedBy, signerName: text(payload.signerName) ?? "" },
+          },
+        ]
+      : [];
+  },
   "submissions.quote_bound": async (_, payload, subjects, ctx) => {
     const data = await quoted(subjects, ctx, text(payload.submissionId));
     const policyId = text(payload.policyId);

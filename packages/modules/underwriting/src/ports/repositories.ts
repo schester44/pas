@@ -10,6 +10,7 @@ export interface ReferralFilter {
   jurisdiction?: string;
   assigneeId?: string | null;
   openedBefore?: Temporal.Instant;
+  submissionIds?: readonly string[];
   limit?: number;
 }
 
@@ -29,6 +30,11 @@ export interface SubjectivityRepository {
   listByQuote(tx: Transaction, ctx: TenantContext, quoteId: string): Promise<Subjectivity[]>;
   listByPolicy(tx: Transaction, ctx: TenantContext, policyId: string): Promise<Subjectivity[]>;
   listOpen(tx: Transaction, ctx: TenantContext, limit: number): Promise<Subjectivity[]>;
+  listOpenBySubmissions(
+    tx: Transaction,
+    ctx: TenantContext,
+    submissionIds: readonly string[],
+  ): Promise<Subjectivity[]>;
 }
 
 export interface InspectionRepository {

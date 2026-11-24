@@ -21,6 +21,7 @@ import { externalBillingProvider } from "./providers/billing-events";
 import { geoapifyProvider, smartyProvider } from "./providers/addresses";
 import { censusGeocoderProvider } from "./providers/builtin";
 import { e2valueProvider, hazardhubProvider } from "./providers/data-vendors";
+import { mockDataProvider } from "./providers/mock-data";
 import {
   fileExportFilingProvider,
   slaiFilingProvider,
@@ -62,6 +63,7 @@ export function composeIntegrations(deps: {
     censusGeocoderProvider,
     e2valueProvider(),
     hazardhubProvider(),
+    mockDataProvider,
     smartyProvider(),
     geoapifyProvider(),
     testFilingProvider,

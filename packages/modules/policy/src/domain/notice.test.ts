@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   assertCancellationDate,
   earliestCancellationDate,
+  mailsNotice,
+  NO_NOTICE,
   type NoticeRule,
   policyAgeDays,
 } from "./notice";
@@ -98,6 +100,31 @@ describe("earliestCancellationDate", () => {
 
     expect(() => assertCancellationDate(d("2027-11-13"), earliest)).toThrow(/Nov 14, 2027/);
     expect(() => assertCancellationDate(d("2027-11-14"), earliest)).not.toThrow();
+  });
+
+  it("without a notice rule allows any reason on the notice date and sends nothing", () => {
+    const earliest = earliestCancellationDate({
+      ...term,
+      noticeDate: d("2027-10-10"),
+      reason: "underwriting",
+      rule: null,
+    });
+
+    expect(earliest.date.toString()).toBe("2027-10-10");
+    expect(earliest.minDaysNotice).toBe(0);
+    expect(earliest.mailingDaysAdded).toBe(0);
+    expect(earliest.delivery).toBe(NO_NOTICE);
+    expect(mailsNotice(earliest.delivery)).toBe(false);
+
+    const beforeInception = earliestCancellationDate({
+      ...term,
+      noticeDate: d("2027-07-01"),
+      reason: "underwriting",
+      rule: null,
+    });
+
+    expect(beforeInception.date.toString()).toBe("2027-08-01");
+    expect(beforeInception.atInception).toBe(true);
   });
 
   it("counts policy age from inception, zero before it", () => {

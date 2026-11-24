@@ -10,7 +10,18 @@ import { authClient } from "@/lib/auth";
 import { queryClient } from "@/lib/trpc";
 
 /** Email one-time code: enter an email, then the six digits we send to it. */
-export function ClientSignIn({ initialEmail }: { initialEmail?: string }) {
+export function ClientSignIn({
+  initialEmail,
+  title = "Sign in",
+  description = "We'll email you a code. No password needed.",
+  onSignedIn,
+}: {
+  initialEmail?: string;
+  title?: string;
+  description?: React.ReactNode;
+  /** Stay where the client is instead of going to the portal. */
+  onSignedIn?: () => Promise<void> | void;
+}) {
   const navigate = useNavigate();
   const [email, setEmail] = useState(initialEmail ?? "");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -59,7 +70,9 @@ export function ClientSignIn({ initialEmail }: { initialEmail?: string }) {
       }
 
       queryClient.clear();
-      await navigate({ to: "/portal" });
+
+      if (onSignedIn) await onSignedIn();
+      else await navigate({ to: "/portal" });
     });
   };
 
@@ -132,7 +145,7 @@ export function ClientSignIn({ initialEmail }: { initialEmail?: string }) {
 
   return (
     <>
-      <AuthHeader title="Sign in" description="We'll email you a code. No password needed." />
+      <AuthHeader title={title} description={description} />
       <form onSubmit={onEmail} className="grid gap-5">
         <div className="grid gap-2">
           <Label htmlFor="client-email">Email</Label>

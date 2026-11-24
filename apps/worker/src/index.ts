@@ -58,11 +58,12 @@ import {
 } from "@pas/integrations/infrastructure";
 import { makeSendPortalInvite } from "@pas/parties";
 import { ConsoleMailer } from "@pas/parties/infrastructure";
-import { makeQuoteTimers } from "@pas/submissions";
+import { clientApplicationPath, makeEmailClientRequest, makeQuoteTimers } from "@pas/submissions";
 import {
   ClickToSignGateway,
   FakeCardGateway,
   PrismaQuoteRepository,
+  HmacClientLinks,
 } from "@pas/submissions/infrastructure";
 import { AppHosts, makeGetProfile } from "@pas/tenants";
 import { PrismaTenantProfileRepository, TenantClocks } from "@pas/tenants/infrastructure";
@@ -231,6 +232,29 @@ const extensions = composeWorkerExtensions({
   recordPolicyEvent,
   sendEmail: async (ctx, message) => {
     await (await mailers.for(ctx)).send(message);
+  },
+});
+
+const clientLinks = new HmacClientLinks(process.env.BETTER_AUTH_SECRET ?? "");
+
+const emailClientRequest = makeEmailClientRequest({
+  mail: {
+    send: async (ctx, message) => {
+      await (await mailers.for(ctx)).send({ ...message, tag: "client_application_request" });
+    },
+  },
+  links: {
+    url: async (ctx, requestId) => {
+      const profile = await getProfile(ctx);
+
+      return {
+        url: new URL(
+          clientApplicationPath(clientLinks.token(requestId)),
+          profile.appUrls[0],
+        ).toString(),
+        brand: profile.displayName,
+      };
+    },
   },
 });
 
@@ -706,6 +730,18 @@ const dispatch = createDomainEventDispatcher(
           const invite = event.payload as { email: string; name: string; policyNumber: string };
 
           await sendPortalInvite(systemContext(event.tenantId), invite);
+        },
+      ],
+      "submissions.client_request_sent": [
+        async (event) => {
+          const request = event.payload as {
+            requestId: string;
+            email: string;
+            name: string;
+            sentBy: string;
+          };
+
+          await emailClientRequest(systemContext(event.tenantId), request);
         },
       ],
       "policy.change_requested": [

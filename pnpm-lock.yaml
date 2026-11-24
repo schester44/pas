@@ -211,6 +211,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../packages/engines/documents
+      '@pas/enrichment':
+        specifier: workspace:*
+        version: link:../../packages/engines/enrichment
       '@pas/expressions':
         specifier: workspace:*
         version: link:../../packages/engines/expressions
@@ -320,6 +323,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../packages/engines/documents
+      '@pas/enrichment':
+        specifier: workspace:*
+        version: link:../../packages/engines/enrichment
       '@pas/events':
         specifier: workspace:*
         version: link:../../packages/modules/events
@@ -365,6 +371,9 @@ importers:
       '@pas/rating-engine':
         specifier: workspace:*
         version: link:../../packages/engines/rating
+      '@pas/sandbox':
+        specifier: workspace:*
+        version: link:../../packages/sandbox
       '@pas/search':
         specifier: workspace:*
         version: link:../../packages/modules/search
@@ -709,6 +718,9 @@ importers:
 
   packages/engines/enrichment:
     dependencies:
+      '@pas/expressions':
+        specifier: workspace:*
+        version: link:../expressions
       '@pas/forms-core':
         specifier: workspace:*
         version: link:../forms-core
@@ -899,6 +911,12 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../engines/documents
+      '@pas/enrichment':
+        specifier: workspace:*
+        version: link:../../engines/enrichment
+      '@pas/expressions':
+        specifier: workspace:*
+        version: link:../../engines/expressions
       '@pas/extension-points':
         specifier: workspace:*
         version: link:../../engines/extension-points
@@ -1016,6 +1034,9 @@ importers:
       nodemailer:
         specifier: ^10.6.0
         version: 10.6.0
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
       resend:
         specifier: ^6.38.1
         version: 6.38.1
@@ -1133,6 +1154,9 @@ importers:
       '@pas/documents':
         specifier: workspace:*
         version: link:../../engines/documents
+      '@pas/enrichment':
+        specifier: workspace:*
+        version: link:../../engines/enrichment
       '@pas/expressions':
         specifier: workspace:*
         version: link:../../engines/expressions
@@ -1157,6 +1181,9 @@ importers:
       '@pas/rating-engine':
         specifier: workspace:*
         version: link:../../engines/rating
+      '@pas/sandbox':
+        specifier: workspace:*
+        version: link:../../sandbox
       '@pas/storage':
         specifier: workspace:*
         version: link:../../storage

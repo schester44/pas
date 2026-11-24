@@ -1,4 +1,5 @@
 import { type DocumentSet, TEMPLATE_KINDS, type TemplateKind } from "@pas/documents";
+import { enrichmentSchema } from "@pas/enrichment";
 import { Button } from "@pas/ui/components/button";
 import { Card } from "@pas/ui/components/card";
 import {
@@ -25,7 +26,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LayoutTemplate, Plus } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/catalog/confirm-dialog";
 import {
   blankTemplate,
@@ -34,6 +35,7 @@ import {
 } from "@/components/catalog/documents";
 import { useVersionEditor } from "@/components/catalog/version-editor";
 import { ClausesEditor } from "@/components/documents/clauses-editor";
+import { DocumentFieldsProvider } from "@/components/documents/document-fields";
 import { useFormEditions } from "@/components/documents/preview";
 import { ScheduleEditor } from "@/components/documents/schedule-editor";
 import { TemplateEditor } from "@/components/documents/template-editor";
@@ -73,6 +75,12 @@ function DocumentsTab() {
   const readOnly = version.status !== "draft" || !access.documents.write;
   const section = search.section ?? "templates";
   const documents = contents.documents;
+
+  const documentFields = useMemo(
+    () => [enrichmentSchema(contents.enrichment)],
+    [contents.enrichment],
+  );
+
   const productName = product.data?.name ?? "";
 
   const go = (next: DocumentsSearch) => navigate({ search: next, replace: true });
@@ -120,22 +128,24 @@ function DocumentsTab() {
 
       {section === "templates" &&
         (template ? (
-          <TemplateEditor
-            key={template.key}
-            template={template}
-            onChange={(next) =>
-              save({
-                templates: documents.templates.map((t) => (t.key === template.key ? next : t)),
-              })
-            }
-            onDelete={() => setDeleting(true)}
-            contents={contents}
-            productName={productName}
-            version={version.version}
-            readOnly={readOnly}
-            selected={search.block ?? template.blocks[0]?.id}
-            onSelect={(block) => go({ section, item: template.key, ...(block && { block }) })}
-          />
+          <DocumentFieldsProvider value={documentFields}>
+            <TemplateEditor
+              key={template.key}
+              template={template}
+              onChange={(next) =>
+                save({
+                  templates: documents.templates.map((t) => (t.key === template.key ? next : t)),
+                })
+              }
+              onDelete={() => setDeleting(true)}
+              contents={contents}
+              productName={productName}
+              version={version.version}
+              readOnly={readOnly}
+              selected={search.block ?? template.blocks[0]?.id}
+              onSelect={(block) => go({ section, item: template.key, ...(block && { block }) })}
+            />
+          </DocumentFieldsProvider>
         ) : (
           <Card>
             <EmptyState
