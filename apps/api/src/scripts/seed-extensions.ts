@@ -1,11 +1,11 @@
-// Seeds a demo extension for Homeowners Coastal: roof and coast checks with a policy panel,
-// published with its tests, and bound to the product's open draft version if there is one.
-// Idempotent: an existing extension with the key is left alone.
+// Seeds a demo extension for the homeowners programs `seed:demo` creates: roof and coast checks
+// with a policy panel, published with its tests, and bound to every homeowners product's open
+// draft version. Idempotent: an existing extension with the key is left alone.
 import { asId, type TenantContext } from "@pas/kernel";
 import { compose } from "../composition";
 
 const TENANT_SLUG = "acme-mga";
-const PRODUCT_NAME = "Homeowners Coastal";
+const LINE_OF_BUSINESS = "Homeowners";
 const KEY = "roof-and-coast-checks";
 
 const CODE = `type Location = { roofAge?: number; distanceToCoast?: number };
@@ -133,38 +133,35 @@ async function seed(): Promise<string> {
 
   const { version } = await extensions.publish(ctx, { id: created.id, note: "Demo" });
 
-  const product = await prisma.product.findFirst({
-    where: { tenantId: tenant.id, name: PRODUCT_NAME },
+  const products = await prisma.product.findMany({
+    where: { tenantId: tenant.id, lineOfBusiness: LINE_OF_BUSINESS },
   });
 
-  const draft = product
-    ? await prisma.productVersion.findFirst({
-        where: { tenantId: tenant.id, productId: product.id, status: "DRAFT" },
-        orderBy: { createdAt: "desc" },
-      })
-    : null;
-
-  if (!draft) return `${KEY} v${version.version} published; no ${PRODUCT_NAME} draft to bind it to`;
-
-  const current = await uc.catalog.getVersion(ctx, { id: draft.id });
-
-  await uc.catalog.updateVersion(ctx, {
-    id: draft.id,
-    extensions: [
-      ...current.extensions,
-      { id: `${KEY}-validate`, point: "validate", extensionVersionId: version.id },
-      { id: `${KEY}-underwrite`, point: "underwrite", extensionVersionId: version.id },
-      {
-        id: `${KEY}-panel`,
-        point: "record_panel",
-        extensionVersionId: version.id,
-        record: "policy",
-        label: "Roof and coast",
-      },
-    ],
+  const drafts = await prisma.productVersion.findMany({
+    where: { tenantId: tenant.id, productId: { in: products.map((p) => p.id) }, status: "DRAFT" },
   });
 
-  return `${KEY} v${version.version} published and bound to ${PRODUCT_NAME} ${draft.version} (draft)`;
+  for (const draft of drafts) {
+    const current = await uc.catalog.getVersion(ctx, { id: draft.id });
+
+    await uc.catalog.updateVersion(ctx, {
+      id: draft.id,
+      extensions: [
+        ...current.extensions,
+        { id: `${KEY}-validate`, point: "validate", extensionVersionId: version.id },
+        { id: `${KEY}-underwrite`, point: "underwrite", extensionVersionId: version.id },
+        {
+          id: `${KEY}-panel`,
+          point: "record_panel",
+          extensionVersionId: version.id,
+          record: "policy",
+          label: "Roof and coast",
+        },
+      ],
+    });
+  }
+
+  return `${KEY} v${version.version} published; bound to ${drafts.length} homeowners draft version(s)`;
 }
 
 console.log(await seed());
