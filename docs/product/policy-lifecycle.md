@@ -20,6 +20,9 @@ _An endorsement preview: what changed, the prorated delta per coverage and tax, 
 ## What you can do
 
 - **Endorse** endorsable risk fields, coverages, limits and deductibles, the mailing address and additional interests, effective any date in the term.
+- **Add or remove locations and other repeatable rows** where the product allows it; premium stays with its location across changes.
+- **Endorse out of sequence** (opt-in per product): a back-dated change prices against the version in force on its date, and later endorsements are rerolled as new offsetting transactions. Conflicting changes to the same field show in the preview.
+- **Control what's endorsable** per field: always, never, or on a condition such as role, reason or an expression. Agents see locked fields read-only.
 - **See the premium change before issuing**, prorated from the effective date, with annual before-and-after figures.
 - **Route to underwriting** when referral rules fire on the changed risk.
 - **Cancel with the right date**: earliest valid date from notice rules, with a "Why this date?" explanation of notice days, mailing days, delivery method and recipients.

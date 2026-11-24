@@ -33,7 +33,8 @@ apps/{api,worker,admin,app}            composition roots + delivery (tRPC/REST r
 packages/kernel                        shared kernel
 packages/modules/<context>/src/
   domain/  application/  ports/  infrastructure/  public.ts  infrastructure.ts
-packages/engines/*                     (planned) expressions, forms-core, forms-react, decision-engine, rating-engine
+packages/engines/*                     pure engines: expressions, forms-core, forms-react, decisions, rating, documents, pay-plans, enrichment, addressing
+packages/workflows                     durable workflow engine (Postgres + pg-boss)
 packages/{db,queues,auth,api-client,ui,storage,observability}
 docs/                                  research and design notes
 ```
