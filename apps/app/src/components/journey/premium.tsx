@@ -11,16 +11,9 @@ import {
   type MoneyValue,
 } from "@/lib/format";
 import { amountLabel, type Quote } from "@/lib/quotes";
+import { useCarrierPhase } from "./carrier";
 
 const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 3 });
-
-/** The carrier prices this quote and hasn't answered yet. */
-export const crunching = (quote: Quote) =>
-  quote.carrier?.rating === "carrier" && quote.carrier.status === "pending_carrier";
-
-/** The carrier prices this quote and there's no price on it: still pricing, or it didn't quote. */
-export const unpriced = (quote: Quote) =>
-  quote.carrier?.rating === "carrier" && quote.carrier.status !== "quoted";
 
 const scramble = (currency: string): MoneyValue => ({
   amount: (1000 + Math.random() * 9000).toFixed(2),
@@ -47,9 +40,11 @@ function CrunchingMoney({ currency }: { currency: string }) {
 
 /** The term total: rolling digits while the carrier prices it, a dash if it never did. */
 export function TotalPrice({ quote }: { quote: Quote }) {
-  if (crunching(quote)) return <CrunchingMoney currency={quote.currency} />;
+  const { pricing, noPrice } = useCarrierPhase(quote);
 
-  if (unpriced(quote)) return <Dash />;
+  if (pricing) return <CrunchingMoney currency={quote.currency} />;
+
+  if (noPrice) return <Dash />;
 
   return formatMoney(quote.premium.total, { cents: true });
 }
@@ -63,7 +58,9 @@ function Price({
   value: MoneyValue;
   cents?: boolean;
 }) {
-  if (crunching(quote)) {
+  const { pricing, noPrice } = useCarrierPhase(quote);
+
+  if (pricing) {
     return (
       <span
         aria-hidden
@@ -72,7 +69,7 @@ function Price({
     );
   }
 
-  return unpriced(quote) ? <Dash /> : formatMoney(value, { cents });
+  return noPrice ? <Dash /> : formatMoney(value, { cents });
 }
 
 export function rateLabel(line: Quote["premium"]["taxesFees"][number]) {
@@ -208,7 +205,7 @@ export function PremiumSummary({
       <div className="grid gap-4 p-(--card-p)">
         <div className="grid gap-1">
           <p className="m-0 flex items-center gap-2 text-sm text-muted-foreground">
-            Total for the term {busy && !crunching(quote) && <Spinner className="size-3.5" />}
+            Total for the term {busy && <Spinner className="size-3.5" />}
           </p>
           <p
             className={cn(

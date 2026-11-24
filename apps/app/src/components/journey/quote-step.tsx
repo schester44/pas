@@ -5,11 +5,12 @@ import { ArrowRight } from "lucide-react";
 import { formatPlainDateRange } from "@/lib/format";
 import type { StepProps } from "./journey";
 import { PayPlanPicker } from "./pay-plans";
-import { crunching, PremiumBreakdown, TotalPrice, unpriced } from "./premium";
+import { awaitsCarrierPrice, useCarrierPhase } from "./carrier";
+import { PremiumBreakdown, TotalPrice } from "./premium";
 
 export function QuoteStep({ quote, submission, go }: StepProps) {
-  const pending = crunching(quote);
-  const blocked = unpriced(quote);
+  const pending = useCarrierPhase(quote).pricing;
+  const blocked = awaitsCarrierPrice(quote);
 
   return (
     <div className="grid gap-6">

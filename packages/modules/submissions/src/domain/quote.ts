@@ -579,6 +579,48 @@ export class Quote extends AggregateRoot {
     });
   }
 
+  /**
+   * Gives up on the carrier's current attempt and asks again. A stuck attempt is recorded as
+   * failed; its late answer no longer matches the flow run and is dropped.
+   */
+  retryCarrierQuote(clock: Clock): void {
+    this.guard("prepare", clock);
+    this.assertNotWithCarrier();
+    const carrier = this.requireCarrier();
+
+    if (carrier.status !== "pending_carrier" && carrier.status !== "failed") {
+      throw conflict(`${carrier.name} already answered this quote`, { reason: "carrier_answered" });
+    }
+
+    const now = clock.now();
+
+    if (carrier.status === "pending_carrier") {
+      this.log(
+        "carrier_failed",
+        now,
+        { type: "system", name: carrier.name },
+        `${carrier.name} didn't answer`,
+        {
+          flowRunId: carrier.flowRunId,
+        },
+      );
+    }
+
+    this.setCarrier(
+      {
+        ...carrier,
+        status: "pending_carrier",
+        attempt: (carrier.attempt ?? 1) + 1,
+        flowRunId: null,
+        reference: null,
+        messages: [],
+        price: null,
+        updatedAt: now.toString(),
+      },
+      now,
+    );
+  }
+
   /** A carrier-owned bind is with the carrier; nothing changes here until it answers. */
   submitToCarrier(
     state: Omit<CarrierBindState, "status" | "message" | "startedAt">,

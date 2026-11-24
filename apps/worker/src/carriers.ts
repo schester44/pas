@@ -261,7 +261,12 @@ export function composeWorkerCarriers(deps: {
 
     switch (subject.kind) {
       case "quote": {
-        const result = await applyQuote(ctx, { ...subject, outcome, error: run.error });
+        const result = await applyQuote(ctx, {
+          ...subject,
+          flowRunId: run.id,
+          outcome,
+          error: run.error,
+        });
 
         deps.logger.info(
           { quoteId: subject.quoteId, outcome: outcome.status, ...result },

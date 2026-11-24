@@ -40,6 +40,8 @@ export interface CarrierQuoteState {
   /** Whose premium, taxes and fees the quote carries once the carrier answers. */
   lineItems: "pas" | "carrier";
   status: "pending_carrier" | "quoted" | "referred" | "declined" | "failed";
+  /** Each retry opens a new carrier conversation for the same revision. */
+  attempt?: number;
   flowRunId: string | null;
   reference: string | null;
   messages: { code?: string; text: string }[];

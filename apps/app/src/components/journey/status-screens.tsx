@@ -9,7 +9,7 @@ import { formatDate, formatDateTime, formatMoney, formatPlainDate } from "@/lib/
 import type { Quote } from "@/lib/quotes";
 import { approvalChanges, UnderwriterMessages } from "@/components/underwriting";
 import type { StepProps } from "./journey";
-import { unpriced } from "./premium";
+import { awaitsCarrierPrice } from "./carrier";
 
 type ScreenProps = StepProps & { heading: React.ReactNode };
 
@@ -120,7 +120,7 @@ export function ReferredScreen({ quote, submission, heading }: ScreenProps) {
       <UnderwriterMessages submissionId={submission.id} />
       <Facts
         facts={[
-          ...(unpriced(quote)
+          ...(awaitsCarrierPrice(quote)
             ? []
             : [
                 ["Indicative total", formatMoney(quote.premium.total, { cents: true })] as [

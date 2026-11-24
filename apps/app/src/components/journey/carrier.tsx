@@ -1,27 +1,82 @@
+import { Button } from "@pas/ui/components/button";
 import { Card } from "@pas/ui/components/card";
 import { IconTile } from "@pas/ui/components/icon-tile";
 import { Notice } from "@pas/ui/components/notice";
 import { Spinner } from "@pas/ui/components/spinner";
-import { Landmark } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Landmark, RotateCw } from "lucide-react";
 import type * as React from "react";
+import { useEffect, useState } from "react";
 import type { Quote } from "@/lib/quotes";
+import { useTRPC } from "@/lib/trpc";
+
+// How long the agent watches a carrier price before we offer to ask again; carriers that answer
+// later still can, until the agent retries.
+const STALL_MS = 45_000;
 
 /** True while the carrier is quoting or binding, so the journey keeps polling. */
 export const withCarrier = (quote: Quote | null | undefined) =>
   quote?.carrier?.status === "pending_carrier" ||
   quote?.carrier?.bind?.status === "pending_carrier";
 
-/** Why the carrier didn't price the quote; while it's pricing, the figures show as crunching. */
+/** The carrier prices this quote and its price isn't on it (yet). */
+export const awaitsCarrierPrice = (quote: Quote) =>
+  quote.carrier?.rating === "carrier" && quote.carrier.status !== "quoted";
+
+/**
+ * `pricing` while the carrier works on a price we're waiting for; `stalled` once a pending
+ * carrier has gone quiet; `noPrice` when the figures are the carrier's and it has none to show.
+ */
+export function useCarrierPhase(quote: Quote) {
+  const pending = quote.carrier?.status === "pending_carrier";
+  const since = Date.parse(quote.carrier?.updatedAt ?? quote.updatedAt);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!pending) return;
+
+    const wait = since + STALL_MS - Date.now();
+
+    if (wait <= 0) return;
+
+    const timer = window.setTimeout(() => setNow(Date.now()), wait);
+
+    return () => window.clearTimeout(timer);
+  }, [pending, since]);
+
+  const stalled = pending && now - since >= STALL_MS;
+  const pricing = awaitsCarrierPrice(quote) && pending && !stalled;
+
+  return { pricing, stalled, noPrice: awaitsCarrierPrice(quote) && !pricing };
+}
+
+/** Why the carrier has no price on the quote, with a retry when it failed or went quiet. */
 export function CarrierQuote({ quote }: { quote: Quote }) {
   const carrier = quote.carrier;
+  const { stalled } = useCarrierPhase(quote);
 
-  if (!carrier || carrier.status === "pending_carrier" || carrier.status === "quoted") return null;
+  if (!carrier || carrier.status === "quoted") return null;
+
+  if (stalled) {
+    return (
+      <Notice
+        tone="warning"
+        title={`${carrier.name} hasn't answered`}
+        action={<RetryCarrier quote={quote} />}
+      >
+        The carrier is taking longer than usual. Ask again, or wait for it to answer.
+      </Notice>
+    );
+  }
+
+  if (carrier.status === "pending_carrier") return null;
 
   const text = carrier.messages.map((m) => m.text).join(" ");
+  const failed = carrier.status === "failed";
 
   return (
     <Notice
-      tone={carrier.status === "failed" ? "error" : "warning"}
+      tone={failed ? "error" : "warning"}
       title={
         carrier.status === "referred"
           ? `${carrier.name} referred this quote`
@@ -29,9 +84,34 @@ export function CarrierQuote({ quote }: { quote: Quote }) {
             ? `${carrier.name} declined this quote`
             : `${carrier.name} couldn't quote`
       }
+      {...(failed && { action: <RetryCarrier quote={quote} /> })}
     >
-      {text || "Requote to try again, or contact the carrier."}
+      {text || (failed ? "Ask the carrier again." : "Contact the carrier.")}
     </Notice>
+  );
+}
+
+function RetryCarrier({ quote }: { quote: Quote }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const key = trpc.quotes.get.queryKey({ submissionId: quote.submissionId });
+
+  const retry = useMutation(
+    trpc.quotes.retryCarrier.mutationOptions({
+      onSuccess: (updated) => queryClient.setQueryData(key, updated),
+    }),
+  );
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={retry.isPending}
+      onClick={() => retry.mutate({ submissionId: quote.submissionId })}
+    >
+      {retry.isPending ? <Spinner className="size-3.5" /> : <RotateCw />}
+      Retry
+    </Button>
   );
 }
 

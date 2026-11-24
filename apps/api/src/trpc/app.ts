@@ -192,6 +192,11 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         ctx.container.useCases.quotes.customize(ctx.tenant, ctx.scope, input),
       ),
+    retryCarrier: inBook({ quote: ["read"], submission: ["update"] })
+      .input(bySubmission)
+      .mutation(({ ctx, input }) =>
+        ctx.container.useCases.quotes.retryCarrier(ctx.tenant, ctx.scope, input),
+      ),
     choosePayPlan: inBook({ quote: ["bind"] })
       .input(choosePayPlanInput)
       .mutation(({ ctx, input }) =>

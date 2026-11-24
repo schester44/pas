@@ -113,4 +113,29 @@ describe("carrier quotes", () => {
     expect(q.referral?.reasons.map((r) => r.reasonCode)).toEqual(["carrier_premium_mismatch"]);
     expect(quote.pullEvents().map((e) => e.type)).toContain("submissions.quote_referred");
   });
+
+  it("retries a carrier that went quiet as a new attempt, and refuses once it answered", () => {
+    const pending = pendingCarrierQuote({
+      carrier: "acme",
+      rating: "carrier",
+      lineItems: "carrier",
+    });
+
+    const quote = quoteAwaiting({ ...pending, flowRunId: "run-1" });
+
+    quote.pullActivity();
+    quote.retryCarrierQuote(clock);
+
+    expect(quote.carrier).toMatchObject({ status: "pending_carrier", attempt: 2, flowRunId: null });
+    expect(quote.pullActivity().map((a) => a.type)).toEqual(["carrier_failed"]);
+
+    quote.applyCarrierQuote(
+      answered,
+      evaluation({ ...pending, status: "quoted", price }, "1200.00"),
+      reviewWithin,
+      clock,
+    );
+
+    expect(() => quote.retryCarrierQuote(clock)).toThrow("already answered");
+  });
 });

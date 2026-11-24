@@ -105,6 +105,7 @@ export type { CarrierQuoteState } from "./domain/carrier-quote";
 export {
   makeApplyCarrierQuote,
   makeRequestCarrierQuote,
+  makeRetryCarrierQuote,
   type CarrierQuotingDeps,
 } from "./application/carrier-quoting";
 export {

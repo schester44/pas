@@ -10,6 +10,7 @@ import {
 import type { CarrierPrice, CarrierQuoteResult, CarrierQuoteState } from "../domain/carrier-quote";
 import type { Quote } from "../domain/quote";
 import type { QuoteEvaluation } from "../domain/quote-evaluation";
+import type { SubmissionScope } from "../domain/scope";
 import type { Submission } from "../domain/submission";
 import type { UnderwritingReason } from "../domain/underwriting";
 import type { CarrierGateway } from "../ports/carrier-gateway";
@@ -19,7 +20,8 @@ import type { SubmissionRepository } from "../ports/submission-repository";
 import { carrierInputFor } from "./carrier-input";
 import { type EvaluationDeps, evaluateQuote } from "./evaluate-quote";
 import { JOURNEY_EVENTS, type QuoteJourney } from "./quote-journey";
-import { termOf } from "./quoting";
+import { type QuoteDto, toQuoteDto } from "./quote-dto";
+import { loadQuote, termOf } from "./quoting";
 
 export interface CarrierQuotingDeps {
   uow: UnitOfWork;
@@ -63,6 +65,8 @@ export function makeRequestCarrierQuote(deps: CarrierQuotingDeps) {
 
     if (!loaded || loaded.current.toSnapshot().revision !== q.revision) return;
 
+    const attempt = carrier.attempt ?? 1;
+
     const [release, productName, name] = await Promise.all([
       deps.catalog.getRelease(ctx, q.productReleaseId),
       deps.catalog.productName(ctx, loaded.submission.toSnapshot().productId),
@@ -88,7 +92,7 @@ export function makeRequestCarrierQuote(deps: CarrierQuotingDeps) {
           release,
           productName,
         }),
-        idempotencyKey: `quote:${q.id}:r${q.revision}`,
+        idempotencyKey: `quote:${q.id}:r${q.revision}${attempt > 1 ? `:a${attempt}` : ""}`,
       });
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
@@ -100,7 +104,15 @@ export function makeRequestCarrierQuote(deps: CarrierQuotingDeps) {
       const current = await deps.quotes.findById(tx, ctx, q.id);
       const clock = deps.clocks.forTenant(ctx.tenantId);
 
-      if (!current || current.toSnapshot().revision !== q.revision) return;
+      const latest = current?.carrier;
+
+      if (
+        !current ||
+        current.toSnapshot().revision !== q.revision ||
+        latest?.flowRunId ||
+        (latest?.attempt ?? 1) !== attempt
+      )
+        return;
 
       if ("flowRunId" in started) {
         current.carrierRequested({ name, flowRunId: started.flowRunId }, clock);
@@ -228,13 +240,25 @@ export function makeApplyCarrierQuote(
 ) {
   return async function applyCarrierQuote(
     ctx: TenantContext,
-    input: { quoteId: string; revision: number; outcome: CarrierOutcome; error: string | null },
+    input: {
+      quoteId: string;
+      revision: number;
+      flowRunId: string;
+      outcome: CarrierOutcome;
+      error: string | null;
+    },
   ): Promise<{ applied: boolean }> {
     const loaded = await deps.uow.run(ctx, async (tx) => {
       const quote = await deps.quotes.findById(tx, ctx, asId(input.quoteId));
       const q = quote?.toSnapshot();
 
-      if (!quote || !q || q.revision !== input.revision || !q.evaluation.carrier) return null;
+      if (
+        !quote ||
+        !q ||
+        q.revision !== input.revision ||
+        q.evaluation.carrier?.flowRunId !== input.flowRunId
+      )
+        return null;
 
       const submission = await deps.submissions.findById(
         tx,
@@ -243,7 +267,7 @@ export function makeApplyCarrierQuote(
         q.submissionId,
       );
 
-      return submission && { quote, submission, carrier: q.evaluation.carrier };
+      return submission && { quote, submission, carrier: q.evaluation.carrier! };
     });
 
     if (!loaded) return { applied: false };
@@ -264,7 +288,14 @@ export function makeApplyCarrierQuote(
     const saved = await deps.uow.run(ctx, async (tx) => {
       const current = await deps.quotes.findById(tx, ctx, asId(input.quoteId));
 
-      if (!current || current.toSnapshot().revision !== input.revision) return null;
+      const latest = current?.toSnapshot();
+
+      if (
+        !current ||
+        latest?.revision !== input.revision ||
+        latest.evaluation.carrier?.flowRunId !== input.flowRunId
+      )
+        return null;
 
       current.applyCarrierQuote(
         result,
@@ -286,3 +317,33 @@ export function makeApplyCarrierQuote(
     return { applied: saved !== null };
   };
 }
+
+/** Asks the carrier again when its quote failed or never came back (PLAN §12). */
+export function makeRetryCarrierQuote(deps: {
+  uow: UnitOfWork;
+  quotes: QuoteRepository;
+  submissions: SubmissionRepository;
+  journey: QuoteJourney;
+  clocks: ClockProvider;
+}) {
+  return async function retryCarrierQuote(
+    ctx: TenantContext,
+    scope: SubmissionScope,
+    input: { submissionId: string },
+  ): Promise<QuoteDto> {
+    const { submission, quote } = await deps.uow.run(ctx, async (tx) => {
+      const current = await loadQuote(deps, tx, ctx, scope, input.submissionId);
+
+      current.quote.retryCarrierQuote(deps.clocks.forTenant(ctx.tenantId));
+      await deps.quotes.save(tx, current.quote);
+
+      return current;
+    });
+
+    await deps.journey.signal(ctx, quote, JOURNEY_EVENTS.changed, { carrier: "retry" });
+
+    return toQuoteDto(quote, submission, "producer");
+  };
+}
+
+export type RetryCarrierQuote = ReturnType<typeof makeRetryCarrierQuote>;

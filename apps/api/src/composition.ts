@@ -190,6 +190,7 @@ import {
   makeCheckSubmissionClearance,
   makeChoosePayPlan,
   makeCustomizeQuote,
+  makeRetryCarrierQuote,
   makeDecideReferral,
   makeGetQuote,
   makePreviewReferralApproval,
@@ -1115,6 +1116,7 @@ export function compose() {
       quotes: {
         get: getQuote,
         customize: makeCustomizeQuote({ ...quoting, ...evaluation }),
+        retryCarrier: makeRetryCarrierQuote(quoting),
         saveDetails: makeSaveBindDetails({
           uow,
           submissions,
